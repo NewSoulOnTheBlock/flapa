@@ -2,6 +2,12 @@
   "name": "fomo",
   "version": "0.2.1",
   "description": "fomo.family for the agent: 28 read-only fomo-mcp tools, a live leaderboard tab, /fomo post, and an optional once-a-day top-3 post.",
+  "author": {
+    "name": "NewSoulOnTheBlock"
+  },
+  "homepage": "https://github.com/NewSoulOnTheBlock/personal-agentic-core",
+  "repository": "https://github.com/NewSoulOnTheBlock/personal-agentic-core",
+  "license": "MIT",
   "types": "./types/index.d.ts",
   "dependencies": [
     "persona-core",

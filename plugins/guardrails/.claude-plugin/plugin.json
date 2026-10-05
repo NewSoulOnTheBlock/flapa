@@ -2,6 +2,12 @@
   "name": "guardrails",
   "version": "0.1.0",
   "description": "Compliance screen and kill switch: every public post is checked by fixed rules and a model review before it goes out; /agent pause stops everything the agent does on her own; an audit log of every attempt.",
+  "author": {
+    "name": "NewSoulOnTheBlock"
+  },
+  "homepage": "https://github.com/NewSoulOnTheBlock/personal-agentic-core",
+  "repository": "https://github.com/NewSoulOnTheBlock/personal-agentic-core",
+  "license": "MIT",
   "types": "./types/index.d.ts",
   "dependencies": [
     "persona-core"

@@ -2,6 +2,12 @@
   "name": "heartbeat",
   "version": "0.2.1",
   "description": "Hourly heartbeat: goals from the To-do pane, then plan, steps, done, next, and do the next step.",
+  "author": {
+    "name": "NewSoulOnTheBlock"
+  },
+  "homepage": "https://github.com/NewSoulOnTheBlock/personal-agentic-core",
+  "repository": "https://github.com/NewSoulOnTheBlock/personal-agentic-core",
+  "license": "MIT",
   "dependencies": [
     "todo-pane",
     "guardrails"
