@@ -1,6 +1,6 @@
 {
   "name": "todo-pane",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "A docked to-do list pane: add items from an input, press one to strike it through.",
   "author": {
     "name": "NewSoulOnTheBlock"

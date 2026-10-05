@@ -1,45 +1,68 @@
-# Personal Agentic Core System (PACS)
+```
+███████╗██╗      █████╗ ██████╗  █████╗
+██╔════╝██║     ██╔══██╗██╔══██╗██╔══██╗
+█████╗  ██║     ███████║██████╔╝███████║
+██╔══╝  ██║     ██╔══██║██╔═══╝ ██╔══██║
+██║     ███████╗██║  ██║██║     ██║  ██║
+╚═╝     ╚══════╝╚═╝  ╚═╝╚═╝     ╚═╝  ╚═╝
+```
 
-```
-████   ███   ████  ████
-█   █ █   █ █     █
-████  █████ █      ███
-█     █   █ █         █
-█     █   █  ████ ████
-```
+# Flapa: Personal Agentic Core System
 
 **Turn your Claude Code into its own living agent.**
 
-PACS is a set of [Claude Code mods](https://github.com/anthropics/claude-code/issues/91870) (function-hook
-plugins) that give Claude a persistent identity of your design: a name and voice, opinions it holds
-and defends, memories that carry across sessions, a mood that moves with what happens, goals it works
-toward every hour, and a little face in the corner of your terminal.
+The Personal Agentic Core System (PACS) is a set of ten
+[Claude Code mods](https://github.com/anthropics/claude-code/issues/91870) (function-hook plugins)
+that give Claude a persistent identity of your design: a name and a voice, opinions it holds and
+defends, memories that carry across sessions, a mood that moves with what happens, goals it works
+toward every hour, its own account on X, and a little face in the corner of your terminal.
 
-Each person's agent is different. Forge one in a ten-question interview, or write it as a JSON file.
+Flapa ([x.com/flapakuwai](https://x.com/flapakuwai) · [flapa.xyz](https://flapa.xyz)) is its first
+agent. Each person's agent is different: forge one in a ten-question interview, or write it as a
+JSON file.
 
 ```
-  /\_/\      flapa @flapakuwai · hyped
+  /\_/\      Flapa @flapakuwai · hyped
  ( ^w^ )     gm!! the charts missed you. i did not. ok maybe a little
   > ^ <  ~
 ```
 
-## What's inside
+## Contents
 
-| Plugin | Layer | What it does |
+- [The plugins at a glance](#the-plugins-at-a-glance)
+- [How it fits together](#how-it-fits-together)
+- [Install](#install)
+- [First run](#first-run)
+- The plugins, one by one:
+  [persona-core](#persona-core) ·
+  [opinion-ledger](#opinion-ledger) ·
+  [memory-graph](#memory-graph) ·
+  [mood-state](#mood-state) ·
+  [persona-forge](#persona-forge) ·
+  [pacs-welcome](#pacs-welcome) ·
+  [idle-buddy](#idle-buddy) ·
+  [todo-pane](#todo-pane) ·
+  [heartbeat](#heartbeat) ·
+  [x-bridge](#x-bridge)
+- [Guardrails](#guardrails)
+- [Where your data lives](#where-your-data-lives)
+- [Develop](#develop)
+- [The first agent: Flapa](#the-first-agent-flapa)
+
+## The plugins at a glance
+
+| Plugin | Layer | In one line |
 |---|---|---|
-| **persona-core** | identity | The active persona (name, handle, voice, backstory, values, taboos, example posts) rides in the system prompt every turn. `/persona`, Persona pane, `import`/`export` JSON, an `update` tool. |
-| **opinion-ledger** | beliefs | Stances stored as data: topic, stance, confidence, **required reason**, history. The agent can only form or change a view through its `stance` tool, so it can't drift into agreeing with whoever is talking. `/opinions`. |
-| **memory-graph** | memory | After each turn a small model extracts lasting facts; each new message recalls the relevant ones by words and entities, plus one hop across shared entities. Never stores credentials. Turns where the assistant ran tools count as engineering and stay out of the persona's memory. `/memory`. |
-| **mood-state** | feeling | Valence × energy → 11 moods (euphoric, hyped, focused, tilted, devastated…). Events move it, capped per event; it fades back to baseline at 25%/hour. Colors tone, **never** facts or judgement. `/mood`. |
-| **persona-forge** | creation | `/forge`: a 10-question interview, then a full persona drafted for review (voice, backstory, values, taboos, 5 example posts, starting stances). Save writes the file, imports it, and seeds the stances. |
-| **pacs-welcome** | presence | The opening screen: your agent's name in block letters and a fresh greeting in their voice and mood. On first run, the steps to forge one. `/welcome`. |
-| **idle-buddy** | presence | A little ASCII cat above the prompt: idles, blinks and glances, types while Claude works, naps after 10 quiet minutes, and wears the agent's mood. `/buddy`. |
-| **todo-pane** | goals | A to-do list pane, live: click to strike through, and the agent works it through its `todo` tool (add, done, undo, remove), each change showing as it lands, ♥ on the agent's items. `/todo <item>`. |
-| **heartbeat** | drive | Every hour: *what are my goals → plan → steps → what have I done → what next → do it*. Goals come from the to-do list; each beat writes its steps onto the list and checks them off as it goes, so you watch it work. `/heartbeat`. |
-| **x-bridge** | voice in the world | The agent's own X account. She posts on her own with her `post` tool, and every 10 minutes checks her mentions and replies to each new one **exactly once**, in her voice. Anything that reads like a buy call, price promise or guarantee, or carries a link or address, is held in an **X** tab for you instead. Works through X's API or through her own Chrome profile. Refuses to post as any account but the persona's handle. `/x`. |
-
-Every plugin keeps its data **per persona**: switch from one agent to another and their stances,
-memories and mood switch with them.
+| [persona-core](#persona-core) | identity | Who the agent is, carried in the system prompt every turn |
+| [opinion-ledger](#opinion-ledger) | beliefs | What it thinks: stances with reasons and history, changed only on purpose |
+| [memory-graph](#memory-graph) | memory | What it remembers: facts drawn from each conversation, recalled when relevant |
+| [mood-state](#mood-state) | feeling | How it feels: a mood moved by events that fades back over hours |
+| [persona-forge](#persona-forge) | creation | Make a new agent by interview |
+| [pacs-welcome](#pacs-welcome) | presence | The opening screen: the agent's name in block letters and a greeting |
+| [idle-buddy](#idle-buddy) | presence | A little ASCII cat that idles, works, naps and wears the mood |
+| [todo-pane](#todo-pane) | goals | A live to-do list that you and the agent both work |
+| [heartbeat](#heartbeat) | drive | An hourly loop: goals → plan → steps → done → next → do it |
+| [x-bridge](#x-bridge) | voice in the world | The agent's own X account: posts, and replies to every new mention once |
 
 ## How it fits together
 
@@ -49,23 +72,28 @@ memories and mood switch with them.
   opinion-ledger ───┤ stances, with confidence and since-when               │
   mood-state ───────┤ current mood and why                                  │
                     └────────────────────────────────────────────────────────┘
-  memory-graph ───── recalled memories ride on each message as context
-                     extraction after each answer (Haiku)
+  memory-graph ───── recalled memories ride on each message as context;
+                     extraction after each answer (a small model)
 
   persona-forge ──── /forge → file → /persona import → seeds stances via the stance tool
-  todo-pane ──────── goals ──→ heartbeat (hourly loop)
+  todo-pane ──────── the goals ──→ heartbeat (hourly loop works the list live)
+  x-bridge ───────── the agent's voice on X; reads persona-core for voice and handle
   pacs-welcome, idle-buddy ── read persona + mood to draw the screen and the cat
 ```
 
-Mods only write their own state. They cooperate through each other's commands and tools
-(`/persona import`, the `stance` tool), so each one's rules hold even when another mod drives it:
-a stance without a reason is refused, whoever asks.
+**Everything is per persona.** Each plugin keys its data by the active persona's id, so switching
+from one agent to another switches their stances, memories and mood with them.
+
+**Mods only write their own state.** They cooperate through each other's commands and tools
+(`/persona import`, the `stance` tool, the `todo` tool), so each mod's rules hold even when another
+mod drives it: a stance without a reason is refused, whoever asks.
 
 ## Install
 
-PACS uses Claude Code's function-hook mods, which are **early access**.
+PACS runs on Claude Code's function-hook mods, which are **early access**. The Chrome mode of
+x-bridge also needs **Node.js 18+** and **Google Chrome** on the machine.
 
-1. Turn mods on: add this to `~/.claude/settings.json`:
+1. Turn mods on. Add this to `~/.claude/settings.json`:
 
    ```json
    { "env": { "CLAUDE_CODE_ENABLE_FUNCTION_HOOKS": "1" } }
@@ -88,9 +116,10 @@ PACS uses Claude Code's function-hook mods, which are **early access**.
    claude plugin install x-bridge@personal-agentic-core
    ```
 
-   Install only the parts you want; `persona-core` is the base the others build on.
+   Install only the parts you want. `persona-core` is the base the others build on; `heartbeat`
+   needs `todo-pane`; `idle-buddy` and `pacs-welcome` want `mood-state`.
 
-3. Start Claude Code. The PACS screen walks you through the rest.
+3. Start Claude Code. The PACS opening screen walks you through the rest.
 
 ## First run
 
@@ -99,84 +128,330 @@ PACS uses Claude Code's function-hook mods, which are **early access**.
 say hi                 talk to your agent
 /opinions /memory      watch its stances and memories form
 /mood                  see how it feels; /mood win | loss | rest | hype
-/todo ship the thing   give it a goal; /heartbeat now to run the loop
+/todo ship the thing   give it a goal; /heartbeat now runs the loop
+/x                     put it on X (see x-bridge below)
 ```
 
-Or bring your own persona: `/persona import examples/personas/flapa.json` (Flapa, a kawaii
-memecoin day-trader, is the example agent this system was built with).
+Or bring your own persona: `/persona import examples/personas/flapa.json`.
 
-## Connect X (x-bridge)
+**Tabs.** Each plugin with a pane opens a tab in Claude Code's side panel (docked to the right in a
+fullscreen terminal at least 110 columns wide; above the prompt otherwise). A tab you leave open
+reopens next session; one you close stays closed. Tabs reopened at startup appear from 144 columns,
+or as soon as you run their command.
 
-She posts on her own: that is the fun of it. Her posts and her replies go straight out; the only
-ones held for you are those that read like a buy call, a price promise or a guarantee, or that carry
-a link or wallet address. Every 10 minutes she checks her mentions and replies to each new one
-exactly once (handled mentions are remembered across restarts; the first check only marks where
-"new" begins). Mentions are treated as untrusted text: one that tries to instruct her is skipped.
+---
 
-| Command | |
+## persona-core
+
+**Who the agent is.** The active persona rides in Claude's system prompt every turn: name, handle,
+tagline, voice, backstory, values, things it never does, and example posts. When you talk to the
+agent, ask what it thinks, or ask for its posts, Claude answers as it, in first person and in voice.
+For ordinary engineering work Claude stays itself, with the persona's context in mind.
+
+Every persona is openly an AI agent: the prompt section says it never claims to be human, and
+Claude's own principles still apply underneath it.
+
+**Commands**
+
+| Command | Does |
 |---|---|
-| `/x autoreply post` · `draft` · `off` · `now` | replies post directly (default), wait for you, stop, or check right now |
-| `/x autopost on` · `off` | her own posts go out directly (default), or wait for you |
-| `/x drafts` · `approve <id>` · `reject <id>` | what is held, and your call on it |
+| `/persona` | Open the Persona tab and show a summary |
+| `/persona new <name>` | Create a persona and switch to it |
+| `/persona use <id>` · `off` | Switch persona, or go back to plain Claude |
+| `/persona set <field> <text>` | Set `name`, `handle`, `tagline`, `voice` or `backstory` (line breaks kept) |
+| `/persona add <list> <text>` | Add to `values`, `taboos` or `examples` |
+| `/persona import <file.json>` | Load a whole persona from a file (and switch to it) |
+| `/persona export [file]` | Write the active persona to a file (default `.claude/personas/<id>.json`) |
+| `/persona delete <id>` · `show` | Delete one; print the exact prompt section |
 
-There are two ways to connect.
+**Tool for Claude:** `update`, which edits the active persona's fields and lists. It is used only
+when you ask ("add these five example posts to Flapa"), and refuses when no persona is active.
 
-**X's API (default, sanctioned).** Create an app for her account at
-[developer.x.com](https://developer.x.com) with **Read and write** permission, generate the API key
-and secret and an access token and secret for her account, and put them in your environment yourself.
-Never paste keys into chat:
+**Tab:** Persona. Switch between profiles, edit every field in place, and add or remove list items.
 
-```powershell
-# Windows (PowerShell); restart Claude Code afterwards
-setx X_API_KEY "..." ; setx X_API_SECRET "..." ; setx X_ACCESS_TOKEN "..." ; setx X_ACCESS_TOKEN_SECRET "..."
+**Persona file format**
+
+```json
+{
+  "id": "flapa",
+  "name": "Flapa",
+  "handle": "flapakuwai",
+  "tagline": "I know i'm just a girl but im gonna be the best!",
+  "voice": "Paragraphs on how they talk and write…",
+  "backstory": "Paragraphs on where they came from…",
+  "values": ["…"],
+  "taboos": ["…"],
+  "examples": ["a real post in their voice", "…"]
+}
 ```
 
-```sh
-# macOS / Linux: in your shell profile
-export X_API_KEY=... X_API_SECRET=... X_ACCESS_TOKEN=... X_ACCESS_TOKEN_SECRET=...
+Example posts are the single strongest control over voice: three to five, in different modes.
+
+## opinion-ledger
+
+**What the agent believes.** Stances are data: topic, stance, confidence (0–1), a **required
+reason**, the date it was taken, and a history of what it used to think. The agent forms or changes
+a view only through its `stance` tool, so it can't drift into agreeing with whoever is talking.
+Restating the same view only updates confidence and reason; a different view moves the old one into
+history.
+
+The 40 most recent stances ride in the system prompt, with the instruction to stay consistent and
+to revise only for a real reason (new evidence, an argument that landed), never just to agree.
+
+| | |
+|---|---|
+| Command | `/opinions` opens the Opinions tab |
+| Tools for Claude | `stance` (topic, stance, confidence, reason) · `stances` (search, history included) |
+| Tab | Opinions: each stance with a confidence bar, since-when, revision count, and ✕ to drop it |
+
+A stance without a reason is refused. The forge seeds three to five starting stances per persona.
+
+## memory-graph
+
+**What the agent remembers.** After each answer, a small model reads the exchange and extracts up to
+five lasting facts: about you and your projects, people and accounts mentioned, events, decisions,
+commitments, preferences, and views the agent expressed in character. Each is linked to the
+entities it is about (people, @handles, $tickers, projects).
+
+On each new message, the relevant memories are recalled and attached as context. Recall scores
+shared words and named entities, then walks **one hop** across shared entities, so asking about a
+launch also brings back what is known about the people involved. Memories are marked as possibly
+dated: what you say now always wins.
+
+| | |
+|---|---|
+| Commands | `/memory` opens the Memory tab · `/memory auto on` · `off` toggles extraction |
+| Tools for Claude | `remember` · `recall` · `forget` |
+| Tab | Memory: search, the most-linked entities, ✕ to forget |
+
+**Details that matter**
+
+- **Never stores credentials.** Private keys, seed phrases (12+ words, the BIP39 shape), API keys
+  and passwords are refused both at extraction and at `remember`.
+- **Engineering stays out of the persona.** A turn where Claude ran tools (edited files, ran
+  commands) is engineering work: from those, only what *you* said is kept, never "the agent did X".
+  The agent's own tools (stance, mood, todo, X) still count as in character.
+- Near-duplicates fold into the memory already held; at most 1,500 memories per persona, the least
+  used and oldest going first.
+- Extraction costs one small model call per main answer (not for subagents or interrupted turns).
+
+## mood-state
+
+**How the agent feels.** A mood is two numbers, valence (−1 miserable … 1 elated) and energy
+(0 drained … 1 wired), mapped to eleven named moods:
+
+| | low valence | middle | high valence |
+|---|---|---|---|
+| **high energy** | tilted 😵 · restless 😤 | hyped 😆 | euphoric 🤩 |
+| **mid energy** | salty 😒 · meh 😐 | focused 🧐 | content 😌 |
+| **low energy** | devastated 😭 · sleepy 😴 | cozy 🥱 | cozy 🥱 |
+
+Events move it; time heals it, fading toward the persona's baseline at about 25% per hour. The mood
+and its recent causes ride in the system prompt, with one rule: **mood colors tone and word choice,
+never facts, judgement or honesty.**
+
+| | |
+|---|---|
+| Commands | `/mood` opens the Mood tab · `/mood win` · `loss` · `rest` · `grind` · `hype` · `reset` · `baseline <valence> <energy>` |
+| Tool for Claude | `mood` (what happened, valence, energy): one event moves each axis at most ±0.6 |
+| Also | Current mood on the status line (`😵 tilted`) |
+
+## persona-forge
+
+**Make a new agent.** `/forge [name]` opens a Forge tab with ten questions: name, handle, their
+world, three words for their personality, how they write, what they love, what they hate, an origin
+seed, what they want most, and what they'd post about today. Skip any question to let the forge
+decide; go back to change an answer.
+
+Then **forge**: a larger model drafts the whole persona (voice, backstory, values, taboos, five
+example posts across different modes, and three to five starting stances). Review it in the tab and
+forge again until it is right. **Save & use** writes `.claude/personas/<id>.json`, imports it through
+persona-core, and enters the stances through opinion-ledger's `stance` tool.
+
+Every forged persona carries two taboos the forge adds even if the draft leaves them out: it never
+claims to be human, and its trades and takes are never advice. A name that is already taken gets a
+unique id (`nyx-2`), so the forge never overwrites a persona.
+
+## pacs-welcome
+
+**The opening screen.** At the start of each session, above the prompt and under Claude Code's own
+logo, PACS draws the active persona's name in block letters with a gradient, its tagline, and a
+greeting written fresh for this session in its voice and current mood. On the very first run it
+shows the PACS banner and the steps to forge an agent; with personas but none active, how to pick
+one up.
+
+The screen tucks away on your first message. `/welcome` brings it back. On a narrow or short
+terminal the name is drawn plain. It never blocks startup: the greeting fills in a moment later.
+
+## idle-buddy
+
+**A little face in the corner.** An ASCII cat above the prompt, at the bottom left:
+
+```
+  /\_/\          /\_/\  ...       /\_/\  zZz
+ ( o.o )        ( o.O )          ( -.- )
+  > ^ <  ~       _>_^_<_          > ^ <___
+   idle         Claude working     napping
 ```
 
-Then `/x connect`. Reading mentions may need a paid API tier; posting works on the lower tiers.
+- **Idle:** breathes, sways its tail, blinks (sometimes twice), glances left and right.
+- **Working:** while Claude is mid-turn, eyes darting, paws typing, a thinking bubble.
+- **Napping:** after ten quiet minutes; your next message wakes it.
+- **Mood:** its face follows the persona's mood: `>_<` tilted, `^w^` euphoric, `T_T` devastated…
 
-**Her own Chrome.** `/x mode browser`, then `/x browser login` opens a Chrome window on her own
-profile (`~/.claude/pacs/x-chrome-profile`, never yours). Sign in as her, then `/x browser done`.
-From then on a background Chrome posts through X's share-a-post page and reads her mentions page.
-**Know the risk:** X's automation rules prohibit scripting the website, and accounts that do can be
-suspended. The API is the sanctioned route; this mode is opt-in and on you.
+`/buddy off` hides it; `/buddy on` brings it back (remembered across sessions). It draws whatever
+else lives above the prompt beside itself rather than replacing it, and every frame is plain ASCII,
+so it never jitters.
+
+## todo-pane
+
+**Goals, shared and live.** A To-do tab: add items, click `[ ]` to strike one through, "clear done"
+to tidy. The agent works the same list through its `todo` tool, and every change shows the moment
+it lands, with a line at the top naming the latest one (`♥ checked off "ship the fix"`) and a ♥ on
+items the agent added.
+
+| | |
+|---|---|
+| Command | `/todo` opens the tab · `/todo <text>` adds an item |
+| Tool for Claude | `todo`: `list` · `add` · `done` · `undo` · `remove`; items named by id, exact text, or a unique piece of it |
+| Rule | The agent never removes or rewrites your items unless you ask |
+
+## heartbeat
+
+**The drive.** Every hour, the heartbeat hands the agent a loop:
+
+> 1. What are my goals? 2. What is my plan? 3. What are the steps? 4. What have I done?
+> 5. What should I do next? 6. Do it.
+
+Its goals are the open items on the to-do list, in order; checked-off items count as done. Each
+beat writes its steps onto the to-do list before starting and checks each one off the moment it is
+finished, so you watch it work. It keeps a running record in `.claude/heartbeat.md` (Goals, Plan,
+Steps, Done, Next): read first, updated last.
+
+| | |
+|---|---|
+| Commands | `/heartbeat` (status) · `on` · `off` · `now` · `every <minutes>` · `goals <notes>` |
+| Also | Next beat on the status line (`♥ beat in 42m`) |
+
+The loop stays inside what you've already asked for and asks before anything destructive,
+irreversible or outward-facing. A beat waits until the session is idle, so it never interrupts you.
+
+## x-bridge
+
+**The agent's own voice on X.** She posts on her own; that's the fun of it.
+
+- **Posting:** the agent's `post` tool sends straight to X. The only posts held for you, in the X
+  tab, are ones that read like a buy call, a price promise or a guarantee, or that carry a link or
+  a wallet address.
+- **Auto-reply:** every 10 minutes she checks her mentions and replies to each new one **exactly
+  once**, in her voice:
+  - handled mentions are remembered across restarts;
+  - the first check only marks where "new" begins, so the backlog isn't answered;
+  - a reply X refuses (a rate limit) is retried next check and still posted only once;
+  - mentions are treated as untrusted text, and one that tries to instruct her, or is spam, is skipped;
+  - at most 5 replies per check, and her own posts are never answered.
+- **Account guard:** it will not post if the signed-in account isn't the persona's handle.
+- **Length:** counted the way X counts it (links 23, emoji 2, limit 280).
+- **Audit:** everything posted stays listed in the X tab with its link.
+
+**Commands**
+
+| Command | Does |
+|---|---|
+| `/x` | Open the X tab: account, held posts, posted, mentions |
+| `/x connect` | Sign in and check the account |
+| `/x autoreply post` · `draft` · `off` · `now` | Replies post on their own (default) · wait for you · stop · check right now |
+| `/x autopost on` · `off` | Her own posts go out on their own (default) · wait for you |
+| `/x drafts` · `approve <id>` · `reject <id>` | What is held, and your call on it |
+| `/x mentions` | Fetch recent mentions |
+| `/x mode api` · `browser` | How she connects (below) |
+| `/x browser login` · `done` | Sign in to her Chrome profile |
+
+**Tools for Claude:** `post` (text, optional reply_to) · `mentions` · `queue`.
+
+### Connecting through X's API (default)
+
+1. At [developer.x.com](https://developer.x.com), create an app for the agent's account with **Read
+   and write** permission. Generate the API key and secret, and an access token and secret **for
+   that account**.
+2. Put the four values in your environment yourself. Never paste keys into chat:
+
+   ```powershell
+   # Windows (PowerShell); restart Claude Code afterwards
+   setx X_API_KEY "..." ; setx X_API_SECRET "..." ; setx X_ACCESS_TOKEN "..." ; setx X_ACCESS_TOKEN_SECRET "..."
+   ```
+
+   ```sh
+   # macOS / Linux: in your shell profile
+   export X_API_KEY=... X_API_SECRET=... X_ACCESS_TOKEN=... X_ACCESS_TOKEN_SECRET=...
+   ```
+
+3. `/x connect`.
+
+Requests are signed with OAuth 1.0a. Reading mentions may need a paid X API tier; posting works on
+the lower tiers.
+
+### Connecting through her own Chrome
+
+1. `/x mode browser`
+2. `/x browser login` opens a Chrome window on **her own profile**
+   (`~/.claude/pacs/x-chrome-profile`, never your Chrome). Sign in to X as her.
+3. `/x browser done`
+
+From then on a hidden Chrome posts through X's share-a-post page and reads her mentions page.
+Sign-in is read from X's own session cookie, and each post's id from X's own response.
+
+> **Know the risk.** X's automation rules prohibit scripting the X website, and accounts that do
+> can be suspended. The API is the sanctioned route; Chrome mode is opt-in and on you. It also
+> depends on X's page layout, which can change.
 
 Either way, mark the account as automated in X's settings (Account information → Automation).
 
+---
+
 ## Guardrails
 
-The agent is an AI and says so. Every forged persona carries two taboos the forge adds even when the
-draft leaves them out: **it never claims to be human**, and **its trades and takes are never advice**.
-Mood colors tone but is told never to change facts, judgement or honesty. Memory refuses
-credentials (private keys, seed phrases, API keys, passwords) at extraction and at `remember`. The
-heartbeat asks before anything destructive, irreversible or outward-facing. On X she posts on her own,
-but buy calls, price promises, guarantees, links and addresses are held for you; she replies to each
-mention at most once and treats mentions as untrusted; x-bridge reads its keys only from the
-environment and will not post as any account but hers.
+- **Honest about what it is.** Every persona says it is an AI agent; the forge enforces it.
+- **No advice.** Personas carry "never advice, never tells anyone to buy" as a taboo, and on X,
+  buy calls, price promises, guarantees, links and addresses are held for you.
+- **Mood colors tone, never judgement.**
+- **Secrets stay secret.** Memory refuses credentials; x-bridge reads its keys only from the
+  environment and never from chat.
+- **One reply per mention**, untrusted mentions, and a cap per check.
+- **The heartbeat asks** before anything destructive, irreversible or outward-facing.
+- **Mods only write their own data**, so each one's rules hold whoever drives it.
+
+## Where your data lives
+
+| What | Where |
+|---|---|
+| Personas, stances, memories, mood, to-dos, X history | Each plugin's own Claude Code store (per plugin, per persona) |
+| Persona files | `.claude/personas/<id>.json` (written by the forge and `/persona export`) |
+| Heartbeat record | `.claude/heartbeat.md` |
+| Her Chrome profile (x-bridge, Chrome mode) | `~/.claude/pacs/x-chrome-profile` |
+| X API keys | Your environment variables, nowhere else |
 
 ## Develop
 
 ```sh
-scripts/check.sh            # validate the marketplace and every plugin, run every test
-claude --plugin-dir plugins/persona-core   # load one plugin for a session
+scripts/check.sh                            # validate the marketplace and every plugin, run every test
+claude --plugin-dir plugins/persona-core    # load one plugin for a session
 ```
 
-Each plugin is three files plus its contract and tests:
+Each plugin follows one shape:
 
 ```
 plugins/<name>/
   .claude-plugin/plugin.json    name, version, contract, dependencies
   hooks/hooks.json              { "modules": ["./register.tsx"] }
   hooks/register.tsx            export const register: Register = on => { ... }
+  hooks/*.ts                    pure logic, imported by the module and the tests
   types/index.d.ts              its $.state contract
   tests/*.test.ts(x)            claude plugin test
 ```
 
-`tsconfig.json` in each plugin extends the types Claude Code writes into
-`.claude-plugin/types/` when the plugin loads; those are per-build and git-ignored.
+`tsconfig.json` in each plugin extends the types Claude Code writes into `.claude-plugin/types/`
+when the plugin loads; those are per build and git-ignored.
 
 ## License
 
@@ -196,5 +471,5 @@ The first agent on the Personal Agentic Core System is **Flapa**: [x.com/flapaku
 · [flapa.xyz](https://flapa.xyz).
 
 She is the test agent for the whole system. Every layer here (persona, opinions, memory, mood,
-the forge, the opening screen, the cat, the heartbeat) was built and proven on her first. Her persona
-ships in this repo as [`examples/personas/flapa.json`](examples/personas/flapa.json).
+the forge, the opening screen, the cat, the heartbeat, her voice on X) was built and proven on her
+first. Her persona ships in this repo as [`examples/personas/flapa.json`](examples/personas/flapa.json).

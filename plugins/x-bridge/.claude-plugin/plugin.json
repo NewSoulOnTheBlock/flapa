@@ -1,7 +1,7 @@
 {
   "name": "x-bridge",
-  "version": "0.1.0",
-  "description": "The agent's X account: drafts it writes wait in an X tab until you approve them; mentions and posts read back in.",
+  "version": "0.2.0",
+  "description": "The agent on X: posts on her own, replies to each new mention once every 10 minutes, via the X API or her own Chrome profile; risky posts held for you.",
   "author": {
     "name": "NewSoulOnTheBlock"
   },

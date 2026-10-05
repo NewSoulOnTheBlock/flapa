@@ -1,6 +1,6 @@
 {
   "name": "mood-state",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "A persona's mood: valence and energy moved by events, fading to baseline, shown on the status line and fed into the prompt.",
   "author": {
     "name": "NewSoulOnTheBlock"

@@ -1,6 +1,6 @@
 {
   "name": "opinion-ledger",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "The active persona's stances as structured data: taken and revised only through a tool, with reasons and history.",
   "author": {
     "name": "NewSoulOnTheBlock"
