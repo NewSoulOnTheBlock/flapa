@@ -1,0 +1,12 @@
+{
+  "name": "todo-pane",
+  "version": "0.1.0",
+  "description": "A docked to-do list pane: add items from an input, press one to strike it through.",
+  "author": {
+    "name": "NewSoulOnTheBlock"
+  },
+  "homepage": "https://github.com/NewSoulOnTheBlock/personal-agentic-core",
+  "repository": "https://github.com/NewSoulOnTheBlock/personal-agentic-core",
+  "license": "MIT",
+  "types": "./types/index.d.ts"
+}

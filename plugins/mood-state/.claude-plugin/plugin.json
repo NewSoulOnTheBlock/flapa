@@ -1,0 +1,15 @@
+{
+  "name": "mood-state",
+  "version": "0.1.0",
+  "description": "A persona's mood: valence and energy moved by events, fading to baseline, shown on the status line and fed into the prompt.",
+  "author": {
+    "name": "NewSoulOnTheBlock"
+  },
+  "homepage": "https://github.com/NewSoulOnTheBlock/personal-agentic-core",
+  "repository": "https://github.com/NewSoulOnTheBlock/personal-agentic-core",
+  "license": "MIT",
+  "types": "./types/index.d.ts",
+  "dependencies": [
+    "persona-core"
+  ]
+}

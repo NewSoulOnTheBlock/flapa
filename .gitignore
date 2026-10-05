@@ -1,0 +1,5 @@
+# Written by Claude Code per build when a mod loads; never commit.
+.claude-plugin/types/
+plugins/*/.claude-plugin/types/
+node_modules/
+.DS_Store

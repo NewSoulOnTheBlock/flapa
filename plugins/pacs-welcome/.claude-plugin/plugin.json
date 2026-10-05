@@ -1,0 +1,16 @@
+{
+  "name": "pacs-welcome",
+  "version": "0.1.0",
+  "description": "Opening screen for the Personal Agentic Core System: the persona's name in block letters, then forge steps or a greeting in their voice.",
+  "author": {
+    "name": "NewSoulOnTheBlock"
+  },
+  "homepage": "https://github.com/NewSoulOnTheBlock/personal-agentic-core",
+  "repository": "https://github.com/NewSoulOnTheBlock/personal-agentic-core",
+  "license": "MIT",
+  "types": "./types/index.d.ts",
+  "dependencies": [
+    "persona-core",
+    "mood-state"
+  ]
+}

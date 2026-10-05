@@ -1,0 +1,16 @@
+{
+  "name": "personal-agentic-core",
+  "owner": { "name": "NewSoulOnTheBlock" },
+  "description": "Personal Agentic Core System (PACS): turn Claude Code into its own living agent, with identity, opinions, memory, mood, a heartbeat and a face.",
+  "plugins": [
+    { "name": "persona-core", "source": "./plugins/persona-core", "description": "Who the agent is: personas carried in the system prompt, /persona, import/export, Persona pane" },
+    { "name": "opinion-ledger", "source": "./plugins/opinion-ledger", "description": "What it believes: stances with reasons and history, changed only through a tool" },
+    { "name": "memory-graph", "source": "./plugins/memory-graph", "description": "What it remembers: per-persona memory extracted after each turn, recalled into each prompt" },
+    { "name": "mood-state", "source": "./plugins/mood-state", "description": "How it feels: valence and energy moved by events, fading to baseline" },
+    { "name": "persona-forge", "source": "./plugins/persona-forge", "description": "Make a new agent: a 10-question interview that forges a full persona" },
+    { "name": "pacs-welcome", "source": "./plugins/pacs-welcome", "description": "The opening screen: the agent's name in block letters and a greeting in their voice" },
+    { "name": "idle-buddy", "source": "./plugins/idle-buddy", "description": "A little ASCII cat that idles, works while Claude works, naps, and wears the mood" },
+    { "name": "todo-pane", "source": "./plugins/todo-pane", "description": "A to-do list pane: the agent's goals" },
+    { "name": "heartbeat", "source": "./plugins/heartbeat", "description": "An hourly loop: goals from the to-do list, plan, steps, done, next, do it" }
+  ]
+}

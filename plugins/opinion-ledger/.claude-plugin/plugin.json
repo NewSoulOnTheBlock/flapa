@@ -1,0 +1,15 @@
+{
+  "name": "opinion-ledger",
+  "version": "0.1.0",
+  "description": "The active persona's stances as structured data: taken and revised only through a tool, with reasons and history.",
+  "author": {
+    "name": "NewSoulOnTheBlock"
+  },
+  "homepage": "https://github.com/NewSoulOnTheBlock/personal-agentic-core",
+  "repository": "https://github.com/NewSoulOnTheBlock/personal-agentic-core",
+  "license": "MIT",
+  "types": "./types/index.d.ts",
+  "dependencies": [
+    "persona-core"
+  ]
+}

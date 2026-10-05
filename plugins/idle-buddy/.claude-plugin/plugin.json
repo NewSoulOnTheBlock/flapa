@@ -1,0 +1,15 @@
+{
+  "name": "idle-buddy",
+  "version": "0.1.0",
+  "description": "A little ASCII cat in the bottom left that idles, works while Claude works, naps, and wears the persona's mood.",
+  "author": {
+    "name": "NewSoulOnTheBlock"
+  },
+  "homepage": "https://github.com/NewSoulOnTheBlock/personal-agentic-core",
+  "repository": "https://github.com/NewSoulOnTheBlock/personal-agentic-core",
+  "license": "MIT",
+  "types": "./types/index.d.ts",
+  "dependencies": [
+    "mood-state"
+  ]
+}
