@@ -54,7 +54,8 @@ forge your own in a ten-question interview, or write it as a JSON file.
   [heartbeat](#heartbeat) ·
   [x-bridge](#x-bridge) ·
   [fomo](#fomo) ·
-  [guardrails](#guardrails-the-mod)
+  [guardrails](#guardrails-the-mod) ·
+  [trader](#trader)
 - [Guardrails](#guardrails)
 - [Where your data lives](#where-your-data-lives)
 - [Develop](#develop)
@@ -75,6 +76,7 @@ forge your own in a ten-question interview, or write it as a JSON file.
 | [x-bridge](#x-bridge) | voice in the world | The agent's own X account: posts, and replies to every new mention once |
 | [fomo](#fomo) | market eyes | fomo.family traders, tokens and leaderboards: 28 tools, a live tab, `/fomo post` |
 | [guardrails](#guardrails-the-mod) | conscience | Every public word screened; `/agent pause` stops everything she does on her own |
+| [trader](#trader) | hands on the market | Trades on BNB Chain with her own wallet, inside hard limits, real money |
 
 ## How it fits together
 
@@ -92,7 +94,8 @@ forge your own in a ten-question interview, or write it as a JSON file.
   x-bridge ───────── the agent's voice on X; reads persona-core for voice and handle
   fomo ───────────── fomo.family data in; /fomo post → the agent writes → x-bridge posts
   guardrails ─────── every post and reply → rules → model review → out, held or blocked;
-                     its dial (auto · review · paused) gates x-bridge, fomo daily and heartbeat
+                     its dial (auto · review · paused) gates x-bridge, fomo daily, heartbeat and trader
+  trader ─────────── fomo signals + her judgement + your calls → limits → signing helper → PancakeSwap
   pacs-welcome, idle-buddy ── read persona + mood to draw the screen and the cat
 ```
 
@@ -509,6 +512,67 @@ with a big **KILL SWITCH** button.
 | Commands | `/agent` (opens the tab) · `/agent pause <why>` · `resume` · `review` · `auto` · `log` · `allow <domain or 0x…>` · `unallow <x>` |
 | Tool for Claude | `check` (x-bridge calls it on every post and reply) |
 
+## trader
+
+**Her hands on the market. Real money.** She trades on BNB Chain through PancakeSwap v2 (against
+BNB) from a wallet of her own, on her own, inside limits she cannot talk her way past.
+
+**Where trades come from**
+- **Her own judgement:** the `market` tool shows a token's PancakeSwap v2 pool (price, liquidity,
+  volume, buys and sells, age) and fomo's warnings; she buys with the `trade` tool, and every
+  trade needs a thesis: why this, why now, what proves it wrong.
+- **fomo copy signals** (`/trade copy on`): every 30 minutes, what the top 10 traders on fomo's 24h
+  board bought **on BNB Chain** in the last 2 hours, grouped by token, is handed to her to judge.
+  Each token is briefed once a day. Top traders trade on many chains, so BNB Chain signals are
+  sparse; a signal is a lead, never an order.
+- **Your calls:** `/trade buy <0x…> <bnb>` and `/trade sell <0x… or $SYMBOL> [percent]`. Yours go
+  through even when she is paused, and skip only the cooldown; every other limit still holds.
+
+**The limits**, enforced in code before anything is signed:
+
+| Limit | Default |
+|---|---|
+| Per trade | 0.02 BNB |
+| Per day (all buys) | 0.1 BNB |
+| Daily loss stop (no more buys today) | 0.05 BNB realized |
+| Open positions | 3 |
+| Pool liquidity (PancakeSwap v2, WBNB) | at least $20,000 |
+| Honeypot check | fomo says selling is disabled → no buy; no fomo answer → no buy on her own |
+| Cooldown (same token) | 6 hours |
+| Slippage (also absorbs token taxes) | 12% |
+
+`/trade limits <name> <value>` changes one, inside a sane range (a typo cannot become a 100 BNB
+trade). Below all of it, the signing helper refuses any single buy over `FLAPA_TRADER_MAX_BNB`
+(default 0.1 BNB), whatever the mod asks.
+
+**Exits run on their own** every 2 minutes: a **stop loss** at -25% sells everything, a **take
+profit** at +60% sells half, and the rest then rides a **trailing stop** 25% under its peak.
+
+**The key never touches the mod.** A small Node helper (`helper/trade.mjs`, using
+[viem](https://viem.sh)) is the only code that reads `FLAPA_TRADER_KEY`, and it is hard-wired to
+BNB Chain, PancakeSwap v2's router and WBNB. Approvals are for the exact amount being sold, never
+unlimited. Every swap is simulated before it is sent and carries a minimum-out floor.
+
+**With guardrails:** `paused` stops all of her trading, exits included; `review` stops her new buys
+(exits still run); your `/trade` calls work in every setting.
+
+**Setting it up**
+1. Make a **new** wallet just for her and fund it with only what you are ready to lose.
+2. Set `FLAPA_TRADER_KEY` (its private key) in your environment yourself, then start Claude Code.
+   Never paste a key into the chat.
+3. `/trade setup` installs the helper (one `npm install`).
+4. `/trade wallet` checks the address and balance; `/trade live` turns trading on.
+5. Optional: `/trade copy on`.
+
+| | |
+|---|---|
+| Commands | `/trade` (tab) · `live` · `off` · `setup` · `wallet` · `buy <0x…> <bnb>` · `sell <0x…/$SYM> [pct]` · `limits [name value]` · `copy on/off/now` |
+| Tools for Claude | `trade` (buy/sell with a thesis) · `market` · `portfolio` |
+| Environment | `FLAPA_TRADER_KEY` (required) · `FLAPA_TRADER_MAX_BNB` (helper cap, default 0.1) · `BSC_RPC_URL` (optional) |
+
+Trading memecoins loses money more often than not. This is an experiment in agent autonomy, not a
+strategy, and nothing here is financial advice.
+
 ---
 
 ## Guardrails
@@ -516,7 +580,9 @@ with a big **KILL SWITCH** button.
 - **Honest about what it is.** Every persona says it is an AI agent; the forge enforces it.
 - **No advice.** Personas carry "never advice, never tells anyone to buy" as a taboo, and the
   guardrails mod screens every post and reply by rule and by a model review before it goes out.
-- **A kill switch.** `/agent pause` stops everything the agent does on her own, at once.
+- **A kill switch.** `/agent pause` stops everything the agent does on her own, at once, trading included.
+- **Money has hard limits.** Trade sizes, daily spend and daily loss are capped in code, and the
+  signing helper has its own cap below the mod.
 - **Mood colors tone, never judgement.**
 - **Secrets stay secret.** Memory refuses credentials; x-bridge reads its keys only from the
   environment and never from chat.
@@ -532,9 +598,10 @@ with a big **KILL SWITCH** button.
 | Persona files | `.claude/personas/<id>.json` (written by the forge and `/persona export`) |
 | Heartbeat record | `.claude/heartbeat.md` |
 | Her Chrome profile (x-bridge, Chrome mode) | `~/.claude/pacs/x-chrome-profile` |
-| X API keys | Your environment variables, nowhere else |
+| X API keys, the trading wallet's key | Your environment variables, nowhere else |
 | fomo leaderboard and token names | fomo plugin's store (refetched while the tab is open) |
 | Guardrails dial, allow list, audit log | guardrails plugin's store (last 300 attempts) |
+| Positions, trades, the day's books, limits | trader plugin's store |
 
 ## Develop
 

@@ -64,6 +64,11 @@
       "name": "guardrails",
       "source": "./plugins/guardrails",
       "description": "Compliance screen and kill switch: rules + model review on every public post, /agent pause, an audit log"
+    },
+    {
+      "name": "trader",
+      "source": "./plugins/trader",
+      "description": "The agent trades on BNB Chain (PancakeSwap v2) with her own wallet: autonomous inside hard limits, automatic exits, fomo copy signals, your calls. Real money."
     }
   ]
 }

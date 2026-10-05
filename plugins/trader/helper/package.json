@@ -1,0 +1,8 @@
+{
+  "name": "pacs-trader-helper",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "viem": "2.37.8"
+  }
+}
