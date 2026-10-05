@@ -5,10 +5,14 @@ import type { XAccount, XDraft, XMention, XPosted } from '../types'
 import { authorization, nonce } from './oauth'
 import type { XCredentials } from './oauth'
 import { MAX_WEIGHT, weightedLength } from './text'
+import {
+  CHECK_EVERY_MS, DEFAULT_CONFIG, cleanReply, newerId, pickNew, replyPrompt, replySystem, riskOf,
+} from './autoreply'
+import type { AutoReplyConfig, ReplyPersona } from './autoreply'
 
 const PANE = 'x'
 const API = 'https://api.x.com/2'
-const DRAFT = 'mcp__x-bridge__draft'
+const POST = 'mcp__x-bridge__post'
 const MENTIONS = 'mcp__x-bridge__mentions'
 const QUEUE = 'mcp__x-bridge__queue'
 const PERSONA = { plugin: 'persona-core', key: 'active' } as const
@@ -80,12 +84,100 @@ async function callX($: EngineInterface, method: 'GET' | 'POST' | 'DELETE', path
   return { ok: false, error: `X answered ${r.status}: ${detail}` }
 }
 
+// ---------- transport: X's API (default) or the agent's own Chrome profile ----------
+
+type Transport = 'api' | 'browser'
+
+async function transport($: EngineInterface): Promise<Transport> {
+  return (await $.store.get('transport')) === 'browser' ? 'browser' : 'api'
+}
+
+let helperPort = 0
+let helperIsLogin = false
+let helperStarting: Promise<number> | undefined
+
+/** Starts (or reuses) the Chrome helper: headless, or a visible window to sign in. */
+function ensureHelper($: EngineInterface, login = false): Promise<number> {
+  if (helperPort && helperIsLogin === login) return Promise.resolve(helperPort)
+  if (helperStarting) return helperStarting
+  const restart = helperPort ? quitHelper($) : Promise.resolve()
+  helperStarting = restart.then(() => new Promise<number>((resolve, reject) => {
+    void (async () => {
+      let out = ''
+      try {
+        const child = $.process.spawn({
+          argv: ['node', `${$.plugin.root}/helper/x-browser.mjs`, ...(login ? ['--login'] : [])],
+        })
+        for await (const piece of child) {
+          out += piece.text
+          const ready = /PORT (\d+)/.exec(out)
+          if (ready && !helperPort) {
+            helperPort = Number(ready[1])
+            helperIsLogin = login
+            resolve(helperPort)
+          }
+          const failed = /ERROR (.+)/.exec(out)
+          if (failed) reject(new Error(failed[1]))
+        }
+      } catch (err) {
+        reject(err)
+      }
+      helperPort = 0
+      reject(new Error('the X browser helper stopped'))
+    })()
+  }))
+  const started = helperStarting
+  started.then(() => { helperStarting = undefined }, () => { helperStarting = undefined })
+  return started
+}
+
+async function quitHelper($: EngineInterface) {
+  if (!helperPort) return
+  const port = helperPort
+  helperPort = 0
+  await $.http.fetch(`http://127.0.0.1:${port}/quit`).catch(() => undefined)
+}
+
+/** One call to the Chrome helper, as a Result. */
+async function viaBrowser($: EngineInterface, path: string, body?: unknown): Promise<Result<any>> {
+  let port: number
+  try {
+    port = await ensureHelper($)
+  } catch (err) {
+    return { ok: false, error: `Chrome: ${err instanceof Error ? err.message : String(err)}` }
+  }
+  try {
+    const r = await $.http.fetch(`http://127.0.0.1:${port}${path}`, {
+      method: body === undefined ? 'GET' : 'POST',
+      headers: { 'content-type': 'application/json' },
+      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+    })
+    const json = r.text ? JSON.parse(r.text) : {}
+    return r.ok ? { ok: true, value: json } : { ok: false, error: `Chrome: ${json.error ?? `HTTP ${r.status}`}` }
+  } catch (err) {
+    return { ok: false, error: `Chrome: ${err instanceof Error ? err.message : String(err)}` }
+  }
+}
+
 async function say($: EngineInterface, text: string) {
   await update($, status, () => text)
 }
 
 /** Signs in as the credentials' account and remembers who that is. */
 async function connect($: EngineInterface): Promise<Result<XAccount>> {
+  if ((await transport($)) === 'browser') {
+    const st = await viaBrowser($, '/status')
+    if (!st.ok || !st.value.loggedIn) {
+      const error = st.ok ? 'not signed in to X in her Chrome profile: run /x browser login' : st.error
+      await say($, error)
+      return { ok: false, error }
+    }
+    const a: XAccount = { id: st.value.username, username: st.value.username, name: st.value.username }
+    await update($, account, () => a)
+    await $.store.set('account', a)
+    await say($, `connected as @${a.username} (Chrome)`)
+    return { ok: true, value: a }
+  }
   const me = await callX($, 'GET', '/users/me')
   if (!me.ok) {
     await say($, me.error)
@@ -120,38 +212,68 @@ async function saveMentions($: EngineInterface, fn: (l: XMention[]) => XMention[
   await $.store.set('mentions', await update($, mentions, fn))
 }
 
-/** The person's yes: the only path by which anything reaches X. */
+/** The one path by which anything reaches X: account guard, signed POST, audit entry. */
+async function postText($: EngineInterface, text: string, personaId: string, replyTo?: string): Promise<Result<XPosted>> {
+  const acct = (await read($, account)) ?? (await connect($).then(r => (r.ok ? r.value : null)))
+  if (!acct) return { ok: false, error: await read($, status) }
+  const who = await persona($)
+  if (who.handle && who.handle.toLowerCase() !== acct.username.toLowerCase()) {
+    return {
+      ok: false,
+      error: `the credentials sign in as @${acct.username}, but ${who.name} is @${who.handle}. ` +
+        'Fix the environment variables or the persona handle first.',
+    }
+  }
+  const isBrowser = (await transport($)) === 'browser'
+  const r = isBrowser
+    ? await viaBrowser($, '/post', { text, ...(replyTo ? { replyTo } : {}) })
+    : await callX($, 'POST', '/tweets', { text, ...(replyTo ? { reply: { in_reply_to_tweet_id: replyTo } } : {}) })
+  if (!r.ok) {
+    await say($, `not posted: ${r.error}`)
+    return r
+  }
+  const postId: string = isBrowser ? r.value.id : r.value.data.id
+  const entry: XPosted = {
+    id: postId, text, at: await $.clock.now(), url: `https://x.com/${acct.username}/status/${postId}`,
+    persona: personaId, ...(replyTo ? { replyTo } : {}),
+  }
+  await savePosted($, l => [entry, ...l].slice(0, 200))
+  await say($, `posted ${entry.url}`)
+  return { ok: true, value: entry }
+}
+
+/** Holds a post in the X tab for the person to look at. */
+async function hold($: EngineInterface, text: string, personaId: string, replyTo?: string): Promise<XDraft> {
+  const now = await $.clock.now()
+  // Short ids to type in /x approve; two in one millisecond must still differ.
+  const taken = new Set((await read($, drafts)).map(x => x.id))
+  let n = now % 1_679_616
+  while (taken.has(`d${n.toString(36).padStart(4, '0')}`)) n = (n + 1) % 1_679_616
+  const d: XDraft = {
+    id: `d${n.toString(36).padStart(4, '0')}`, text, persona: personaId, createdAt: now,
+    weighted: weightedLength(text), ...(replyTo ? { replyTo } : {}),
+  }
+  await saveDrafts($, l => [...l, d])
+  return d
+}
+
+/** The person's yes on a held post. */
 async function approve($: EngineInterface, id: string): Promise<string> {
   const d = (await read($, drafts)).find(x => x.id === id)
   if (!d) return `No draft ${id}.`
-  const acct = (await read($, account)) ?? (await connect($).then(r => (r.ok ? r.value : null)))
-  if (!acct) return `Not posted: ${await read($, status)}`
-  const who = await persona($)
-  if (who.handle && who.handle.toLowerCase() !== acct.username.toLowerCase()) {
-    return `Not posted: the credentials sign in as @${acct.username}, but ${who.name} is @${who.handle}. ` +
-      'Fix the environment variables or the persona handle first.'
-  }
   await say($, `posting ${id}…`)
-  const r = await callX($, 'POST', '/tweets', {
-    text: d.text,
-    ...(d.replyTo ? { reply: { in_reply_to_tweet_id: d.replyTo } } : {}),
-  })
-  if (!r.ok) {
-    await say($, `not posted: ${r.error}`)
-    return `Not posted: ${r.error}`
-  }
-  const postId: string = r.value.data.id
-  const entry: XPosted = {
-    id: postId, text: d.text, at: await $.clock.now(), url: `https://x.com/${acct.username}/status/${postId}`,
-    persona: d.persona, ...(d.replyTo ? { replyTo: d.replyTo } : {}),
-  }
-  await savePosted($, l => [entry, ...l].slice(0, 200))
+  const r = await postText($, d.text, d.persona, d.replyTo)
+  if (!r.ok) return `Not posted: ${r.error}`
   await saveDrafts($, l => l.filter(x => x.id !== id))
-  await say($, `posted ${entry.url}`)
-  return `Posted: ${entry.url}`
+  return `Posted: ${r.value.url}`
 }
 
-async function reject($: EngineInterface, id: string): Promise<string> {
+/** Her own posts go out directly unless the person turned autopost off. */
+async function autopost($: EngineInterface): Promise<boolean> {
+  return (await $.store.get('autopost')) !== false
+}
+
+async function rejectDraft($: EngineInterface, id: string): Promise<string> {
   const d = (await read($, drafts)).find(x => x.id === id)
   if (!d) return `No draft ${id}.`
   await saveDrafts($, l => l.filter(x => x.id !== id))
@@ -159,12 +281,29 @@ async function reject($: EngineInterface, id: string): Promise<string> {
   return `Rejected draft ${id}; nothing was posted.`
 }
 
-async function fetchMentions($: EngineInterface): Promise<Result<XMention[]>> {
+async function fetchMentions($: EngineInterface, sinceId?: string): Promise<Result<XMention[]>> {
   const acct = (await read($, account)) ?? (await connect($).then(r => (r.ok ? r.value : null)))
   if (!acct) return { ok: false, error: await read($, status) }
+  if ((await transport($)) === 'browser') {
+    const b = await viaBrowser($, '/mentions')
+    if (!b.ok) {
+      await say($, b.error)
+      return b
+    }
+    const all: XMention[] = (b.value.mentions ?? []).map((m: any) => ({ id: m.id, text: m.text, author: m.author, at: m.at ?? '' }))
+    const list = sinceId ? all.filter(m => newerId(m.id, sinceId)) : all.slice(0, 10)
+    await saveMentions($, old => {
+      const seen = new Set(list.map(m => m.id))
+      return [...list, ...old.filter(m => !seen.has(m.id))].slice(0, 30)
+    })
+    if (!sinceId) await say($, `${list.length} recent mentions`)
+    return { ok: true, value: list }
+  }
   const r = await callX(
     $, 'GET',
-    `/users/${acct.id}/mentions?max_results=10&tweet.fields=created_at&expansions=author_id&user.fields=username`,
+    `/users/${acct.id}/mentions?max_results=${sinceId ? 50 : 10}` +
+      '&tweet.fields=created_at&expansions=author_id&user.fields=username' +
+      (sinceId ? `&since_id=${sinceId}` : ''),
   )
   if (!r.ok) {
     await say($, r.error)
@@ -174,10 +313,106 @@ async function fetchMentions($: EngineInterface): Promise<Result<XMention[]>> {
   const list: XMention[] = (r.value.data ?? []).map((t: any) => ({
     id: t.id, text: t.text, author: users.get(t.author_id) ?? t.author_id, at: t.created_at ?? '',
   }))
-  await saveMentions($, () => list)
-  await say($, `${list.length} recent mentions`)
+  await saveMentions($, old => {
+    const seen = new Set(list.map(m => m.id))
+    return [...list, ...old.filter(m => !seen.has(m.id))].slice(0, 30)
+  })
+  if (!sinceId) await say($, `${list.length} recent mentions`)
   return { ok: true, value: list }
 }
+
+// ---------- auto-reply: every 10 minutes, each new mention answered once ----------
+
+let isChecking = false
+
+async function replyConfig($: EngineInterface): Promise<AutoReplyConfig> {
+  return { ...DEFAULT_CONFIG, ...((await $.store.get('autoreply')) as Partial<AutoReplyConfig> | undefined) }
+}
+
+async function personaForReply($: EngineInterface): Promise<{ id: string; persona: ReplyPersona }> {
+  try {
+    const { value } = await $.state.get(PERSONA)
+    if (value) {
+      return {
+        id: value.id,
+        persona: {
+          name: value.name, handle: value.handle.replace(/^@/, ''), tagline: value.tagline,
+          voice: value.voice, examples: value.examples, taboos: value.taboos,
+        },
+      }
+    }
+  } catch {
+    // persona-core not loaded
+  }
+  return { id: 'default', persona: { name: 'the agent', handle: '', tagline: '', voice: '', examples: [], taboos: [] } }
+}
+
+/** One check: new mentions since the last, each answered (or skipped) exactly once. */
+async function checkMentions($: EngineInterface): Promise<string> {
+  if (isChecking) return 'a check is already running'
+  isChecking = true
+  try {
+    const config = await replyConfig($)
+    if (config.mode === 'off') return 'auto-reply is off'
+    const acct = await read($, account)
+    if (!acct) return 'not connected'
+    const save = (c: AutoReplyConfig) => $.store.set('autoreply', { ...c, handled: c.handled.slice(-2000) })
+    const now = await $.clock.now()
+
+    // First look: mark where "new" starts. Old mentions are history, not a backlog.
+    if (!config.sinceId) {
+      const r = await fetchMentions($)
+      if (!r.ok) return r.error
+      const newest = r.value.reduce<string | undefined>((top, m) => (!top || newerId(m.id, top) ? m.id : top), undefined)
+      await save({ ...config, sinceId: newest ?? '1', handled: [...config.handled, ...r.value.map(m => m.id)], lastCheckAt: now })
+      await say($, 'auto-reply watching: each new mention gets one reply')
+      return 'baseline set'
+    }
+
+    const r = await fetchMentions($, config.sinceId)
+    if (!r.ok) return r.error
+    const handled = new Set(config.handled)
+    let since = config.sinceId
+    // Her own posts that tag her are handled at once, so they never come back.
+    for (const m of r.value) {
+      if (m.author.toLowerCase() !== acct.username.toLowerCase() || handled.has(m.id)) continue
+      handled.add(m.id)
+      if (newerId(m.id, since)) since = m.id
+    }
+    const todo = pickNew(r.value, handled, acct.username)
+    const { id: personaId, persona: who } = await personaForReply($)
+    let replied = 0
+    let held = 0
+    for (const m of todo) {
+      const answer = await $.model.complete({
+        model: 'sonnet', system: replySystem(who), prompt: replyPrompt(m), maxTokens: 200,
+      })
+      if (!answer.isAnswered) break // this mention is tried again next check
+      const text = cleanReply(answer.text, m.author)
+      if (text && weightedLength(text) <= MAX_WEIGHT) {
+        if (config.mode === 'draft' || riskOf(text)) {
+          await hold($, text, personaId, m.id)
+          held++
+        } else {
+          const posted = await postText($, text, personaId, m.id)
+          if (!posted.ok) break // rate limit or outage: this mention waits for the next check
+          replied++
+        }
+      }
+      // Replied, held or skipped: handled, and never answered again.
+      handled.add(m.id)
+      if (newerId(m.id, since)) since = m.id
+      await save({ ...config, sinceId: since, handled: [...handled], lastCheckAt: now })
+    }
+    if (todo.length === 0) await save({ ...config, sinceId: since, handled: [...handled], lastCheckAt: now })
+    const summary = `checked mentions: ${replied} replied${held ? `, ${held} held for a look` : ''}`
+    await say($, summary)
+    return summary
+  } finally {
+    isChecking = false
+  }
+}
+
 
 function draftLine(d: XDraft): string {
   return `${d.id}${d.replyTo ? ` (reply to ${d.replyTo})` : ''} [${d.weighted}/280]: ${d.text}`
@@ -193,14 +428,22 @@ export const register: Register = on => {
     if (Array.isArray(savedMentions)) await update($, mentions, () => savedMentions as XMention[])
     const acct = (await $.store.get('account')) as XAccount | undefined
     if (acct) await update($, account, () => acct)
-    const creds = await credentials($)
-    await say($, creds.ok ? (acct ? `connected as @${acct.username}` : 'credentials found; /x connect to sign in') : creds.error)
+    if ((await transport($)) === 'browser') {
+      await say($, acct ? `connected as @${acct.username} (Chrome)` : 'Chrome mode: /x browser login, then /x connect')
+    } else {
+      const creds = await credentials($)
+      await say($, creds.ok ? (acct ? `connected as @${acct.username}` : 'credentials found; /x connect to sign in') : creds.error)
+    }
+
+    // Every 10 minutes, once connected: each new mention gets one reply.
+    $.clock.every(CHECK_EVERY_MS, () => void checkMentions($).catch(() => undefined))
 
     await $.tool.register({
-      name: 'draft',
+      name: 'post',
       description:
-        "Write a post (or a reply) for the active persona's X account. It is NOT posted: it waits in the person's " +
-        'X tab until they approve it. Max 280 weighted characters (URLs count 23, emoji 2). Write in the persona\'s voice.',
+        "Post to the active persona's X account (or reply, with reply_to). It goes out at once, in the persona's " +
+        'voice. Anything that reads like a buy call, price promise or guarantee, or carries a link or address, is ' +
+        "held in the person's X tab instead. Max 280 weighted characters (URLs 23, emoji 2).",
       inputSchema: {
         type: 'object',
         properties: {
@@ -217,12 +460,12 @@ export const register: Register = on => {
     })
     await $.tool.register({
       name: 'queue',
-      description: 'List drafts waiting for approval and the latest posts that went out.',
+      description: 'List posts held for the person to look at, and the latest posts that went out.',
       inputSchema: { type: 'object', properties: {} },
     })
     await $.command.register({
       name: 'x',
-      description: "The agent's X account: /x [status|connect|drafts|approve <id>|reject <id>|mentions]",
+      description: "The agent's X account: /x [connect|drafts|approve|reject|mentions|autoreply|autopost|mode api|browser|browser login]",
     })
     if ((await $.store.get('paneOpen')) === true) void $.ui.open({ id: PANE, title: 'X' })
     return next(e)
@@ -234,32 +477,29 @@ export const register: Register = on => {
   })
 
   on('tool.call', async ($, e, next) => {
-    if (e.tool !== DRAFT && e.tool !== MENTIONS && e.tool !== QUEUE) return next(e)
+    if (e.tool !== POST && e.tool !== MENTIONS && e.tool !== QUEUE) return next(e)
     const input = e as unknown as { text?: string; reply_to?: string }
 
-    if (e.tool === DRAFT) {
+    if (e.tool === POST) {
       const text = (input.text ?? '').trim()
-      if (!text) return { deny: 'draft needs text' }
+      if (!text) return { deny: 'post needs text' }
       const weighted = weightedLength(text)
       if (weighted > MAX_WEIGHT) return { deny: `too long: ${weighted}/${MAX_WEIGHT} weighted characters; shorten it` }
       const who = await persona($)
-      const now = await $.clock.now()
-      // Short ids to type in /x approve; two drafts in one millisecond must still differ.
-      const taken = new Set((await read($, drafts)).map(x => x.id))
-      let n = now % 1_679_616
-      while (taken.has(`d${n.toString(36).padStart(4, '0')}`)) n = (n + 1) % 1_679_616
-      const d: XDraft = {
-        id: `d${n.toString(36).padStart(4, '0')}`,
-        text, persona: who.id, createdAt: now, weighted,
-        ...(input.reply_to ? { replyTo: String(input.reply_to) } : {}),
+      const replyTo = input.reply_to ? String(input.reply_to) : undefined
+      const risk = riskOf(text)
+      if (risk || !(await autopost($))) {
+        const d = await hold($, text, who.id, replyTo)
+        await say($, `${d.id} held for a look${risk ? `: ${risk}` : ''}`)
+        void $.ui.open({ id: PANE, title: 'X' })
+        return {
+          result: `Not posted: held as ${d.id} in the person's X tab` +
+            (risk ? ` because it ${risk}. Rewrite it without that to post directly.` : ' (autopost is off).'),
+        }
       }
-      await saveDrafts($, l => [...l, d])
-      await say($, `draft ${d.id} waiting for approval`)
-      void $.ui.open({ id: PANE, title: 'X' })
-      return {
-        result: `Draft ${d.id} is queued in the person's X tab. It has NOT been posted; it goes out only if they ` +
-          `approve it. (${weighted}/280)`,
-      }
+      const r = await postText($, text, who.id, replyTo)
+      if (!r.ok) return { deny: `not posted: ${r.error}` }
+      return { result: `Posted: ${r.value.url}` }
     }
 
     if (e.tool === MENTIONS) {
@@ -292,10 +532,67 @@ export const register: Register = on => {
       case 'approve':
         return { text: arg ? await approve($, arg) : 'Usage: /x approve <draft id>' }
       case 'reject':
-        return { text: arg ? await reject($, arg) : 'Usage: /x reject <draft id>' }
+        return { text: arg ? await rejectDraft($, arg) : 'Usage: /x reject <draft id>' }
       case 'mentions': {
         const r = await fetchMentions($)
         return { text: r.ok ? (r.value.map(m => `@${m.author}: ${m.text}`).join('\n') || 'No recent mentions.') : r.error }
+      }
+      case 'mode': {
+        if (arg !== 'api' && arg !== 'browser') {
+          return { text: `X mode: ${await transport($)}. /x mode api | browser` }
+        }
+        await $.store.set('transport', arg)
+        await update($, account, () => null)
+        await $.store.delete('account')
+        if (arg === 'api') await quitHelper($)
+        return {
+          text: arg === 'api'
+            ? 'X mode: API. /x connect to sign in with the developer keys.'
+            : 'X mode: Chrome, through her own Chrome profile (not yours). Heads up: X\'s automation rules ' +
+              'prohibit scripting the website, and accounts doing it can be suspended; the API is the sanctioned ' +
+              'route. Next: /x browser login, sign in as her in the window, then /x connect.',
+        }
+      }
+      case 'browser': {
+        if (arg === 'login') {
+          try {
+            await ensureHelper($, true)
+          } catch (err) {
+            return { text: `Could not open Chrome: ${err instanceof Error ? err.message : String(err)}` }
+          }
+          return { text: 'A Chrome window is open on her own profile. Sign in to X as her there, then run /x browser done.' }
+        }
+        if (arg === 'done') {
+          await quitHelper($)
+          const r = await connect($)
+          return { text: r.ok ? `Signed in as @${r.value.username}; she now runs in the background.` : `Not signed in yet: ${r.error}` }
+        }
+        return { text: '/x browser login | done' }
+      }
+      case 'autoreply': {
+        const config = await replyConfig($)
+        if (arg === 'post' || arg === 'draft' || arg === 'off') {
+          await $.store.set('autoreply', { ...config, mode: arg })
+          return {
+            text: arg === 'off' ? 'Auto-reply off.'
+              : arg === 'post' ? 'Auto-reply on: every 10 minutes, each new mention gets one reply, posted directly.'
+              : 'Auto-reply on, held: replies wait in the X tab for you.',
+          }
+        }
+        if (arg === 'now') {
+          $.clock.after(1, () => void checkMentions($).catch(() => undefined))
+          return { text: 'Checking mentions now; results show in the X tab.' }
+        }
+        const last = config.lastCheckAt ? ` · last check ${new Date(config.lastCheckAt).toISOString().slice(11, 16)} UTC` : ''
+        return {
+          text: `Auto-reply: ${config.mode}, every 10 min · ${config.handled.length} mentions handled${last}\n` +
+            '/x autoreply post | draft | off | now',
+        }
+      }
+      case 'autopost': {
+        if (arg !== 'on' && arg !== 'off') return { text: `Autopost is ${(await autopost($)) ? 'on' : 'off'}. /x autopost on | off` }
+        await $.store.set('autopost', arg === 'on')
+        return { text: arg === 'on' ? 'Autopost on: her posts go out directly (risky ones are held).' : 'Autopost off: every post waits for you.' }
       }
       case 'drafts': {
         const ds = await read($, drafts)
@@ -308,8 +605,9 @@ export const register: Register = on => {
         return {
           text: [
             acct ? `X: @${acct.username}` : `X: ${await read($, status)}`,
-            `${(await read($, drafts)).length} drafts waiting · ${(await read($, posted)).length} posted`,
-            'Commands: /x connect | drafts | approve <id> | reject <id> | mentions',
+            `${(await read($, drafts)).length} held · ${(await read($, posted)).length} posted · ` +
+              `autopost ${(await autopost($)) ? 'on' : 'off'} · auto-reply ${(await replyConfig($)).mode} · via ${await transport($)}`,
+            'Commands: /x connect | drafts | approve <id> | reject <id> | mentions | autoreply | autopost | mode | browser',
           ].join('\n'),
         }
       }
@@ -330,9 +628,9 @@ export const register: Register = on => {
         {note ? <Text dimColor>{note}</Text> : null}
         <Text> </Text>
         <Text bold>
-          waiting for you ({ds.length})
+          held for a look ({ds.length})
         </Text>
-        {ds.length === 0 && <Text dimColor>  no drafts. the agent writes them with its draft tool.</Text>}
+        {ds.length === 0 && <Text dimColor>  nothing held. she posts directly; risky posts wait here.</Text>}
         {ds.map(d => (
           <Box key={`d-${d.id}`} flexDirection="column" marginBottom={1}>
             <Text>{d.replyTo ? `↳ reply to ${d.replyTo}: ` : ''}{d.text}</Text>
@@ -340,7 +638,7 @@ export const register: Register = on => {
               <Button key={`approve-${d.id}`} variant="primary" onPress={() => void approve($, d.id)}>
                 post it
               </Button>
-              <Button key={`reject-${d.id}`} plain dimColor onPress={() => void reject($, d.id)}>
+              <Button key={`reject-${d.id}`} plain dimColor onPress={() => void rejectDraft($, d.id)}>
                 reject
               </Button>
               <Text dimColor>

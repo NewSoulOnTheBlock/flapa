@@ -53,7 +53,7 @@
     {
       "name": "x-bridge",
       "source": "./plugins/x-bridge",
-      "description": "The agent on X: drafts wait in an X tab for your approval; nothing posts without you"
+      "description": "The agent on X: posts on her own, replies to each new mention once every 10 minutes, via the API or her own Chrome"
     }
   ]
 }

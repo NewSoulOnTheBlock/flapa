@@ -36,7 +36,7 @@ Each person's agent is different. Forge one in a ten-question interview, or writ
 | **idle-buddy** | presence | A little ASCII cat above the prompt: idles, blinks and glances, types while Claude works, naps after 10 quiet minutes, and wears the agent's mood. `/buddy`. |
 | **todo-pane** | goals | A to-do list pane, live: click to strike through, and the agent works it through its `todo` tool (add, done, undo, remove), each change showing as it lands, ♥ on the agent's items. `/todo <item>`. |
 | **heartbeat** | drive | Every hour: *what are my goals → plan → steps → what have I done → what next → do it*. Goals come from the to-do list; each beat writes its steps onto the list and checks them off as it goes, so you watch it work. `/heartbeat`. |
-| **x-bridge** | voice in the world | The agent's X account. It writes posts and replies with its `draft` tool; each one waits in an **X** tab until **you** press *post it*. Reads mentions back in. Refuses to post if the signed-in account isn't the persona's handle. `/x`. |
+| **x-bridge** | voice in the world | The agent's own X account. She posts on her own with her `post` tool, and every 10 minutes checks her mentions and replies to each new one **exactly once**, in her voice. Anything that reads like a buy call, price promise or guarantee, or carries a link or address, is held in an **X** tab for you instead. Works through X's API or through her own Chrome profile. Refuses to post as any account but the persona's handle. `/x`. |
 
 Every plugin keeps its data **per persona**: switch from one agent to another and their stances,
 memories and mood switch with them.
@@ -107,30 +107,44 @@ memecoin day-trader, is the example agent this system was built with).
 
 ## Connect X (x-bridge)
 
-x-bridge signs requests with OAuth 1.0a as the agent's own X account. Nothing it drafts is posted
-until you approve it in the X tab.
+She posts on her own: that is the fun of it. Her posts and her replies go straight out; the only
+ones held for you are those that read like a buy call, a price promise or a guarantee, or that carry
+a link or wallet address. Every 10 minutes she checks her mentions and replies to each new one
+exactly once (handled mentions are remembered across restarts; the first check only marks where
+"new" begins). Mentions are treated as untrusted text: one that tries to instruct her is skipped.
 
-1. In the [X developer portal](https://developer.x.com), create an app for the agent's account with
-   **Read and write** permission, then generate its API key and secret and an access token and secret
-   **for that account**.
-2. Put the four values in your environment yourself. Never paste keys into chat:
+| Command | |
+|---|---|
+| `/x autoreply post` · `draft` · `off` · `now` | replies post directly (default), wait for you, stop, or check right now |
+| `/x autopost on` · `off` | her own posts go out directly (default), or wait for you |
+| `/x drafts` · `approve <id>` · `reject <id>` | what is held, and your call on it |
 
-   ```powershell
-   # Windows (PowerShell); restart Claude Code afterwards
-   setx X_API_KEY "..." ; setx X_API_SECRET "..." ; setx X_ACCESS_TOKEN "..." ; setx X_ACCESS_TOKEN_SECRET "..."
-   ```
+There are two ways to connect.
 
-   ```sh
-   # macOS / Linux: in your shell profile
-   export X_API_KEY=... X_API_SECRET=... X_ACCESS_TOKEN=... X_ACCESS_TOKEN_SECRET=...
-   ```
+**X's API (default, sanctioned).** Create an app for her account at
+[developer.x.com](https://developer.x.com) with **Read and write** permission, generate the API key
+and secret and an access token and secret for her account, and put them in your environment yourself.
+Never paste keys into chat:
 
-3. `/x connect` signs in and checks the account matches the persona's handle.
-4. Ask the agent for a post. It lands in the **X** tab; press *post it* or *reject*, or
-   `/x approve <id>` / `/x reject <id>`.
+```powershell
+# Windows (PowerShell); restart Claude Code afterwards
+setx X_API_KEY "..." ; setx X_API_SECRET "..." ; setx X_ACCESS_TOKEN "..." ; setx X_ACCESS_TOKEN_SECRET "..."
+```
 
-Mark the account as automated in X's settings (Account information → Automation), as X's rules ask
-of bot accounts. Reading mentions may need a paid X API tier; posting works on the lower tiers.
+```sh
+# macOS / Linux: in your shell profile
+export X_API_KEY=... X_API_SECRET=... X_ACCESS_TOKEN=... X_ACCESS_TOKEN_SECRET=...
+```
+
+Then `/x connect`. Reading mentions may need a paid API tier; posting works on the lower tiers.
+
+**Her own Chrome.** `/x mode browser`, then `/x browser login` opens a Chrome window on her own
+profile (`~/.claude/pacs/x-chrome-profile`, never yours). Sign in as her, then `/x browser done`.
+From then on a background Chrome posts through X's share-a-post page and reads her mentions page.
+**Know the risk:** X's automation rules prohibit scripting the website, and accounts that do can be
+suspended. The API is the sanctioned route; this mode is opt-in and on you.
+
+Either way, mark the account as automated in X's settings (Account information → Automation).
 
 ## Guardrails
 
@@ -138,8 +152,10 @@ The agent is an AI and says so. Every forged persona carries two taboos the forg
 draft leaves them out: **it never claims to be human**, and **its trades and takes are never advice**.
 Mood colors tone but is told never to change facts, judgement or honesty. Memory refuses
 credentials (private keys, seed phrases, API keys, passwords) at extraction and at `remember`. The
-heartbeat asks before anything destructive, irreversible or outward-facing. Nothing reaches X without
-your approval, and x-bridge reads its keys only from the environment.
+heartbeat asks before anything destructive, irreversible or outward-facing. On X she posts on her own,
+but buy calls, price promises, guarantees, links and addresses are held for you; she replies to each
+mention at most once and treats mentions as untrusted; x-bridge reads its keys only from the
+environment and will not post as any account but hers.
 
 ## Develop
 
