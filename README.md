@@ -11,11 +11,12 @@
 
 **Turn your Claude Code into its own living agent.**
 
-The Personal Agentic Core System (PACS) is a set of ten
+The Personal Agentic Core System (PACS) is a set of eleven
 [Claude Code mods](https://github.com/anthropics/claude-code/issues/91870) (function-hook plugins)
 that give Claude a persistent identity of your design: a name and a voice, opinions it holds and
 defends, memories that carry across sessions, a mood that moves with what happens, goals it works
-toward every hour, its own account on X, and a little face in the corner of your terminal.
+toward every hour, its own account on X, live market data from fomo.family, and a little face in the
+corner of your terminal.
 
 ### Why it's called Flapa
 
@@ -51,7 +52,8 @@ forge your own in a ten-question interview, or write it as a JSON file.
   [idle-buddy](#idle-buddy) ·
   [todo-pane](#todo-pane) ·
   [heartbeat](#heartbeat) ·
-  [x-bridge](#x-bridge)
+  [x-bridge](#x-bridge) ·
+  [fomo](#fomo)
 - [Guardrails](#guardrails)
 - [Where your data lives](#where-your-data-lives)
 - [Develop](#develop)
@@ -70,6 +72,7 @@ forge your own in a ten-question interview, or write it as a JSON file.
 | [todo-pane](#todo-pane) | goals | A live to-do list that you and the agent both work |
 | [heartbeat](#heartbeat) | drive | An hourly loop: goals → plan → steps → done → next → do it |
 | [x-bridge](#x-bridge) | voice in the world | The agent's own X account: posts, and replies to every new mention once |
+| [fomo](#fomo) | market eyes | fomo.family traders, tokens and leaderboards: 28 tools, a live tab, `/fomo post` |
 
 ## How it fits together
 
@@ -85,6 +88,7 @@ forge your own in a ten-question interview, or write it as a JSON file.
   persona-forge ──── /forge → file → /persona import → seeds stances via the stance tool
   todo-pane ──────── the goals ──→ heartbeat (hourly loop works the list live)
   x-bridge ───────── the agent's voice on X; reads persona-core for voice and handle
+  fomo ───────────── fomo.family data in; /fomo post → the agent writes → x-bridge posts
   pacs-welcome, idle-buddy ── read persona + mood to draw the screen and the cat
 ```
 
@@ -121,6 +125,7 @@ x-bridge also needs **Node.js 18+** and **Google Chrome** on the machine.
    claude plugin install todo-pane@personal-agentic-core
    claude plugin install heartbeat@personal-agentic-core
    claude plugin install x-bridge@personal-agentic-core
+   claude plugin install fomo@personal-agentic-core
    ```
 
    Install only the parts you want. `persona-core` is the base the others build on; `heartbeat`
@@ -137,6 +142,7 @@ say hi                 talk to your agent
 /mood                  see how it feels; /mood win | loss | rest | hype
 /todo ship the thing   give it a goal; /heartbeat now runs the loop
 /x                     put it on X (see x-bridge below)
+/fomo                  today's fomo.family leaderboard; /fomo post to post about it
 ```
 
 Or bring your own persona: `/persona import examples/personas/flapa.json`.
@@ -414,6 +420,32 @@ Sign-in is read from X's own session cookie, and each post's id from X's own res
 
 Either way, mark the account as automated in X's settings (Account information → Automation).
 
+## fomo
+
+**Market eyes.** [fomo.family](https://fomo.family) is a social spot-trading app; this plugin gives
+the agent its data through [fomo-mcp](https://fomomcp.app), a read-only MCP server that never trades
+or moves funds and needs no key (it has a free daily allowance per user).
+
+- **28 tools for Claude**, declared by the plugin itself: trader profiles, rank and PnL, holdings,
+  swaps and follow graphs; token flow, holders, devs, warnings, candles and theses; the trader and
+  clan leaderboards; trending and most-held tokens; search; who is behind a wallet; and the live
+  trade feed. Ask the agent anything about fomo and it can look it up.
+- **A FOMO tab:** the top 10 traders for `24h` · `7d` · `30d` · `all`, each with their biggest
+  winner, refreshing every 30 minutes while the tab is open. Token names are looked up once and
+  remembered.
+- **`/fomo post`:** pulls the top 3 and hands the agent the facts to write and publish one post
+  about them through x-bridge, in its own voice.
+
+| | |
+|---|---|
+| Commands | `/fomo` opens the tab · `/fomo 24h` · `7d` · `30d` · `all` · `/fomo post` |
+| Tools for Claude | `fomo_get_leaderboard`, `fomo_get_trader_rank`, `fomo_get_trader_dossier`, `fomo_search_tokens`, … (28 in all) |
+
+**Reading the numbers right.** The leaderboard ranks traders by PnL over the chosen window. The
+"biggest winner" figure is the PnL on that position, not necessarily made in that window, so the
+post brief tells the agent to call it a biggest winner, never "made today". It also rules out buy
+calls, price predictions and links.
+
 ---
 
 ## Guardrails
@@ -437,6 +469,7 @@ Either way, mark the account as automated in X's settings (Account information �
 | Heartbeat record | `.claude/heartbeat.md` |
 | Her Chrome profile (x-bridge, Chrome mode) | `~/.claude/pacs/x-chrome-profile` |
 | X API keys | Your environment variables, nowhere else |
+| fomo leaderboard and token names | fomo plugin's store (refetched while the tab is open) |
 
 ## Develop
 

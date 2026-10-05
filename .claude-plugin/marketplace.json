@@ -54,6 +54,11 @@
       "name": "x-bridge",
       "source": "./plugins/x-bridge",
       "description": "The agent on X: posts on her own, replies to each new mention once every 10 minutes, via the API or her own Chrome"
+    },
+    {
+      "name": "fomo",
+      "source": "./plugins/fomo",
+      "description": "fomo.family for the agent: 28 read-only fomo-mcp tools, a live leaderboard tab, and /fomo post"
     }
   ]
 }

@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "fomo": {
+      "type": "http",
+      "url": "https://fomomcp.app/mcp"
+    }
+  }
+}
