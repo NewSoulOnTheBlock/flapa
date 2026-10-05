@@ -1,7 +1,7 @@
 {
   "name": "fomo",
-  "version": "0.1.0",
-  "description": "fomo.family for the agent: 28 read-only fomo-mcp tools (traders, tokens, leaderboards, live trades), a live FOMO leaderboard tab, and /fomo post.",
+  "version": "0.2.0",
+  "description": "fomo.family for the agent: 28 read-only fomo-mcp tools, a live leaderboard tab, /fomo post, and an optional once-a-day top-3 post.",
   "author": {
     "name": "NewSoulOnTheBlock"
   },

@@ -8,6 +8,8 @@ export type FomoRow = {
   volumeUsd: number
   trades: number
   top: { symbol: string; address: string; pnlUsd: number } | null
+  /** The X handle their fomo profile links, if any: the only handle ever @-tagged. */
+  x?: string | null
 }
 
 declare module 'claude-code' {

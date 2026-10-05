@@ -3,9 +3,13 @@ import type { EngineInterface, Register } from 'claude-code'
 
 import type { FomoRow, FomoWindow } from '../types'
 import { FOMO_MCP_URL, parseToolReply, postBrief, rpcBody, toRows, usd } from './fomo'
+import { DAILY_DEFAULT, dayKey, isDue } from './daily'
+import type { DailyConfig } from './daily'
 
 const PANE = 'fomo'
 const REFRESH_MS = 30 * 60_000
+const DAILY_TICK_MS = 10 * 60_000
+const X_CACHE_MS = 7 * 24 * 3_600_000
 const WINDOWS: readonly FomoWindow[] = ['24h', '7d', '30d', 'all']
 
 const windowAtom = atom({ plugin: 'fomo', key: 'window' } as const, '24h')
@@ -47,6 +51,33 @@ async function nameTokens($: EngineInterface, addresses: readonly string[]): Pro
   return names
 }
 
+/** Each trader's linked X handle from their fomo profile, cached for a week (a profile costs 250). */
+async function linkX($: EngineInterface, rows: FomoRow[]): Promise<FomoRow[]> {
+  const cache = ((await $.store.get('xHandles')) as Record<string, { x: string | null; at: number }> | undefined) ?? {}
+  const now = Date.now()
+  for (const r of rows) {
+    const hit = cache[r.handle]
+    if (hit && now - hit.at < X_CACHE_MS) continue
+    const p = await fomoCall($, 'fomo_get_trader', { handle: r.handle })
+    if (p.ok) cache[r.handle] = { x: typeof p.value?.twitter === 'string' && p.value.twitter ? p.value.twitter : null, at: now }
+  }
+  await $.store.set('xHandles', cache)
+  return rows.map(r => ({ ...r, x: cache[r.handle]?.x ?? null }))
+}
+
+async function dailyConfig($: EngineInterface): Promise<DailyConfig> {
+  return { ...DAILY_DEFAULT, ...((await $.store.get('daily')) as Partial<DailyConfig> | undefined) }
+}
+
+/** The top 3 with their X handles, handed to the agent to write and post. '' when handed over. */
+async function postTop3($: EngineInterface): Promise<string> {
+  const rows = await refresh($, 3)
+  if (typeof rows === 'string') return rows
+  const tagged = await linkX($, rows)
+  await $.prompt.submit({ text: postBrief(tagged, await read($, windowAtom)) })
+  return ''
+}
+
 async function refresh($: EngineInterface, limit = 10): Promise<FomoRow[] | string> {
   const window = await read($, windowAtom)
   await update($, status, () => 'loading…')
@@ -76,13 +107,29 @@ export const register: Register = on => {
     }
     await $.command.register({
       name: 'fomo',
-      description: 'fomo.family leaderboard tab: /fomo [24h|7d|30d|all] · /fomo post has the agent post the top 3',
+      description: 'fomo.family leaderboard tab: /fomo [24h|7d|30d|all] · /fomo post · /fomo daily on|off|at <hour>',
     })
     // Fresh numbers while the tab is up; nothing is fetched when it is closed.
     $.clock.every(REFRESH_MS, () => {
       void (async () => {
         const panes = await $.ui.panes()
         if (panes.some(p => p.id === PANE && p.isShown)) await refresh($)
+      })()
+    })
+    // Once a day, from the configured local hour: the 24h top 3, posted by the agent.
+    $.clock.every(DAILY_TICK_MS, () => {
+      void (async () => {
+        const cfg = await dailyConfig($)
+        const now = new Date()
+        if (!isDue(cfg, now)) return
+        await $.store.set('daily', { ...cfg, lastDay: dayKey(now) })
+        await update($, windowAtom, () => '24h')
+        const failed = await postTop3($)
+        if (failed) {
+          // Nothing handed over: the next tick tries again today.
+          await $.store.set('daily', cfg)
+          $.ui.toast(`fomo daily post: ${failed}`)
+        }
       })()
     })
     if ((await $.store.get('paneOpen')) === true) void $.ui.open({ id: PANE, title: 'FOMO' })
@@ -100,15 +147,34 @@ export const register: Register = on => {
       // A model turn of its own, once the session is idle: the agent writes and posts.
       $.clock.after(1, () => {
         void (async () => {
-          const rows = await refresh($, 3)
-          if (typeof rows === 'string') {
-            $.ui.toast(`fomo: ${rows}`)
-            return
-          }
-          await $.prompt.submit({ text: postBrief(rows, await read($, windowAtom)) })
+          const failed = await postTop3($)
+          if (failed) $.ui.toast(`fomo: ${failed}`)
         })()
       })
       return { text: 'Pulling the fomo top 3; the agent will write and post about them next.' }
+    }
+    if (arg === 'daily' || arg.startsWith('daily ')) {
+      const [, sub = '', hour = ''] = arg.split(/\s+/)
+      const cfg = await dailyConfig($)
+      if (sub === 'on') {
+        // Starting today could double up with a post made by hand today: begin tomorrow.
+        await $.store.set('daily', { ...cfg, isOn: true, lastDay: cfg.lastDay ?? dayKey(new Date()) })
+        return { text: `Daily fomo post on: once a day from ${cfg.hour}:00 local, the 24h top 3, written and posted by the agent.` }
+      }
+      if (sub === 'off') {
+        await $.store.set('daily', { ...cfg, isOn: false })
+        return { text: 'Daily fomo post off.' }
+      }
+      if (sub === 'at') {
+        const h = Number(hour)
+        if (!Number.isInteger(h) || h < 0 || h > 23) return { text: 'Usage: /fomo daily at <hour 0-23>' }
+        await $.store.set('daily', { ...cfg, hour: h })
+        return { text: `Daily fomo post at ${h}:00 local.` }
+      }
+      return {
+        text: `Daily fomo post: ${cfg.isOn ? `on, from ${cfg.hour}:00 local` : 'off'}` +
+          `${cfg.lastDay ? ` · last ${cfg.lastDay}` : ''}\n/fomo daily on | off | at <hour>`,
+      }
     }
     if ((WINDOWS as readonly string[]).includes(arg)) await update($, windowAtom, () => arg as FomoWindow)
     await $.ui.open({ id: PANE, title: 'FOMO', focus: true })

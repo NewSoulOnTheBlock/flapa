@@ -54,9 +54,16 @@ export function usd(n: number): string {
 }
 
 /** What the agent is handed to write a leaderboard post from: facts, and what they do and don't mean. */
+/** How a trader is named on X: @ their linked X handle, or their fomo handle with no @. */
+export function xName(r: Pick<FomoRow, 'handle' | 'x'>): string {
+  const x = r.x?.replace(/^@/, '').trim()
+  return x && /^[A-Za-z0-9_]{1,15}$/.test(x) ? `@${x}` : r.handle
+}
+
 export function postBrief(rows: readonly FomoRow[], window: FomoWindow): string {
   const lines = rows.slice(0, 3).map(r =>
-    `${r.rank}. ${r.handle}: ${usd(r.pnlUsd)} PnL over ${window} (${r.trades} trades)` +
+    `${r.rank}. ${xName(r)}${xName(r).startsWith('@') ? ` (fomo: ${r.handle})` : ' (fomo handle, no X account linked)'}: ` +
+      `${usd(r.pnlUsd)} PnL over ${window} (${r.trades} trades)` +
       (r.top ? `; biggest winner $${r.top.symbol} (${usd(r.top.pnlUsd)} on that position)` : ''))
   return [
     `The fomo.family leaderboard, top 3 by ${window} PnL, fetched just now:`,
@@ -65,6 +72,8 @@ export function postBrief(rows: readonly FomoRow[], window: FomoWindow): string 
     `Write ONE post for X about it, in your own voice, and publish it with your post tool. Keep it under 260 ` +
       `characters. The trader PnL is for the last ${window}; the token figure is PnL on that position, not ` +
       'necessarily made in that window, so call it their biggest winner, not what they made today. No buy calls, ' +
-      'no price predictions, no links. Use $TICKERS and handles as given.',
+      'no price predictions, no links. Use $TICKERS as given. Tag a trader with @ ONLY where an @handle is ' +
+      'given above (their own linked X account); name the others by their fomo handle with NO @, because the ' +
+      'same name on X may belong to someone else.',
   ].join('\n')
 }

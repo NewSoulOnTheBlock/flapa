@@ -435,10 +435,17 @@ or moves funds and needs no key (it has a free daily allowance per user).
   remembered.
 - **`/fomo post`:** pulls the top 3 and hands the agent the facts to write and publish one post
   about them through x-bridge, in its own voice.
+- **Once a day:** `/fomo daily on` makes that post automatically, once per day, from 17:00 local
+  (`/fomo daily at <hour>` to change it). It starts the next day, so a post made by hand today is
+  never doubled, and it never posts twice in one day. Unattended posting needs x-bridge connected
+  (the API, or her own Chrome profile).
+- **Tagging:** a trader is @-tagged only with the X account their fomo profile links. A trader with
+  no linked X account is named by their fomo handle without an @, because the same name on X may
+  belong to someone else. Linked handles are looked up from fomo profiles and cached for a week.
 
 | | |
 |---|---|
-| Commands | `/fomo` opens the tab · `/fomo 24h` · `7d` · `30d` · `all` · `/fomo post` |
+| Commands | `/fomo` opens the tab · `/fomo 24h` · `7d` · `30d` · `all` · `/fomo post` · `/fomo daily on` · `off` · `at <hour>` |
 | Tools for Claude | `fomo_get_leaderboard`, `fomo_get_trader_rank`, `fomo_get_trader_dossier`, `fomo_search_tokens`, … (28 in all) |
 
 **Reading the numbers right.** The leaderboard ranks traders by PnL over the chosen window. The
