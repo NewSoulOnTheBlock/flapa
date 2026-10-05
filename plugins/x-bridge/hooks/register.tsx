@@ -16,6 +16,8 @@ const API = 'https://api.x.com/2'
 const POST = 'mcp__x-bridge__post'
 const MENTIONS = 'mcp__x-bridge__mentions'
 const QUEUE = 'mcp__x-bridge__queue'
+const CHECK = 'mcp__guardrails__check'
+const DIAL = { plugin: 'guardrails', key: 'dial' } as const
 const PERSONA = { plugin: 'persona-core', key: 'active' } as const
 const ENV_NAMES = ['X_API_KEY', 'X_API_SECRET', 'X_ACCESS_TOKEN', 'X_ACCESS_TOKEN_SECRET'] as const
 
@@ -307,6 +309,32 @@ async function postText($: EngineInterface, text: string, personaId: string, rep
   return { ok: true, value: entry }
 }
 
+type Screen = { verdict: 'pass' | 'hold' | 'block'; reasons: string[] }
+
+/** Every word she sends out, screened by guardrails (its rules and its reviewer). */
+async function screenText($: EngineInterface, text: string, kind: 'post' | 'reply', context?: string): Promise<Screen> {
+  try {
+    const r = (await $.tool.call({ tool: CHECK, text, kind, by: 'x-bridge', ...(context ? { context } : {}) } as never)) as {
+      result?: unknown
+    }
+    const v = JSON.parse(String(r.result)) as Screen
+    if (v.verdict === 'pass' || v.verdict === 'hold' || v.verdict === 'block') return v
+  } catch {
+    // guardrails not loaded: the phrase list below is all there is.
+  }
+  const risk = riskOf(text)
+  return risk ? { verdict: 'hold', reasons: [risk] } : { verdict: 'pass', reasons: [] }
+}
+
+/** The kill switch: paused, she does nothing on her own. */
+async function isPaused($: EngineInterface): Promise<boolean> {
+  try {
+    return (await $.state.get(DIAL)).value === 'paused'
+  } catch {
+    return false
+  }
+}
+
 /** Holds a post in the X tab for the person to look at. */
 async function hold($: EngineInterface, text: string, personaId: string, replyTo?: string): Promise<XDraft> {
   const now = await $.clock.now()
@@ -419,6 +447,7 @@ async function checkMentions($: EngineInterface): Promise<string> {
   try {
     const config = await replyConfig($)
     if (config.mode === 'off') return 'auto-reply is off'
+    if (await isPaused($)) return 'agent paused: mentions wait'
     const acct = await read($, account)
     if (!acct) return 'not connected'
     const save = (c: AutoReplyConfig) => $.store.set('autoreply', { ...c, handled: c.handled.slice(-2000) })
@@ -455,7 +484,10 @@ async function checkMentions($: EngineInterface): Promise<string> {
       if (!answer.isAnswered) break // this mention is tried again next check
       const text = cleanReply(answer.text, m.author)
       if (text && weightedLength(text) <= MAX_WEIGHT) {
-        if (config.mode === 'draft' || riskOf(text)) {
+        const verdict = config.mode === 'draft' ? null : await screenText($, text, 'reply', m.text)
+        if (verdict?.verdict === 'block') {
+          // Never posted, never drafted: the mention counts as handled.
+        } else if (!verdict || verdict.verdict === 'hold') {
           await hold($, text, personaId, m.id)
           held++
         } else {
@@ -553,14 +585,19 @@ export const register: Register = on => {
       if (weighted > MAX_WEIGHT) return { deny: `too long: ${weighted}/${MAX_WEIGHT} weighted characters; shorten it` }
       const who = await persona($)
       const replyTo = input.reply_to ? String(input.reply_to) : undefined
-      const risk = riskOf(text)
+      const verdict = await screenText($, text, replyTo ? 'reply' : 'post')
+      if (verdict.verdict === 'block') {
+        await say($, `blocked: ${verdict.reasons[0] ?? ''}`)
+        return { result: `Not posted and not drafted: blocked by guardrails (${verdict.reasons.join('; ')}).` }
+      }
+      const risk = verdict.verdict === 'hold' ? verdict.reasons.join('; ') : undefined
       if (risk || !(await autopost($))) {
         const d = await hold($, text, who.id, replyTo)
         await say($, `${d.id} held for a look${risk ? `: ${risk}` : ''}`)
         void $.ui.open({ id: PANE, title: 'X' })
         return {
           result: `Not posted: held as ${d.id} in the person's X tab` +
-            (risk ? ` because it ${risk}. Rewrite it without that to post directly.` : ' (autopost is off).'),
+            (risk ? ` (${risk}). The person decides; do not reword it to get around the screen.` : ' (autopost is off).'),
         }
       }
       const r = await postText($, text, who.id, replyTo)

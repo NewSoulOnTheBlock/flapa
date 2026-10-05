@@ -5,6 +5,7 @@ const DEFAULT_EVERY_MIN = 60
 const LOG_FILE = '.claude/heartbeat.md'
 // The to-do pane's list, read from its session state (its owner alone writes it).
 const TODOS = { plugin: 'todo-pane', key: 'items' } as const
+const DIAL = { plugin: 'guardrails', key: 'dial' } as const
 
 type Config = { isOn: boolean; everyMin: number; lastBeatAt: number; beats: number; goals: string }
 type Goal = { text: string; isDone: boolean }
@@ -18,6 +19,15 @@ async function readGoals($: EngineInterface): Promise<Goal[]> {
   } catch {
     // todo-pane not loaded: the beat falls back to the log file and notes.
     return []
+  }
+}
+
+/** The guardrails kill switch: paused, nothing runs on its own. */
+async function isPaused($: EngineInterface): Promise<boolean> {
+  try {
+    return (await $.state.get(DIAL)).value === 'paused'
+  } catch {
+    return false
   }
 }
 
@@ -65,6 +75,8 @@ export const register: Register = on => {
         const config = { ...DEFAULTS, ...((await $.store.get('config')) as Partial<Config> | undefined) }
         const now = await $.clock.now()
         if (!config.isOn) return void $.ui.status('♡ heartbeat off')
+        // Paused: the beat waits (and fires once on resume if it came due).
+        if (await isPaused($)) return void $.ui.status('♡ heartbeat paused')
         if (config.lastBeatAt === 0) {
           // First run: start the clock now instead of beating at once.
           await $.store.set('config', { ...config, lastBeatAt: now })

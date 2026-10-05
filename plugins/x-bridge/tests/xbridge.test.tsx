@@ -56,12 +56,14 @@ const ENV = { X_API_KEY: 'ck', X_API_SECRET: 'cs', X_ACCESS_TOKEN: 'at', X_ACCES
 type Call = { method: string; url: string; auth: string; body?: string }
 type Mention = { id: string; text: string; author: string }
 
-function engineBeneath(on: On, opts: { env?: Record<string, string>; username?: string; postsDown?: { down: boolean } } = {}) {
+function engineBeneath(on: On, opts: { env?: Record<string, string>; username?: string; postsDown?: { down: boolean }; dial?: { value: string } } = {}) {
   mock.store(on)
   mock.env(on, opts.env ?? ENV)
   const clock = mock.clock(on, { now: Date.UTC(2026, 9, 5, 12) })
   on('state.get', (_$, e, next) =>
-    e.plugin === 'persona-core' && e.key === 'active'
+    opts.dial && e.plugin === 'guardrails' && e.key === 'dial'
+      ? { value: { value: opts.dial.value, version: 1 } } as never
+      : e.plugin === 'persona-core' && e.key === 'active'
       ? {
           value: {
             value: {
@@ -126,7 +128,7 @@ test('she posts directly; risky posts are held; autopost off holds everything', 
   expect(post?.auth.startsWith('OAuth oauth_consumer_key="ck"')).toBe(true)
 
   const risky = await $.tool.call({ tool: POST, text: 'buy this now before it runs' } as never)
-  expect(String(risky.result)).toContain('because it reads like a buy call')
+  expect(String(risky.result)).toContain('(reads like a buy call)')
   expect(engine.posts()).toHaveLength(1)
 
   await $.command.run({ command: 'x', args: 'autopost off', ...typed })
@@ -385,4 +387,36 @@ test('chrome mode: a post X took without showing its id is still recorded, again
   expect(String(p.result)).toBe('Posted: https://x.com/FlapaKuwai')
   const q = await $.tool.call({ tool: 'mcp__x-bridge__queue' } as never)
   expect(String(q.result)).toContain('https://x.com/FlapaKuwai: no toast today')
+})
+
+test('with guardrails loaded: its verdict decides, and paused she stands still', async ($, on) => {
+  const dial = { value: 'auto' }
+  const screened: string[] = []
+  // guardrails, beneath: blocks "secret", holds "moon", passes the rest; and its dial.
+  on('tool.call', (_$, e, next) => {
+    if (e.tool !== 'mcp__guardrails__check') return next(e)
+    const text = String((e as unknown as { text: string }).text)
+    screened.push(text)
+    const v = /secret/.test(text) ? { verdict: 'block', reasons: ['leaks a secret'] }
+      : /moon/.test(text) ? { verdict: 'hold', reasons: ['predicts a price'] }
+      : { verdict: 'pass', reasons: [] }
+    return { result: JSON.stringify(v) }
+  })
+  const engine = engineBeneath(on, { dial })
+  await $.session.start(start)
+
+  expect(String((await $.tool.call({ tool: POST, text: 'gm' } as never)).result)).toMatch(/^Posted: /)
+  const blocked = await $.tool.call({ tool: POST, text: 'the secret is 1234' } as never)
+  expect(String(blocked.result)).toContain('blocked by guardrails (leaks a secret)')
+  const held = await $.tool.call({ tool: POST, text: 'frog to the moon' } as never)
+  expect(String(held.result)).toContain('(predicts a price)')
+  expect(engine.posts()).toEqual([{ text: 'gm' }])
+  expect(screened).toEqual(['gm', 'the secret is 1234', 'frog to the moon'])
+  expect(String((await $.command.run({ command: 'x', args: 'drafts', ...typed })).text)).toContain('frog to the moon')
+
+  // Paused: the mention check does not even look.
+  await $.command.run({ command: 'x', args: 'connect', ...typed })
+  dial.value = 'paused'
+  await engine.clock.advance(3 * CHECK_EVERY_MS)
+  expect(engine.calls.some(c => c.url.includes('/mentions'))).toBe(false)
 })

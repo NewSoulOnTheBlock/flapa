@@ -7,6 +7,7 @@ import { DAILY_DEFAULT, dayKey, isDue } from './daily'
 import type { DailyConfig } from './daily'
 
 const PANE = 'fomo'
+const DIAL = { plugin: 'guardrails', key: 'dial' } as const
 const REFRESH_MS = 30 * 60_000
 const DAILY_TICK_MS = 10 * 60_000
 const X_CACHE_MS = 7 * 24 * 3_600_000
@@ -63,6 +64,15 @@ async function linkX($: EngineInterface, rows: FomoRow[]): Promise<FomoRow[]> {
   }
   await $.store.set('xHandles', cache)
   return rows.map(r => ({ ...r, x: cache[r.handle]?.x ?? null }))
+}
+
+/** The guardrails kill switch: paused, nothing runs on its own. */
+async function isPaused($: EngineInterface): Promise<boolean> {
+  try {
+    return (await $.state.get(DIAL)).value === 'paused'
+  } catch {
+    return false
+  }
 }
 
 async function dailyConfig($: EngineInterface): Promise<DailyConfig> {
@@ -122,6 +132,8 @@ export const register: Register = on => {
         const cfg = await dailyConfig($)
         const now = new Date()
         if (!isDue(cfg, now)) return
+        // Paused: today's post waits; it goes out on resume if the day is not over.
+        if (await isPaused($)) return
         await $.store.set('daily', { ...cfg, lastDay: dayKey(now) })
         await update($, windowAtom, () => '24h')
         const failed = await postTop3($)

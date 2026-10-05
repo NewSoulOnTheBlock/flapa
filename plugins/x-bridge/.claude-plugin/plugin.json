@@ -1,15 +1,10 @@
 {
   "name": "x-bridge",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "The agent on X: posts on her own, replies to each new mention once every 10 minutes, via the X API, her own Chrome profile, or your open Chrome; risky posts held for you.",
-  "author": {
-    "name": "NewSoulOnTheBlock"
-  },
-  "homepage": "https://github.com/NewSoulOnTheBlock/personal-agentic-core",
-  "repository": "https://github.com/NewSoulOnTheBlock/personal-agentic-core",
-  "license": "MIT",
   "types": "./types/index.d.ts",
   "dependencies": [
-    "persona-core"
+    "persona-core",
+    "guardrails"
   ]
 }

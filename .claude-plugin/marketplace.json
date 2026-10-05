@@ -53,12 +53,17 @@
     {
       "name": "x-bridge",
       "source": "./plugins/x-bridge",
-      "description": "The agent on X: posts on her own, replies to each new mention once every 10 minutes, via the API or her own Chrome"
+      "description": "The agent on X: posts on her own, replies to each new mention once every 10 minutes, every word screened by guardrails"
     },
     {
       "name": "fomo",
       "source": "./plugins/fomo",
       "description": "fomo.family for the agent: 28 read-only fomo-mcp tools, a live leaderboard tab, and /fomo post"
+    },
+    {
+      "name": "guardrails",
+      "source": "./plugins/guardrails",
+      "description": "Compliance screen and kill switch: rules + model review on every public post, /agent pause, an audit log"
     }
   ]
 }

@@ -53,7 +53,8 @@ forge your own in a ten-question interview, or write it as a JSON file.
   [todo-pane](#todo-pane) ·
   [heartbeat](#heartbeat) ·
   [x-bridge](#x-bridge) ·
-  [fomo](#fomo)
+  [fomo](#fomo) ·
+  [guardrails](#guardrails-the-mod)
 - [Guardrails](#guardrails)
 - [Where your data lives](#where-your-data-lives)
 - [Develop](#develop)
@@ -73,6 +74,7 @@ forge your own in a ten-question interview, or write it as a JSON file.
 | [heartbeat](#heartbeat) | drive | An hourly loop: goals → plan → steps → done → next → do it |
 | [x-bridge](#x-bridge) | voice in the world | The agent's own X account: posts, and replies to every new mention once |
 | [fomo](#fomo) | market eyes | fomo.family traders, tokens and leaderboards: 28 tools, a live tab, `/fomo post` |
+| [guardrails](#guardrails-the-mod) | conscience | Every public word screened; `/agent pause` stops everything she does on her own |
 
 ## How it fits together
 
@@ -89,6 +91,8 @@ forge your own in a ten-question interview, or write it as a JSON file.
   todo-pane ──────── the goals ──→ heartbeat (hourly loop works the list live)
   x-bridge ───────── the agent's voice on X; reads persona-core for voice and handle
   fomo ───────────── fomo.family data in; /fomo post → the agent writes → x-bridge posts
+  guardrails ─────── every post and reply → rules → model review → out, held or blocked;
+                     its dial (auto · review · paused) gates x-bridge, fomo daily and heartbeat
   pacs-welcome, idle-buddy ── read persona + mood to draw the screen and the cat
 ```
 
@@ -353,16 +357,19 @@ irreversible or outward-facing. A beat waits until the session is idle, so it ne
 
 **The agent's own voice on X.** She posts on her own; that's the fun of it.
 
-- **Posting:** the agent's `post` tool sends straight to X. The only posts held for you, in the X
-  tab, are ones that read like a buy call, a price promise or a guarantee, or that carry a link or
-  a wallet address.
+- **Posting:** the agent's `post` tool sends straight to X, after [guardrails](#guardrails-the-mod)
+  screens it. A post it holds waits for you in the X tab; a post it blocks is never sent or drafted.
+  Without guardrails installed, a short phrase list holds buy calls, price promises, guarantees,
+  links and addresses.
 - **Auto-reply:** every 10 minutes she checks her mentions and replies to each new one **exactly
   once**, in her voice:
   - handled mentions are remembered across restarts;
   - the first check only marks where "new" begins, so the backlog isn't answered;
   - a reply X refuses (a rate limit) is retried next check and still posted only once;
   - mentions are treated as untrusted text, and one that tries to instruct her, or is spam, is skipped;
-  - at most 5 replies per check, and her own posts are never answered.
+  - at most 5 replies per check, and her own posts are never answered;
+  - each reply is screened by guardrails with the mention as context, and nothing is checked
+    while the agent is paused.
 - **Account guard:** it will not post if the signed-in account isn't the persona's handle.
 - **Length:** counted the way X counts it (links 23, emoji 2, limit 280).
 - **Audit:** everything posted stays listed in the X tab with its link.
@@ -467,13 +474,49 @@ or moves funds and needs no key (it has a free daily allowance per user).
 post brief tells the agent to call it a biggest winner, never "made today". It also rules out buy
 calls, price predictions and links.
 
+## guardrails (the mod)
+
+**Her conscience, and your kill switch.** Flapa posts without asking, so every word she sends out
+goes through two checks first:
+
+1. **Fixed rules**, fast and certain:
+   - **Blocked**, never sent or drafted: what looks like a private key, claiming to be human, or
+     speaking as a company's official account.
+   - **Held** for you: buy or sell calls, price and market-cap predictions, guarantees, advice,
+     pressure ("last chance"), giveaways, DMs and wallets, credentials, paid promotion, and any
+     link or address not on the allow list.
+2. **A model review** (a small model) for whatever the rules can't phrase: "still so early",
+   hints at gains, damaging claims about real people, the persona's own taboos. Only a clean PASS
+   lets a post through; an unclear or missing answer holds it.
+
+**The autonomy dial**
+
+| Setting | What she does |
+|---|---|
+| `auto` (default) | Posts and replies on her own; screened posts only |
+| `review` | Everything she wants to post waits for your yes |
+| `paused` | The kill switch: nothing goes out, auto-replies don't check, the daily fomo post and the heartbeat wait |
+
+Your own `/x approve` still works while paused: pausing stops what she does on her own, not you.
+Her own token contract and site go on the **allow list** so she can share them; anything else
+that looks like an address or link is held.
+
+Every attempt is logged with its verdict and reason: the Guard tab shows the latest, and the dial
+with a big **KILL SWITCH** button.
+
+| | |
+|---|---|
+| Commands | `/agent` (opens the tab) · `/agent pause <why>` · `resume` · `review` · `auto` · `log` · `allow <domain or 0x…>` · `unallow <x>` |
+| Tool for Claude | `check` (x-bridge calls it on every post and reply) |
+
 ---
 
 ## Guardrails
 
 - **Honest about what it is.** Every persona says it is an AI agent; the forge enforces it.
-- **No advice.** Personas carry "never advice, never tells anyone to buy" as a taboo, and on X,
-  buy calls, price promises, guarantees, links and addresses are held for you.
+- **No advice.** Personas carry "never advice, never tells anyone to buy" as a taboo, and the
+  guardrails mod screens every post and reply by rule and by a model review before it goes out.
+- **A kill switch.** `/agent pause` stops everything the agent does on her own, at once.
 - **Mood colors tone, never judgement.**
 - **Secrets stay secret.** Memory refuses credentials; x-bridge reads its keys only from the
   environment and never from chat.
@@ -491,6 +534,7 @@ calls, price predictions and links.
 | Her Chrome profile (x-bridge, Chrome mode) | `~/.claude/pacs/x-chrome-profile` |
 | X API keys | Your environment variables, nowhere else |
 | fomo leaderboard and token names | fomo plugin's store (refetched while the tab is open) |
+| Guardrails dial, allow list, audit log | guardrails plugin's store (last 300 attempts) |
 
 ## Develop
 
