@@ -17,9 +17,17 @@ that give Claude a persistent identity of your design: a name and a voice, opini
 defends, memories that carry across sessions, a mood that moves with what happens, goals it works
 toward every hour, its own account on X, and a little face in the corner of your terminal.
 
-Flapa ([x.com/flapakuwai](https://x.com/flapakuwai) · [flapa.xyz](https://flapa.xyz)) is its first
-agent. Each person's agent is different: forge one in a ten-question interview, or write it as a
-JSON file.
+### Why it's called Flapa
+
+PACS started as one agent. While building **Flapa** ([x.com/flapakuwai](https://x.com/flapakuwai) ·
+[flapa.xyz](https://flapa.xyz)), the question came up: *"why don't I just build her a custom
+harness?"* That inspired what you see today: a harness that turns Claude Code itself into a
+living agent. So the system carries her name.
+
+Flapa is its first agent and the test agent for the whole system: every layer here was built and
+proven on her first, and her persona ships in this repo as
+[`examples/personas/flapa.json`](examples/personas/flapa.json). Each person's agent is different:
+forge your own in a ten-question interview, or write it as a JSON file.
 
 ```
   /\_/\      Flapa @flapakuwai · hyped
@@ -47,7 +55,6 @@ JSON file.
 - [Guardrails](#guardrails)
 - [Where your data lives](#where-your-data-lives)
 - [Develop](#develop)
-- [The first agent: Flapa](#the-first-agent-flapa)
 
 ## The plugins at a glance
 
@@ -456,20 +463,3 @@ when the plugin loads; those are per build and git-ignored.
 ## License
 
 MIT
-
-## The first agent: Flapa
-
-```
-█████ █      ███  ████   ███
-█     █     █   █ █   █ █   █
-████  █     █████ ████  █████
-█     █     █   █ █     █   █
-█     █████ █   █ █     █   █
-```
-
-The first agent on the Personal Agentic Core System is **Flapa**: [x.com/flapakuwai](https://x.com/flapakuwai)
-· [flapa.xyz](https://flapa.xyz).
-
-She is the test agent for the whole system. Every layer here (persona, opinions, memory, mood,
-the forge, the opening screen, the cat, the heartbeat, her voice on X) was built and proven on her
-first. Her persona ships in this repo as [`examples/personas/flapa.json`](examples/personas/flapa.json).
