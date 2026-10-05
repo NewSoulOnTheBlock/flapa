@@ -34,8 +34,8 @@ Each person's agent is different. Forge one in a ten-question interview, or writ
 | **persona-forge** | creation | `/forge`: a 10-question interview, then a full persona drafted for review (voice, backstory, values, taboos, 5 example posts, starting stances). Save writes the file, imports it, and seeds the stances. |
 | **pacs-welcome** | presence | The opening screen: your agent's name in block letters and a fresh greeting in their voice and mood. On first run, the steps to forge one. `/welcome`. |
 | **idle-buddy** | presence | A little ASCII cat above the prompt: idles, blinks and glances, types while Claude works, naps after 10 quiet minutes, and wears the agent's mood. `/buddy`. |
-| **todo-pane** | goals | A to-do list pane. Click to strike through. `/todo <item>`. |
-| **heartbeat** | drive | Every hour: *what are my goals → plan → steps → what have I done → what next → do it*. Goals come from the to-do list. `/heartbeat`. |
+| **todo-pane** | goals | A to-do list pane, live: click to strike through, and the agent works it through its `todo` tool (add, done, undo, remove), each change showing as it lands, ♥ on the agent's items. `/todo <item>`. |
+| **heartbeat** | drive | Every hour: *what are my goals → plan → steps → what have I done → what next → do it*. Goals come from the to-do list; each beat writes its steps onto the list and checks them off as it goes, so you watch it work. `/heartbeat`. |
 
 Every plugin keeps its data **per persona**: switch from one agent to another and their stances,
 memories and mood switch with them.

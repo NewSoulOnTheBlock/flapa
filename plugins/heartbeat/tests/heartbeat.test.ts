@@ -21,6 +21,10 @@ test('/heartbeat now submits the six-step loop', async ($, on) => {
     'What have I done?', 'What should I do next?', 'Do it.']) {
     expect(sent[0]).toContain(step)
   }
+  // The loop runs on the to-do list, live.
+  expect(sent[0]).toContain('todo tool, action add')
+  expect(sent[0]).toContain('todo tool, action done')
+  expect(sent[0]).not.toContain('You cannot tick')
 })
 
 test('goals set by command ride along in the beat', async ($, on) => {

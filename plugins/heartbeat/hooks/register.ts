@@ -38,16 +38,18 @@ export function beatPrompt(config: Config, todos: readonly Goal[]): string {
     `Heartbeat #${config.beats + 1}. Run the loop, in order, briefly:`,
     '1. What are my goals?',
     '2. What is my plan?',
-    '3. What are the steps?',
+    '3. What are the steps? Put each step of this beat on the to-do list first (todo tool, action add).',
     '4. What have I done? (check the work itself: files, git log, test output, not only memory)',
     '5. What should I do next? (the single most valuable next step)',
-    '6. Do it.',
+    '6. Do it. Check each step off the moment it is finished (todo tool, action done).',
     '',
     [goals, checked, notes].filter(Boolean).join('\n\n'),
     '',
     `Keep ${LOG_FILE} as the loop's record: sections Goals, Plan, Steps, Done (dated), Next. ` +
       'Read it first and update it last.',
-    'You cannot tick the to-do list yourself: when an item is finished, say which one so the person can check it off.',
+    'The To-do pane is the live view of this loop: the person watches steps appear and get checked off as you ' +
+      "work. Check off the person's own items too when you finish them; never remove or rewrite their items. " +
+      'A step you are blocked on stays open, and you say why.',
     'Stay inside what the person has already asked for. Ask before anything destructive, ' +
       'irreversible or outward-facing (pushes, deploys, purchases, messages, transactions). ' +
       'If nothing is left to do or you are blocked, say so in one line and stop.',
