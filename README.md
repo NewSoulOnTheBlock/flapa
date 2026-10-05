@@ -36,6 +36,7 @@ Each person's agent is different. Forge one in a ten-question interview, or writ
 | **idle-buddy** | presence | A little ASCII cat above the prompt: idles, blinks and glances, types while Claude works, naps after 10 quiet minutes, and wears the agent's mood. `/buddy`. |
 | **todo-pane** | goals | A to-do list pane, live: click to strike through, and the agent works it through its `todo` tool (add, done, undo, remove), each change showing as it lands, ♥ on the agent's items. `/todo <item>`. |
 | **heartbeat** | drive | Every hour: *what are my goals → plan → steps → what have I done → what next → do it*. Goals come from the to-do list; each beat writes its steps onto the list and checks them off as it goes, so you watch it work. `/heartbeat`. |
+| **x-bridge** | voice in the world | The agent's X account. It writes posts and replies with its `draft` tool; each one waits in an **X** tab until **you** press *post it*. Reads mentions back in. Refuses to post if the signed-in account isn't the persona's handle. `/x`. |
 
 Every plugin keeps its data **per persona**: switch from one agent to another and their stances,
 memories and mood switch with them.
@@ -84,6 +85,7 @@ PACS uses Claude Code's function-hook mods, which are **early access**.
    claude plugin install idle-buddy@personal-agentic-core
    claude plugin install todo-pane@personal-agentic-core
    claude plugin install heartbeat@personal-agentic-core
+   claude plugin install x-bridge@personal-agentic-core
    ```
 
    Install only the parts you want; `persona-core` is the base the others build on.
@@ -103,13 +105,41 @@ say hi                 talk to your agent
 Or bring your own persona: `/persona import examples/personas/flapa.json` (Flapa, a kawaii
 memecoin day-trader, is the example agent this system was built with).
 
+## Connect X (x-bridge)
+
+x-bridge signs requests with OAuth 1.0a as the agent's own X account. Nothing it drafts is posted
+until you approve it in the X tab.
+
+1. In the [X developer portal](https://developer.x.com), create an app for the agent's account with
+   **Read and write** permission, then generate its API key and secret and an access token and secret
+   **for that account**.
+2. Put the four values in your environment yourself. Never paste keys into chat:
+
+   ```powershell
+   # Windows (PowerShell); restart Claude Code afterwards
+   setx X_API_KEY "..." ; setx X_API_SECRET "..." ; setx X_ACCESS_TOKEN "..." ; setx X_ACCESS_TOKEN_SECRET "..."
+   ```
+
+   ```sh
+   # macOS / Linux: in your shell profile
+   export X_API_KEY=... X_API_SECRET=... X_ACCESS_TOKEN=... X_ACCESS_TOKEN_SECRET=...
+   ```
+
+3. `/x connect` signs in and checks the account matches the persona's handle.
+4. Ask the agent for a post. It lands in the **X** tab; press *post it* or *reject*, or
+   `/x approve <id>` / `/x reject <id>`.
+
+Mark the account as automated in X's settings (Account information → Automation), as X's rules ask
+of bot accounts. Reading mentions may need a paid X API tier; posting works on the lower tiers.
+
 ## Guardrails
 
 The agent is an AI and says so. Every forged persona carries two taboos the forge adds even when the
 draft leaves them out: **it never claims to be human**, and **its trades and takes are never advice**.
 Mood colors tone but is told never to change facts, judgement or honesty. Memory refuses
 credentials (private keys, seed phrases, API keys, passwords) at extraction and at `remember`. The
-heartbeat asks before anything destructive, irreversible or outward-facing.
+heartbeat asks before anything destructive, irreversible or outward-facing. Nothing reaches X without
+your approval, and x-bridge reads its keys only from the environment.
 
 ## Develop
 

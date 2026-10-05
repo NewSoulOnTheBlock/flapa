@@ -165,7 +165,7 @@ export const register: Register = on => {
   on('tool.call', async ($, e, next) => {
     if (e.tool !== REMEMBER && e.tool !== RECALL && e.tool !== FORGET) {
       // The persona's own tools (stance, mood) are in character; anything else is work.
-      if (!e.agentId && !/^mcp__(opinion-ledger|mood-state|persona-core)__/.test(e.tool)) toolsThisTurn++
+      if (!e.agentId && !/^mcp__(opinion-ledger|mood-state|persona-core|x-bridge|todo-pane)__/.test(e.tool)) toolsThisTurn++
       return next(e)
     }
     const { id, name, list } = await sync($)
