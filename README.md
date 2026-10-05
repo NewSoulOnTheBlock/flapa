@@ -135,3 +135,20 @@ plugins/<name>/
 ## License
 
 MIT
+
+## The first agent: Flapa
+
+```
+█████ █      ███  ████   ███
+█     █     █   █ █   █ █   █
+████  █     █████ ████  █████
+█     █     █   █ █     █   █
+█     █████ █   █ █     █   █
+```
+
+The first agent on the Personal Agentic Core System is **Flapa**: [x.com/flapakuwai](https://x.com/flapakuwai)
+· [flapa.xyz](https://flapa.xyz).
+
+She is the test agent for the whole system. Every layer here (persona, opinions, memory, mood,
+the forge, the opening screen, the cat, the heartbeat) was built and proven on her first. Her persona
+ships in this repo as [`examples/personas/flapa.json`](examples/personas/flapa.json).
