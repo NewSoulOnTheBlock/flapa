@@ -295,3 +295,94 @@ test('Chrome mode, signed out: it says how to sign in and posts nothing', async 
   expect(chrome.posts).toHaveLength(0)
   chrome.stop()
 })
+
+// ---------- chrome mode: the person's open Chrome, through the Claude in Chrome extension ----------
+
+import { firstTabId, intentUrl, parseExtJson } from '../hooks/extension'
+
+test("the extension's replies parse as Chrome returned them", () => {
+  const reply = '{"loggedIn":true,"username":"FlapaKuwai"}\n\nTab Context:\n- Executed on tabId: 502087553\n- Available tabs:\n  • tabId 502087553: "x"'
+  expect(parseExtJson(reply)).toEqual({ loggedIn: true, username: 'FlapaKuwai' })
+  expect(parseExtJson('[javascript_tool:javascript_exec] {"id":null}')).toEqual({ id: null })
+  expect(firstTabId('{"availableTabs":[{"tabId":502087553,"title":"New Tab","url":"chrome://newtab/"}],"tabGroupId":1955704055}\n\nTab Context:\n- x')).toBe(502087553)
+  expect(intentUrl('gm & gn', '42')).toBe('https://x.com/intent/post?text=gm+%26+gn&in_reply_to=42')
+})
+
+function yourChromeBeneath(on: On, opts: { signedInAs: string | null; postId?: string | null }) {
+  mock.store(on)
+  mock.env(on, {})
+  const clock = mock.clock(on, { now: Date.UTC(2026, 9, 5, 12) })
+  on('state.get', (_$, e, next) =>
+    e.plugin === 'persona-core' && e.key === 'active'
+      ? { value: { value: { id: 'flapa', name: 'Flapa', handle: 'flapakuwai', tagline: '', backstory: '', voice: 'v', values: [], taboos: [], examples: [] }, version: 1 } }
+      : next(e),
+  )
+  on('session.start', (_$, e) => ({ cwd: e.cwd }))
+  on('command.register', (_$, e) => ({ value: { command: e.name } }))
+  on('tool.register', (_$, e) => ({ value: { tool: `mcp__x-bridge__${e.name}` } }))
+  on('ui.open', () => ({ value: { isPlaced: true } }))
+  on('http.fetch', () => ({ value: { status: 500, ok: false, headers: {}, text: '{"error":"no API or helper in chrome mode"}' } }))
+  const navigated: string[] = []
+  const feed: Mention[] = []
+  on('tool.call', (_$, e, next) => {
+    const t = e.tool as string
+    if (!t.startsWith('mcp__claude-in-chrome__')) return next(e)
+    const input = e as unknown as { url?: string; text?: string }
+    const ctx = '\n\nTab Context:\n- Executed on tabId: 7'
+    if (t.endsWith('tabs_context_mcp')) return { result: '{"availableTabs":[{"tabId":7,"title":"New Tab"}],"tabGroupId":1}' + ctx } as never
+    if (t.endsWith('navigate')) {
+      navigated.push(input.url!)
+      return { result: `Navigated to ${input.url}` } as never
+    }
+    const script = input.text ?? ''
+    const answer = script.includes('AppTabBar_Profile_Link')
+      ? (opts.signedInAs ? { loggedIn: true, username: opts.signedInAs } : { loggedIn: false })
+      : script.includes('tweetButton')
+        ? { id: opts.postId === undefined ? '2107300000000000001' : opts.postId }
+        : { mentions: [...feed].reverse() }
+    return { result: JSON.stringify(answer) + ctx } as never
+  })
+  on('model.complete', () => ({
+    value: { isAnswered: true, text: 'hiii', usage: { input_tokens: 1, output_tokens: 1, cache_creation_input_tokens: 0, cache_read_input_tokens: 0 } },
+  }) as never)
+  return { clock, navigated, feed }
+}
+
+test('chrome mode posts and replies through the open Chrome, never the API or a helper', async ($, on) => {
+  const chrome = yourChromeBeneath(on, { signedInAs: 'FlapaKuwai' })
+  await $.session.start(start)
+  const mode = await $.command.run({ command: 'x', args: 'mode chrome', ...typed })
+  expect(mode.text).toContain('your open Chrome, through the Claude in Chrome extension')
+  const c = await $.command.run({ command: 'x', args: 'connect', ...typed })
+  expect(c.text).toBe('Connected as @FlapaKuwai (FlapaKuwai).')
+
+  const r = await $.tool.call({ tool: POST, text: 'posting from your chrome now' } as never)
+  expect(String(r.result)).toBe('Posted: https://x.com/FlapaKuwai/status/2107300000000000001')
+  expect(chrome.navigated).toContain(intentUrl('posting from your chrome now'))
+
+  chrome.feed.push({ id: '600', text: '@FlapaKuwai old', author: 'a' })
+  await chrome.clock.advance(CHECK_EVERY_MS) // baseline
+  chrome.feed.push({ id: '601', text: '@FlapaKuwai gm', author: 'b' })
+  await chrome.clock.advance(CHECK_EVERY_MS)
+  expect(chrome.navigated).toContain(intentUrl('hiii', '601'))
+  expect(chrome.navigated.filter(u => u.includes('in_reply_to=601'))).toHaveLength(1)
+})
+
+test('chrome mode: the wrong account signed in is refused', async ($, on) => {
+  const wrong = yourChromeBeneath(on, { signedInAs: 'someoneelse', postId: null })
+  await $.session.start(start)
+  await $.command.run({ command: 'x', args: 'mode chrome', ...typed })
+  const p = await $.tool.call({ tool: POST, text: 'gm' } as never)
+  expect((p as { deny?: string }).deny).toContain('sign in as @someoneelse, but Flapa is @flapakuwai')
+  expect(wrong.navigated.some(u => u.includes('/intent/post'))).toBe(false)
+})
+
+test('chrome mode: a post X took without showing its id is still recorded, against her profile', async ($, on) => {
+  yourChromeBeneath(on, { signedInAs: 'FlapaKuwai', postId: null })
+  await $.session.start(start)
+  await $.command.run({ command: 'x', args: 'mode chrome', ...typed })
+  const p = await $.tool.call({ tool: POST, text: 'no toast today' } as never)
+  expect(String(p.result)).toBe('Posted: https://x.com/FlapaKuwai')
+  const q = await $.tool.call({ tool: 'mcp__x-bridge__queue' } as never)
+  expect(String(q.result)).toContain('https://x.com/FlapaKuwai: no toast today')
+})

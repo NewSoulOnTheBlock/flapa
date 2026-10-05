@@ -1,7 +1,7 @@
 {
   "name": "x-bridge",
-  "version": "0.2.0",
-  "description": "The agent on X: posts on her own, replies to each new mention once every 10 minutes, via the X API or her own Chrome profile; risky posts held for you.",
+  "version": "0.3.0",
+  "description": "The agent on X: posts on her own, replies to each new mention once every 10 minutes, via the X API, her own Chrome profile, or your open Chrome; risky posts held for you.",
   "author": {
     "name": "NewSoulOnTheBlock"
   },

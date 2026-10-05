@@ -5,6 +5,7 @@ import type { XAccount, XDraft, XMention, XPosted } from '../types'
 import { authorization, nonce } from './oauth'
 import type { XCredentials } from './oauth'
 import { MAX_WEIGHT, weightedLength } from './text'
+import { EXT, MENTIONS_JS, POST_JS, STATUS_JS, firstTabId, intentUrl, parseExtJson } from './extension'
 import {
   CHECK_EVERY_MS, DEFAULT_CONFIG, cleanReply, newerId, pickNew, replyPrompt, replySystem, riskOf,
 } from './autoreply'
@@ -84,12 +85,70 @@ async function callX($: EngineInterface, method: 'GET' | 'POST' | 'DELETE', path
   return { ok: false, error: `X answered ${r.status}: ${detail}` }
 }
 
-// ---------- transport: X's API (default) or the agent's own Chrome profile ----------
+// ---------- transport: X's API (default), her own Chrome profile, or the person's open Chrome ----------
 
-type Transport = 'api' | 'browser'
+/** api: X's developer API · browser: her own Chrome profile via a helper · chrome: the person's open Chrome via the Claude in Chrome extension */
+type Transport = 'api' | 'browser' | 'chrome'
 
 async function transport($: EngineInterface): Promise<Transport> {
-  return (await $.store.get('transport')) === 'browser' ? 'browser' : 'api'
+  const t = await $.store.get('transport')
+  return t === 'browser' || t === 'chrome' ? t : 'api'
+}
+
+// ---------- the person's open Chrome, through the Claude in Chrome extension ----------
+
+let extTabId = 0
+
+async function ext($: EngineInterface, name: string, input: Record<string, unknown>): Promise<Result<string>> {
+  try {
+    const r = (await $.tool.call({ tool: `${EXT}${name}`, ...input } as never)) as {
+      deny?: string; isError?: boolean; text?: string; result?: unknown
+    }
+    if (r.deny) return { ok: false, error: r.deny }
+    const text = String(r.text ?? (typeof r.result === 'string' ? r.result : JSON.stringify(r.result ?? '')))
+    if (r.isError) return { ok: false, error: text.slice(0, 200) }
+    return { ok: true, value: text }
+  } catch (err) {
+    return {
+      ok: false,
+      error: `your Chrome: ${err instanceof Error ? err.message : String(err)} (is the Claude in Chrome extension connected?)`,
+    }
+  }
+}
+
+/** Opens url in the extension's tab and runs a page script there; its JSON answer. */
+async function extRun($: EngineInterface, url: string, script: string, retry = true): Promise<Result<any>> {
+  if (!extTabId) {
+    const ctx = await ext($, 'tabs_context_mcp', { createIfEmpty: true })
+    if (!ctx.ok) return ctx
+    extTabId = firstTabId(ctx.value) ?? 0
+    if (!extTabId) return { ok: false, error: 'your Chrome: no tab to work in' }
+  }
+  const nav = await ext($, 'navigate', { url, tabId: extTabId })
+  if (!nav.ok) {
+    // The tab was closed: find a fresh one, once.
+    extTabId = 0
+    return retry ? extRun($, url, script, false) : nav
+  }
+  const run = await ext($, 'javascript_tool', { action: 'javascript_exec', tabId: extTabId, text: script })
+  if (!run.ok) return run
+  try {
+    return { ok: true, value: parseExtJson(run.value) }
+  } catch {
+    return { ok: false, error: `your Chrome: unreadable page answer: ${run.value.slice(0, 120)}` }
+  }
+}
+
+/** The helper's routes, answered through the person's open Chrome. */
+async function viaExtension($: EngineInterface, path: string, body?: any): Promise<Result<any>> {
+  if (path === '/status') return extRun($, 'https://x.com/home', STATUS_JS)
+  if (path === '/mentions') return extRun($, 'https://x.com/notifications/mentions', MENTIONS_JS)
+  if (path === '/post') {
+    const r = await extRun($, intentUrl(String(body?.text ?? ''), body?.replyTo), POST_JS)
+    if (r.ok && r.value?.error) return { ok: false, error: `your Chrome: ${r.value.error}` }
+    return r
+  }
+  return { ok: false, error: `unknown route ${path}` }
 }
 
 let helperPort = 0
@@ -140,6 +199,7 @@ async function quitHelper($: EngineInterface) {
 
 /** One call to the Chrome helper, as a Result. */
 async function viaBrowser($: EngineInterface, path: string, body?: unknown): Promise<Result<any>> {
+  if ((await transport($)) === 'chrome') return viaExtension($, path, body)
   let port: number
   try {
     port = await ensureHelper($)
@@ -165,17 +225,21 @@ async function say($: EngineInterface, text: string) {
 
 /** Signs in as the credentials' account and remembers who that is. */
 async function connect($: EngineInterface): Promise<Result<XAccount>> {
-  if ((await transport($)) === 'browser') {
+  if ((await transport($)) !== 'api') {
     const st = await viaBrowser($, '/status')
     if (!st.ok || !st.value.loggedIn) {
-      const error = st.ok ? 'not signed in to X in her Chrome profile: run /x browser login' : st.error
+      const error = st.ok
+        ? ((await transport($)) === 'chrome'
+          ? 'not signed in to X in your Chrome'
+          : 'not signed in to X in her Chrome profile: run /x browser login')
+        : st.error
       await say($, error)
       return { ok: false, error }
     }
     const a: XAccount = { id: st.value.username, username: st.value.username, name: st.value.username }
     await update($, account, () => a)
     await $.store.set('account', a)
-    await say($, `connected as @${a.username} (Chrome)`)
+    await say($, `connected as @${a.username} (${(await transport($)) === 'chrome' ? 'your Chrome' : 'Chrome'})`)
     return { ok: true, value: a }
   }
   const me = await callX($, 'GET', '/users/me')
@@ -224,7 +288,7 @@ async function postText($: EngineInterface, text: string, personaId: string, rep
         'Fix the environment variables or the persona handle first.',
     }
   }
-  const isBrowser = (await transport($)) === 'browser'
+  const isBrowser = (await transport($)) !== 'api'
   const r = isBrowser
     ? await viaBrowser($, '/post', { text, ...(replyTo ? { replyTo } : {}) })
     : await callX($, 'POST', '/tweets', { text, ...(replyTo ? { reply: { in_reply_to_tweet_id: replyTo } } : {}) })
@@ -232,9 +296,10 @@ async function postText($: EngineInterface, text: string, personaId: string, rep
     await say($, `not posted: ${r.error}`)
     return r
   }
-  const postId: string = isBrowser ? r.value.id : r.value.data.id
+  const shownId: string | null = isBrowser ? r.value.id : r.value.data.id
+  const postId = shownId ?? `unconfirmed-${await $.clock.now()}`
   const entry: XPosted = {
-    id: postId, text, at: await $.clock.now(), url: `https://x.com/${acct.username}/status/${postId}`,
+    id: postId, text, at: await $.clock.now(), url: shownId ? `https://x.com/${acct.username}/status/${shownId}` : `https://x.com/${acct.username}`,
     persona: personaId, ...(replyTo ? { replyTo } : {}),
   }
   await savePosted($, l => [entry, ...l].slice(0, 200))
@@ -284,7 +349,7 @@ async function rejectDraft($: EngineInterface, id: string): Promise<string> {
 async function fetchMentions($: EngineInterface, sinceId?: string): Promise<Result<XMention[]>> {
   const acct = (await read($, account)) ?? (await connect($).then(r => (r.ok ? r.value : null)))
   if (!acct) return { ok: false, error: await read($, status) }
-  if ((await transport($)) === 'browser') {
+  if ((await transport($)) !== 'api') {
     const b = await viaBrowser($, '/mentions')
     if (!b.ok) {
       await say($, b.error)
@@ -428,8 +493,9 @@ export const register: Register = on => {
     if (Array.isArray(savedMentions)) await update($, mentions, () => savedMentions as XMention[])
     const acct = (await $.store.get('account')) as XAccount | undefined
     if (acct) await update($, account, () => acct)
-    if ((await transport($)) === 'browser') {
-      await say($, acct ? `connected as @${acct.username} (Chrome)` : 'Chrome mode: /x browser login, then /x connect')
+    if ((await transport($)) !== 'api') {
+      const how = (await transport($)) === 'chrome' ? 'your Chrome' : 'Chrome'
+      await say($, acct ? `connected as @${acct.username} (${how})` : `${how} mode: /x connect`)
     } else {
       const creds = await credentials($)
       await say($, creds.ok ? (acct ? `connected as @${acct.username}` : 'credentials found; /x connect to sign in') : creds.error)
@@ -538,17 +604,22 @@ export const register: Register = on => {
         return { text: r.ok ? (r.value.map(m => `@${m.author}: ${m.text}`).join('\n') || 'No recent mentions.') : r.error }
       }
       case 'mode': {
-        if (arg !== 'api' && arg !== 'browser') {
-          return { text: `X mode: ${await transport($)}. /x mode api | browser` }
+        if (arg !== 'api' && arg !== 'browser' && arg !== 'chrome') {
+          return { text: `X mode: ${await transport($)}. /x mode api | browser | chrome` }
         }
         await $.store.set('transport', arg)
         await update($, account, () => null)
         await $.store.delete('account')
-        if (arg === 'api') await quitHelper($)
+        if (arg !== 'browser') await quitHelper($)
+        extTabId = 0
         return {
           text: arg === 'api'
             ? 'X mode: API. /x connect to sign in with the developer keys.'
-            : 'X mode: Chrome, through her own Chrome profile (not yours). Heads up: X\'s automation rules ' +
+            : arg === 'chrome'
+              ? 'X mode: your open Chrome, through the Claude in Chrome extension, as whoever is signed in to X ' +
+                'there. Heads up: X\'s automation rules prohibit scripting the website, and accounts doing it can be ' +
+                'suspended. Chrome must be open with the extension connected. Next: /x connect.'
+              : 'X mode: Chrome, through her own Chrome profile (not yours). Heads up: X\'s automation rules ' +
               'prohibit scripting the website, and accounts doing it can be suspended; the API is the sanctioned ' +
               'route. Next: /x browser login, sign in as her in the window, then /x connect.',
         }

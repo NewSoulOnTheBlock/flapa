@@ -377,7 +377,7 @@ irreversible or outward-facing. A beat waits until the session is idle, so it ne
 | `/x autopost on` · `off` | Her own posts go out on their own (default) · wait for you |
 | `/x drafts` · `approve <id>` · `reject <id>` | What is held, and your call on it |
 | `/x mentions` | Fetch recent mentions |
-| `/x mode api` · `browser` | How she connects (below) |
+| `/x mode api` · `browser` · `chrome` | How she connects (below) |
 | `/x browser login` · `done` | Sign in to her Chrome profile |
 
 **Tools for Claude:** `post` (text, optional reply_to) · `mentions` · `queue`.
@@ -418,7 +418,21 @@ Sign-in is read from X's own session cookie, and each post's id from X's own res
 > can be suspended. The API is the sanctioned route; Chrome mode is opt-in and on you. It also
 > depends on X's page layout, which can change.
 
-Either way, mark the account as automated in X's settings (Account information → Automation).
+### Connecting through your open Chrome
+
+If your everyday Chrome is already signed in to X as the agent, use it directly:
+
+1. Install and connect the [Claude in Chrome](https://claude.ai/chrome) extension.
+2. `/x mode chrome`, then `/x connect`.
+
+x-bridge then works through the extension: it opens X's share-a-post page and presses Post, reads
+the mentions page, and reads which account is signed in from X's own sidebar. Chrome has to be open
+with the extension connected whenever she posts or checks mentions. The same account guard applies:
+if the Chrome is signed in to anyone but the persona's handle, nothing is posted. The same rule
+about scripting the X website applies too.
+
+Whichever way she connects, mark the account as automated in X's settings (Account information →
+Automation).
 
 ## fomo
 
