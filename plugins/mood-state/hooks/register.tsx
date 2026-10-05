@@ -91,6 +91,14 @@ export const register: Register = on => {
     })
     const { id, mood: m } = await sync($)
     await save($, id, m)
+    // Panes are screen state the engine does not restore: reopen this one if it was
+    // left open last session. Unasked, it seats from 144 columns (or when widened).
+    if ((await $.store.get('paneOpen')) === true) void $.ui.open({ id: PANE, title: 'Mood' })
+    return next(e)
+  })
+
+  on('ui.close', async ($, e, next) => {
+    if (e.id === PANE && e.origin.kind === 'person') await $.store.set('paneOpen', false)
     return next(e)
   })
 
@@ -128,6 +136,7 @@ export const register: Register = on => {
     }
     const { name, mood: m } = await sync($)
     await $.ui.open({ id: PANE, title: 'Mood', focus: true })
+    await $.store.set('paneOpen', true)
     const { label: l, emoji } = label(m)
     return { text: `${name}: ${emoji} ${l}. /mood win | loss | rest | grind | hype | reset | baseline <v> <e>` }
   })

@@ -134,3 +134,39 @@ test('the update tool edits the active persona', async ($, on) => {
   expect(section?.text).toContain('> the chart says no.')
   expect(section?.text).not.toContain('Values and convictions')
 })
+
+function startBeneath(on: On, store: Record<string, unknown>) {
+  mock.store(on, store)
+  const opened: string[] = []
+  on('ui.open', (_$, e) => {
+    opened.push(e.id)
+    return { value: { isPlaced: true } }
+  })
+  on('session.start', (_$, e) => ({ cwd: e.cwd }))
+  on('command.register', (_$, e) => ({ value: { command: e.name } }))
+  on('tool.register', (_$, e) => ({ value: { tool: `mcp__persona-core__${e.name}` } }))
+  return opened
+}
+const start = { cwd: '/tmp/p', surface: 'terminal', isInteractive: true } as const
+
+test('the Persona tab comes back next session when it was left open', async ($, on) => {
+  const opened = startBeneath(on, { paneOpen: true })
+  await $.session.start(start)
+  expect(opened).toContain('persona')
+})
+
+test('a tab the person closed stays closed', async ($, on) => {
+  const opened = startBeneath(on, { paneOpen: false })
+  await $.session.start(start)
+  expect(opened).not.toContain('persona')
+})
+
+test('opening the tab by command is what gets remembered', async ($, on) => {
+  const opened = startBeneath(on, {})
+  await $.session.start(start)
+  expect(opened).not.toContain('persona')
+  await $.command.run({ command: 'persona', args: '', ...typed })
+  opened.length = 0
+  await $.session.start(start)
+  expect(opened).toContain('persona')
+})

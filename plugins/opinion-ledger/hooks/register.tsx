@@ -139,6 +139,14 @@ export const register: Register = on => {
       inputSchema: { type: 'object', properties: { query: { type: 'string' } } },
     })
     await $.command.register({ name: 'opinions', description: "Open the active persona's opinion ledger" })
+    // Panes are screen state the engine does not restore: reopen this one if it was
+    // left open last session. Unasked, it seats from 144 columns (or when widened).
+    if ((await $.store.get('paneOpen')) === true) void $.ui.open({ id: PANE, title: 'Opinions' })
+    return next(e)
+  })
+
+  on('ui.close', async ($, e, next) => {
+    if (e.id === PANE && e.origin.kind === 'person') await $.store.set('paneOpen', false)
     return next(e)
   })
 
@@ -178,6 +186,7 @@ export const register: Register = on => {
   on('command.run', { command: 'opinions' }, async $ => {
     const { name, list } = await sync($)
     await $.ui.open({ id: PANE, title: 'Opinions', focus: true })
+    await $.store.set('paneOpen', true)
     return { text: `${name}: ${list.length} stances.` }
   })
 

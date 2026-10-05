@@ -126,6 +126,14 @@ export const register: Register = on => {
         },
       },
     })
+    // Panes are screen state the engine does not restore: reopen this one if it was
+    // left open last session. Unasked, it seats from 144 columns (or when widened).
+    if ((await $.store.get('paneOpen')) === true) void $.ui.open({ id: PANE, title: 'Persona' })
+    return next(e)
+  })
+
+  on('ui.close', async ($, e, next) => {
+    if (e.id === PANE && e.origin.kind === 'person') await $.store.set('paneOpen', false)
     return next(e)
   })
 
@@ -185,6 +193,7 @@ export const register: Register = on => {
         if (all.some(p => p.id === id)) return { text: `A persona "${id}" exists; /persona use ${id}` }
         await save($, [...all, blank(id, tail)], id)
         await $.ui.open({ id: PANE, title: 'Persona', focus: true })
+        await $.store.set('paneOpen', true)
         return { text: `Created and switched to ${tail} (${id}). Fill it in the Persona pane or with /persona set.` }
       }
       case 'use': {
@@ -227,6 +236,7 @@ export const register: Register = on => {
         if (!p) return { text: `${tail} needs at least a "name".` }
         await save($, [...all.filter(x => x.id !== p.id), p], p.id)
         await $.ui.open({ id: PANE, title: 'Persona', focus: true })
+        await $.store.set('paneOpen', true)
         const replaced = all.some(x => x.id === p.id)
         return {
           text: `${replaced ? 'Updated' : 'Imported'} ${p.name} (${p.id}) and switched to it: ` +
@@ -244,6 +254,7 @@ export const register: Register = on => {
         return { text: current ? personaSection(current) : 'No persona active.' }
       default:
         await $.ui.open({ id: PANE, title: 'Persona', focus: true })
+        await $.store.set('paneOpen', true)
         return { text: summary(current, all) }
     }
   })
