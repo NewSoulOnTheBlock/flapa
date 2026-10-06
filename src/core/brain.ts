@@ -35,7 +35,7 @@ const textOf = (blocks: readonly { type: string; text?: string }[]) =>
 
 export class ApiBrain implements Brain {
   readonly kind = 'api'
-  private client = new Anthropic()
+  private client = new Anthropic({ timeout: 5 * 60_000, maxRetries: 2 })
 
   async step({ system, messages, tools }: StepRequest): Promise<Step> {
     const r = await this.client.beta.messages.create({
@@ -125,15 +125,27 @@ export function renderTranscript(messages: readonly Msg[]): string {
 
 export class CliBrain implements Brain {
   readonly kind = 'cli'
+  private timeoutMs: number
+  private command: (model: string, sysFile: string) => string[]
+
+  constructor(opts: { timeoutMs?: number; command?: (model: string, sysFile: string) => string[] } = {}) {
+    // A hung process would freeze the whole mind: thoughts run one at a time.
+    this.timeoutMs = opts.timeoutMs ?? Number(process.env.FLAPA_BRAIN_TIMEOUT_S || 240) * 1000
+    this.command = opts.command ?? ((model, sysFile) => [
+      'claude', '-p', '--output-format', 'json', '--tools', '', '--strict-mcp-config', '--no-session-persistence',
+      '--model', model, '--system-prompt-file', sysFile,
+    ])
+  }
 
   private async run(system: string, prompt: string, model: string): Promise<string> {
     const dir = mkdtempSync(join(tmpdir(), 'flapa-'))
     const sysFile = join(dir, 'system.md')
     writeFileSync(sysFile, system)
+    let timedOut = false
+    let killer: ReturnType<typeof setTimeout> | undefined
     try {
       const p = Bun.spawn(
-        ['claude', '-p', '--output-format', 'json', '--tools', '', '--strict-mcp-config', '--no-session-persistence',
-          '--model', model, '--system-prompt-file', sysFile],
+        this.command(model, sysFile),
         {
           stdin: new TextEncoder().encode(prompt),
           stdout: 'pipe',
@@ -142,12 +154,15 @@ export class CliBrain implements Brain {
           env: { ...process.env, CLAUDE_CODE_ENABLE_FUNCTION_HOOKS: '0' },
         },
       )
+      killer = setTimeout(() => { timedOut = true; p.kill() }, this.timeoutMs)
       const [out, err, code] = await Promise.all([new Response(p.stdout).text(), new Response(p.stderr).text(), p.exited])
+      if (timedOut) throw new Error(`claude -p gave no answer in ${Math.round(this.timeoutMs / 1000)}s and was stopped`)
       let json: any
       try { json = JSON.parse(out) } catch { throw new Error(`claude -p exited ${code}: ${(err || out).slice(0, 300)}`) }
       if (json.is_error) throw new Error(`claude -p: ${String(json.result ?? json.subtype).slice(0, 300)}`)
       return String(json.result ?? '')
     } finally {
+      clearTimeout(killer)
       rmSync(dir, { recursive: true, force: true })
     }
   }

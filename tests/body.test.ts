@@ -111,7 +111,7 @@ describe('paper hands', () => {
     let view = body.organ('hands').view!() as any
     expect(view.positions.length).toBe(1)
     expect(view.positions[0].paper).toBe(true)
-    expect(view.day.spentBnb).toBeCloseTo(0.02)
+    expect(view.day.paper.spentBnb).toBeCloseTo(0.02)
 
     const before = (body.organ('affect').view!() as any).valence
     price.bnb = 0.0002 // doubled: take profit

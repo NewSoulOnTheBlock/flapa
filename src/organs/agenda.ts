@@ -34,10 +34,19 @@ export function agenda(body: Body): Organ {
   const heart = () => ({ ...HEART, ...store.get<Partial<Heart>>('heart', {}) })
   const setHeart = (h: Partial<Heart>) => store.set('heart', { ...heart(), ...h })
 
-  const beat = async () => {
-    const h = setHeart({ lastBeatAt: Date.now(), beats: heart().beats + 1 })
-    const r = await body.think({ kind: 'beat', text: beatPrompt(h.beats, todos()), from: 'heartbeat' })
-    store.update<Beat[]>('journal', [], j => [...j, { at: Date.now(), n: h.beats, text: r.text.slice(0, 2000) }].slice(-50))
+  /** One beat at a time, whether the clock or the dashboard's button asks. */
+  let beating = false
+  const beat = async (): Promise<boolean> => {
+    if (beating) return false
+    beating = true
+    try {
+      const h = setHeart({ lastBeatAt: Date.now(), beats: heart().beats + 1 })
+      const r = await body.think({ kind: 'beat', text: beatPrompt(h.beats, todos()), from: 'heartbeat' })
+      store.update<Beat[]>('journal', [], j => [...j, { at: Date.now(), n: h.beats, text: r.text.slice(0, 2000) }].slice(-50))
+      return true
+    } finally {
+      beating = false
+    }
   }
 
   return {
@@ -92,7 +101,11 @@ export function agenda(body: Body): Organ {
         if (Number(everyMin) >= 5) h.everyMin = Math.round(Number(everyMin))
         return setHeart(h)
       },
-      beat: () => { void beat(); return { ok: true } },
+      beat: () => {
+        if (beating) return { ok: false, note: 'already beating' }
+        void beat().catch(err => body.bus.emit('rhythm.error', 'agenda', { rhythm: 'heartbeat', error: String(err) }))
+        return { ok: true }
+      },
     },
   }
 }

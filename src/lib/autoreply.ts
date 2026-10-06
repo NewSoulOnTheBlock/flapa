@@ -31,6 +31,20 @@ export function pickNew(list: readonly XMention[], handled: ReadonlySet<string>,
     .slice(0, cap)
 }
 
+/**
+ * X's since_id after a check: the newest mention in the unbroken run, oldest first, of mentions already
+ * dealt with (handled, or her own). It never jumps past one still waiting its turn, or that one is lost.
+ */
+export function nextSinceId(fresh: readonly XMention[], handled: ReadonlySet<string>, self: string, prev?: string): string | undefined {
+  let since = prev
+  const oldestFirst = [...fresh].sort((a, b) => (a.id === b.id ? 0 : newerId(a.id, b.id) ? 1 : -1))
+  for (const m of oldestFirst) {
+    if (!handled.has(m.id) && m.author.toLowerCase() !== self.toLowerCase()) break
+    if (!since || newerId(m.id, since)) since = m.id
+  }
+  return since
+}
+
 export type ReplyPersona = { name: string; handle: string; tagline: string; voice: string; examples: string[]; taboos: string[] }
 
 export function replySystem(p: ReplyPersona): string {

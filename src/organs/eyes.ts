@@ -5,6 +5,8 @@ import type { Organ } from '../core/types'
 import { FOMO_MCP_URL, isDue, parseToolReply, postBrief, rpcBody, toRows, DAILY_DEFAULT, type DailyConfig, type FomoRow, type FomoWindow } from '../lib/fomo'
 import { dexUrl, marketLine, pickPool, type Market } from '../lib/market'
 
+const DAILY_RETRY_MS = 15 * 60_000
+
 export type Research = {
   at: number; by: 'agent' | 'person'; token: string; symbol: string; line: string
   priceUsd?: number; liquidityUsd?: number; change24hPct?: number; marketCapUsd?: number
@@ -87,12 +89,15 @@ export function eyes(body: Body, fetcher: typeof fetch = fetch): Eyes {
     ],
     rhythms: [{
       name: 'daily-post',
-      due: now => isDue(daily(), new Date(now)),
+      // While fomo is down, it tries again every 15 minutes instead of giving up the day.
+      due: (now, last) => isDue(daily(), new Date(now)) && now - last >= DAILY_RETRY_MS,
       run: async () => {
+        const rows = await board('24h', 3)
+        if (!rows.length) throw new Error('the fomo board came back empty; trying again in 15 minutes')
+        // Marked before thinking: whatever she writes, the day's post is never attempted twice.
         const d = new Date()
         store.set('daily', { ...daily(), lastDay: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}` })
-        const rows = await board('24h', 3)
-        if (rows.length) await body.think({ kind: 'daily', text: postBrief(rows, '24h'), from: 'eyes' })
+        await body.think({ kind: 'daily', text: postBrief(rows, '24h'), from: 'eyes' })
       },
     }],
     view: () => ({ board: store.get('board', null), daily: daily(), research: store.get<Research[]>('research', []) }),

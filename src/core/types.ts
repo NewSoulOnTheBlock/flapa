@@ -30,7 +30,7 @@ export interface Organ {
   after?(turn: Turn, result: TurnResult): Promise<void> | void
   rhythms?: Rhythm[]
   /** Carries out an outward action the conscience let through. */
-  perform?(act: Outward, mode: Mode): Promise<string>
+  perform?(act: Outward, mode: Mode): Promise<string | { result: string; mode: Mode }>
   /** What the dashboard shows. */
   view?(): unknown
   /** Dashboard buttons: POST /api/<organ>/<action>. */

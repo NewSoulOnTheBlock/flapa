@@ -23,7 +23,11 @@ export function serve(body: Body, opts: { port: number; page: string }) {
     hostname: '127.0.0.1',
     port: opts.port,
     idleTimeout: 0,
-    async fetch(req) {
+    async fetch(req, srv) {
+      // DNS rebinding: a hostile site can point its own name at 127.0.0.1 and read the page (token
+      // included) same-origin. Its requests still say its own name in Host, so anything else is refused.
+      const host = (req.headers.get('host') ?? '').toLowerCase()
+      if (host !== `127.0.0.1:${srv.port}` && host !== `localhost:${srv.port}`) return new Response('wrong host', { status: 421 })
       const url = new URL(req.url)
       if (url.pathname === '/' && req.method === 'GET') {
         // Read on each load so the page can be edited while the body runs.

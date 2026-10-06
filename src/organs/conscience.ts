@@ -1,7 +1,7 @@
 // conscience — the only door out of the body. Was PACS guardrails (screen + dial + kill switch),
 // grown into a gate: every post, reply and trade passes here, and each organ is paper or live.
 //
-//   paused  → nothing goes out
+//   paused  → nothing goes out, except exits (a stop loss only removes risk)
 //   review  → everything waits for the person (exits excepted: a stop loss must not wait)
 //   auto    → rules, then a model reviewer; anything they flag waits for the person
 import type { Body } from '../core/body'
@@ -36,9 +36,11 @@ export function conscience(body: Body): Organ {
   const execute = async (o: Outward): Promise<string> => {
     const mode = modeOf(o.organ)
     try {
-      const result = await body.organ(o.organ).perform!(o, mode)
-      audit({ id: o.id, organ: o.organ, kind: o.kind, summary: o.summary, by: o.by, verdict: 'done', reasons: [], mode, result })
-      return `${mode === 'paper' ? 'done (paper)' : 'done (live)'}: ${result}`
+      // An organ may act in another mode than the switch says (a live bag's stop loss while trading is on paper).
+      const out = await body.organ(o.organ).perform!(o, mode)
+      const { result, mode: used } = typeof out === 'string' ? { result: out, mode } : out
+      audit({ id: o.id, organ: o.organ, kind: o.kind, summary: o.summary, by: o.by, verdict: 'done', reasons: [], mode: used, result })
+      return `${used === 'paper' ? 'done (paper)' : 'done (live)'}: ${result}`
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err)
       audit({ id: o.id, organ: o.organ, kind: o.kind, summary: o.summary, by: o.by, verdict: 'failed', reasons: [msg], mode })
@@ -55,7 +57,8 @@ export function conscience(body: Body): Organ {
   const gate = async (draft: Omit<Outward, 'id' | 'at'>): Promise<string> => {
     const o: Outward = { ...draft, id: `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`, at: Date.now() }
     if (!body.has(o.organ) || !body.organ(o.organ).perform) return `refused: ${o.organ} cannot act`
-    if (dial() === 'paused') {
+    // Paused stops everything that adds risk. An exit only removes it, so a stop loss still fires mid-crash.
+    if (dial() === 'paused' && o.by !== 'exit') {
       audit({ id: o.id, organ: o.organ, kind: o.kind, summary: o.summary, by: o.by, verdict: 'refused', reasons: [`paused: ${store.get('pausedWhy', '')}`] })
       return `refused: the person paused all outward actions${store.get('pausedWhy', '') ? ` (${store.get('pausedWhy', '')})` : ''}`
     }

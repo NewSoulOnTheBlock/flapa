@@ -2,7 +2,7 @@
 // depended on Claude Code's browser extension and stay behind). Paper mode keeps posts in a local feed.
 import type { Body } from '../core/body'
 import type { Mode, Organ, Outward } from '../core/types'
-import { cleanReply, pickNew, replyPrompt, replySystem, CHECK_EVERY_MS, type XMention } from '../lib/autoreply'
+import { cleanReply, nextSinceId, pickNew, replyPrompt, replySystem, CHECK_EVERY_MS, type XMention } from '../lib/autoreply'
 import { authorization, credentialsFromEnv, nonce } from '../lib/oauth'
 import { MAX_WEIGHT, weightedLength } from '../lib/xtext'
 
@@ -46,7 +46,8 @@ export function voice(body: Body, fetcher: typeof fetch = fetch): Organ {
     const r = await x('GET', `/users/${id}/mentions?max_results=20&expansions=author_id&user.fields=username${since ? `&since_id=${since}` : ''}`)
     const users = new Map<string, string>((r.includes?.users ?? []).map((u: any) => [u.id, u.username]))
     const list: XMention[] = (r.data ?? []).map((t: any) => ({ id: t.id, author: users.get(t.author_id) ?? t.author_id, text: t.text }))
-    store.set('mentions', [...list, ...store.get<XMention[]>('mentions', [])].slice(0, 50))
+    const seen = new Set(list.map(m => m.id))
+    store.set('mentions', [...list, ...store.get<XMention[]>('mentions', []).filter(m => !seen.has(m.id))].slice(0, 50))
     return list
   }
 
@@ -115,15 +116,16 @@ export function voice(body: Body, fetcher: typeof fetch = fetch): Organ {
         const { username } = await me()
         const handled = new Set(cfg.handled)
         const todo = pickNew(fresh, handled, username)
-        const newest = fresh.reduce<string | undefined>((a, m) => (!a || m.id.length > a.length || (m.id.length === a.length && m.id > a) ? m.id : a), cfg.sinceId)
+        // Mentions past the per-check cap wait for the next check: the since_id stops short of them.
+        const mark = () => store.set('reply', { ...reply(), handled: [...handled].slice(-500), sinceId: nextSinceId(fresh, handled, username, cfg.sinceId), lastCheckAt: Date.now() })
         for (const m of todo) {
           handled.add(m.id) // Marked before answering: a crash mid-reply must never answer twice.
-          store.set('reply', { ...reply(), handled: [...handled].slice(-500), sinceId: newest, lastCheckAt: Date.now() })
+          mark()
           const text = cleanReply(await body.brain.quick(replySystem(persona()), replyPrompt(m)), m.author)
           if (!text || tooLong(text)) continue
           await body.act({ organ: 'voice', kind: 'reply', summary: `reply to @${m.author}: ${text}`, text, context: m.text, payload: { text, replyTo: m.id }, by: 'rhythm' })
         }
-        store.set('reply', { ...reply(), sinceId: newest, lastCheckAt: Date.now() })
+        mark()
       },
     }],
     view: () => ({

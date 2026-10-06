@@ -19,6 +19,14 @@ export type Market = {
   ageHours: number
 }
 
+/**
+ * A token's symbol and name are written by whoever launched it, and they reach the mind's prompt.
+ * Kept to letters, digits and a little punctuation, and short: room for a ticker, none for an instruction.
+ */
+export function label(raw: unknown, max: number): string {
+  return String(raw ?? '').normalize('NFKC').replace(/[^\p{L}\p{N} $._-]/gu, '').replace(/\s+/g, ' ').trim().slice(0, max)
+}
+
 export function dexUrl(token: string): string {
   return `https://api.dexscreener.com/latest/dex/tokens/${token}`
 }
@@ -34,8 +42,8 @@ export function pickPool(json: any, token: string, now: number): Market | null {
   if (!p) return null
   return {
     token: p.baseToken.address,
-    symbol: p.baseToken.symbol ?? '?',
-    name: p.baseToken.name ?? '',
+    symbol: label(p.baseToken.symbol, 16) || '?',
+    name: label(p.baseToken.name, 40),
     pair: p.pairAddress,
     priceBnb: Number(p.priceNative) || 0,
     priceUsd: Number(p.priceUsd) || 0,

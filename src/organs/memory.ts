@@ -1,7 +1,7 @@
 // memory — what the mind keeps. Was PACS memory-graph: a quick model reads each turn and keeps
 // what matters; recall scores words and entities and walks one hop along shared entities.
 import type { Body } from '../core/body'
-import type { Organ } from '../core/types'
+import type { Organ, Turn, TurnResult } from '../core/types'
 import { addMemories, normalize, parseExtraction, recall, type Memory } from '../lib/memory'
 
 export function extractionSystem(name: string): string {
@@ -23,6 +23,7 @@ export function memory(body: Body): Organ {
   const key = () => `memories:${body.personaId()}`
   const list = () => store.get<Memory[]>(key(), [])
   const name = () => ((body.has('identity') ? (body.organ('identity').view?.() as any)?.active?.name : null) ?? 'the agent') as string
+  const inFlight = new Set<Promise<unknown>>()
 
   return {
     name: 'memory',
@@ -77,19 +78,12 @@ export function memory(body: Body): Organ {
       store.set(key(), all.map(m => (ids.has(m.id) ? { ...m, hits: m.hits + 1 } : m)))
       return `# What you remember that may bear on this\n${hits.map(m => `- ${m.text}`).join('\n')}`
     },
-    after: async (turn, result) => {
+    // Extraction runs beside the queue, not in it: the next thought (often the person's chat) never waits on it.
+    after: (turn, result) => {
       if (!result.text && !result.tools.length) return
-      const exchange = [
-        `STIMULUS (${turn.stimulus.kind}${turn.stimulus.from ? ` from ${turn.stimulus.from}` : ''}):\n${turn.stimulus.text.slice(0, 3000)}`,
-        result.tools.length ? `TOOLS USED: ${result.tools.map(t => `${t.name} → ${t.result.slice(0, 160)}`).join(' | ')}` : '',
-        `${name().toUpperCase()}:\n${result.text.slice(0, 3000)}`,
-      ].filter(Boolean).join('\n\n')
-      const raw = await body.brain.quick(extractionSystem(name()), `<exchange>\n${exchange}\n</exchange>`)
-      const incoming = parseExtraction(raw).map(normalize).filter((m): m is NonNullable<typeof m> => !!m)
-      if (!incoming.length) return
-      const { list: next, added } = addMemories(list(), incoming, Date.now())
-      store.set(key(), next)
-      if (added) body.bus.emit('memory.added', 'memory', { added, texts: incoming.map(m => m.text) })
+      const job = extract(turn, result).catch(err => { body.bus.emit('organ.error', 'memory', `extraction: ${String(err).slice(0, 200)}`) })
+      inFlight.add(job)
+      void job.finally(() => inFlight.delete(job))
     },
     view: () => {
       const all = list()
@@ -99,5 +93,23 @@ export function memory(body: Body): Organ {
       search: ({ query }) => recall(list(), String(query ?? ''), 20),
       forget: ({ id }) => { store.set(key(), list().filter(m => m.id !== id)); return { ok: true } },
     },
+    /** Resolves when every extraction started so far has landed (tests, shutdown). */
+    settled: () => Promise.all([...inFlight]).then(() => undefined),
+  } as Organ & { settled: () => Promise<void> }
+
+  async function extract(turn: Turn, result: TurnResult) {
+      // Kept under the persona the thought belonged to, even if the person switches persona meanwhile.
+      const owner = `memories:${turn.personaId}`
+      const exchange = [
+        `STIMULUS (${turn.stimulus.kind}${turn.stimulus.from ? ` from ${turn.stimulus.from}` : ''}):\n${turn.stimulus.text.slice(0, 3000)}`,
+        result.tools.length ? `TOOLS USED: ${result.tools.map(t => `${t.name} → ${t.result.slice(0, 160)}`).join(' | ')}` : '',
+        `${name().toUpperCase()}:\n${result.text.slice(0, 3000)}`,
+      ].filter(Boolean).join('\n\n')
+      const raw = await body.brain.quick(extractionSystem(name()), `<exchange>\n${exchange}\n</exchange>`)
+      const incoming = parseExtraction(raw).map(normalize).filter((m): m is NonNullable<typeof m> => !!m)
+      if (!incoming.length) return
+      const { list: next, added } = addMemories(store.get<Memory[]>(owner, []), incoming, Date.now())
+      store.set(owner, next)
+      if (added) body.bus.emit('memory.added', 'memory', { added, texts: incoming.map(m => m.text) })
   }
 }

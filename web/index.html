@@ -286,7 +286,7 @@ function p1() {
   const open = a.todos.filter(t => !t.isDone).length
   $('todoSub').textContent = `${open} open · ${a.todos.length - open} done`
   if (typingIn('p1')) return
-  $('p1').replaceChildren(
+  keep('p1', () => [
     h('form', { class: 'row', onsubmit: e => { e.preventDefault(); const v = $('todoIn').value.trim(); if (v) act('agenda', 'add', { text: v }); $('todoIn').value = '' } },
       h('input', { class: 'field', id: 'todoIn', placeholder: 'a goal for her ✿', autocomplete: 'off' }), h('button', { class: 'btn' }, 'add ♡')),
     h('div', { class: 'stack', style: 'margin-top:10px' }, a.todos.length ? [...a.todos].sort((x, y) => x.isDone - y.isDone).map(t =>
@@ -303,7 +303,7 @@ function p1() {
       h('span', {}, 'min'), h('span', { class: 'spacer' }),
       h('button', { class: 'btn small', onclick: () => { act('agenda', 'beat'); toast('ba-dum! ♥') } }, 'beat now')),
     a.journal.length ? [h('div', { class: 'sec' }, '📓 beat notes'), h('div', { class: 'stack' }, a.journal.map(j => h('div', { class: 'note' }, h('div', { class: 'faint' }, `#${j.n} · ${ago(j.at)}`), j.text)))] : null,
-  )
+  ])
 }
 
 // ---------- 2. thoughts, moods & feelings ----------
@@ -320,7 +320,7 @@ function cat(mood, working) {
 }
 const meter = (n, full, emptyIcon) => h('span', { class: 'meter' }, Array.from({ length: 5 }, (_, i) => h('i', { class: i < Math.round(n * 5) ? 'full' : '' }, i < Math.round(n * 5) ? full : emptyIcon)))
 
-const THOUGHT_ICON = { 'turn.start': '💡', 'turn.text': '💭', 'tool.call': '🔧', 'tool.result': '✨', 'memory.added': '📝', mood: '💗', stance: '🌟', 'act.hold': '🙏', 'act.block': '🚫', 'act.done': '✅', 'turn.error': '😵', research: '🔍', trade: '💸', posted: '💌' }
+const THOUGHT_ICON = { 'turn.start': '💡', 'turn.text': '💭', 'tool.call': '🔧', 'tool.result': '✨', 'memory.added': '📝', mood: '💗', stance: '🌟', 'act.hold': '🙏', 'act.block': '🚫', 'act.done': '✅', 'turn.error': '😵', research: '🔍', trade: '💸', posted: '💌', 'exit.stuck': '⏳', 'act.failed': '😵' }
 function thoughtText(s) {
   const d = s.data || {}
   switch (s.type) {
@@ -335,6 +335,7 @@ function thoughtText(s) {
     case 'research': return `looked at $${d.symbol}: ${d.line}`
     case 'trade': return `${d.paper ? 'paper' : 'LIVE'} ${d.side} $${d.symbol} · ${d.bnb.toFixed(4)} BNB`
     case 'posted': return `${d.mode} post: ${d.text}`
+    case 'exit.stuck': return `couldn't ${d.why} on $${d.symbol}: ${d.result}. retrying slower`
     default: return s.type.startsWith('act.') ? `${d.organ}.${d.kind} ${s.type.slice(4)}: ${d.summary}` : null
   }
 }
@@ -414,7 +415,7 @@ function p3() {
   $('fomoSub').textContent = v.board ? `board ${v.board.window} · ${ago(v.board.at)}` : ''
   if (typingIn('p3')) return
   const medals = ['🥇', '🥈', '🥉']
-  $('p3').replaceChildren(
+  keep('p3', () => [
     h('div', { class: 'row between wrap' },
       h('span', { class: 'seg' }, ['24h', '7d', '30d', 'all'].map(w => h('button', { class: fomoWin === w ? 'on' : '', onclick: () => { fomoWin = w; save('flapa.fomoWin', w); p3() } }, w))),
       h('button', { class: 'btn small', onclick: e => { e.target.textContent = 'peeking… 👀'; act('eyes', 'refresh', { window: fomoWin }).catch(() => {}).finally(() => p3()) } }, 'refresh ↻')),
@@ -438,7 +439,7 @@ function p3() {
         h('div', {}, h('span', { class: 'faint' }, '24h'), h('b', { class: r.change24hPct >= 0 ? 'up' : 'down' }, `${r.change24hPct >= 0 ? '+' : ''}${r.change24hPct}%`))) : null,
       h('div', { class: 'faint', style: 'margin-top:6px' }, r.line),
       h('div', { class: 'faint' }, r.token))) : empty('🔍', 'nothing researched yet')),
-  )
+  ])
 }
 
 // ---------- 4. current trades ----------
@@ -446,12 +447,19 @@ function p4() {
   const v = S.organs.hands.view, l = v.limits, live = S.organs.conscience.view.live.hands
   $('tradeSub').textContent = live ? 'LIVE 🔥' : 'paper 🧸'
   if (typingIn('p4')) return
-  $('p4').replaceChildren(
+  // Paper and live keep separate books: show the ones new buys go into, and mention the other if it's busy.
+  const mode = v.mode, d = v.day[mode], other = mode === 'live' ? 'paper' : 'live', od = v.day[other]
+  const open = v.positions.filter(p => p.paper === (mode === 'paper')).length
+  keep('p4', () => [
+    h('div', { class: 'dim', style: 'margin-bottom:6px' }, `today's ${mode} books ${mode === 'live' ? '🔥' : '🧸'}`),
     h('div', { class: 'books' },
-      h('div', { class: 'card' }, h('span', { class: 'faint' }, 'spent today'), h('b', {}, `${v.day.spentBnb.toFixed(3)}`),
-        h('div', { class: 'prog' }, h('i', { style: `width:${Math.min(100, (v.day.spentBnb / l.maxDailyBnb) * 100)}%` })), h('span', { class: 'faint' }, `of ${l.maxDailyBnb} BNB`)),
-      h('div', { class: 'card' }, h('span', { class: 'faint' }, 'realized'), h('b', { class: v.day.realizedBnb >= 0 ? 'up' : 'down' }, sign(v.day.realizedBnb)), h('span', { class: 'faint' }, `stop at -${l.maxDailyLossBnb}`)),
-      h('div', { class: 'card' }, h('span', { class: 'faint' }, 'open'), h('b', {}, `${v.positions.length}/${l.maxOpen}`), h('span', { class: 'faint' }, 'positions'))),
+      h('div', { class: 'card' }, h('span', { class: 'faint' }, 'spent today'), h('b', {}, `${d.spentBnb.toFixed(3)}`),
+        h('div', { class: 'prog' }, h('i', { style: `width:${Math.min(100, (d.spentBnb / l.maxDailyBnb) * 100)}%` })), h('span', { class: 'faint' }, `of ${l.maxDailyBnb} BNB`)),
+      h('div', { class: 'card' }, h('span', { class: 'faint' }, 'realized'), h('b', { class: d.realizedBnb >= 0 ? 'up' : 'down' }, sign(d.realizedBnb)), h('span', { class: 'faint' }, `stop at -${l.maxDailyLossBnb}`)),
+      h('div', { class: 'card' }, h('span', { class: 'faint' }, 'open'), h('b', {}, `${open}/${l.maxOpen}`), h('span', { class: 'faint' }, 'positions'))),
+    od.spentBnb || od.realizedBnb ? h('div', { class: 'faint', style: 'margin-top:4px' }, `${other} today: spent ${od.spentBnb.toFixed(3)} · realized ${sign(od.realizedBnb)}`) : null,
+    v.stuck.length ? h('div', { class: 'approve', style: 'margin-top:8px' }, h('b', {}, '⏳ an exit keeps failing'),
+      h('div', { class: 'why' }, `${v.stuck.map(s => s.key.split(':')[0]).join(', ')} · retrying with backoff, next ${ago(Math.min(...v.stuck.map(s => s.retryAt)))}. See the thoughts feed.`)) : null,
     ...approvals('hands'),
     h('div', { class: 'card row wrap', style: 'margin-top:10px' }, sw(v.scan, () => act('hands', 'scan', { isOn: !v.scan })),
       h('span', {}, 'copy-scan fomo top traders'), h('span', { class: 'faint' }, '· she judges each signal herself')),
@@ -462,7 +470,7 @@ function p4() {
         h('div', {}, h('b', {}, `$${p.symbol} `), h('span', { class: `tag ${p.paper ? '' : 'hot'}` }, p.paper ? 'paper 🧸' : 'LIVE 🔥'), p.tookProfit ? h('span', { class: 'tag' }, ' half taken · trailing') : null),
         h('span', { class: `pct ${c >= 0 ? 'up' : 'down'}` }, `${c >= 0 ? '+' : ''}${c.toFixed(1)}% ${c >= 0 ? '🚀' : '🥲'}`),
         h('span', { class: 'faint' }, `cost ${p.costBnb.toFixed(4)} BNB · opened ${ago(p.openedAt)}`),
-        h('button', { class: 'btn no small', onclick: () => confirm(`Sell all $${p.symbol}?`) && act('hands', 'sell', { token: p.token, pct: 100 }) }, 'sell all'))
+        h('button', { class: 'btn no small', onclick: () => confirm(`Sell all $${p.symbol} (${p.paper ? 'paper' : 'LIVE'})?`) && act('hands', 'sell', { token: p.token, pct: 100, paper: p.paper }) }, 'sell all'))
     })) : empty('🧺', 'no bags right now'),
     h('div', { class: 'sec' }, '🧾 trade diary'),
     v.trades.length ? h('div', { class: 'stack' }, v.trades.map(t => h('div', { class: 'card' },
@@ -471,8 +479,19 @@ function p4() {
       h('div', { class: 'faint' }, `${t.paper ? 'paper' : 'LIVE'} · ${t.by === 'exit' ? 'auto exit' : t.by} · ${ago(t.at)}${t.why ? ` · ${t.why}` : ''}`)))) : empty('🧾', 'no trades yet'),
     h('details', { style: 'margin-top:12px' }, h('summary', { class: 'dim', style: 'cursor:pointer' }, '⚙️ limits (enforced in code)'),
       h('div', { class: 'stack', style: 'margin-top:8px' }, Object.entries(l).map(([k, val]) => h('div', { class: 'row between' },
-        h('span', { class: 'dim' }, k), h('input', { class: 'field', style: 'flex:none;width:110px;padding:4px 8px', value: val, onchange: e => act('hands', 'limits', { [k]: Number(e.target.value) }) }))))),
-  )
+        h('span', { class: 'dim' }, k), h('input', { class: 'field', style: 'flex:none;width:110px;padding:4px 8px', value: val, onchange: e => act('hands', 'limits', { [k]: Number(e.target.value) }) }))),
+        h('div', { class: 'row between' }, h('span', { class: 'dim', title: 'many BNB memecoins tax each trade; paper fills take this off both ways' }, 'paper tax %'),
+          h('input', { class: 'field', style: 'flex:none;width:110px;padding:4px 8px', value: v.paperTaxPct, onchange: e => act('hands', 'paperTax', { pct: Number(e.target.value) }) })))),
+  ])
+}
+
+/** Redraws a pane but keeps what the person was looking at: which sections are open, and the scroll. */
+function keep(id, build) {
+  const box = $(id), top = box.scrollTop
+  const open = new Set([...box.querySelectorAll('details[open] > summary')].map(s => s.textContent))
+  box.replaceChildren(...[build()].flat(9).filter(Boolean))
+  for (const s of box.querySelectorAll('details > summary')) if (open.has(s.textContent)) s.parentElement.open = true
+  box.scrollTop = top
 }
 
 // ---------- plumbing ----------

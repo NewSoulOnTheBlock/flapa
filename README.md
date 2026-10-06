@@ -38,7 +38,9 @@ PACS was a set of guests living inside Claude Code. Flapa is the host. It runs i
 ## What's different from PACS
 
 - **Always on.** Rhythms (heartbeat, exits, auto-reply, copy-scan, daily post) run on the body's clock, not on a terminal session.
-- **Paper first.** Every outward organ starts in paper mode. Paper posts land in a local feed. Paper trades fill at the live pool price minus the 0.25% fee, so it is real practice on real data. Going live is a per-organ switch, and it is refused until that organ's credentials exist.
+- **Paper first.** Every outward organ starts in paper mode. Paper posts land in a local feed. Paper trades fill at PancakeSwap's own quote (price impact and fee included; mid price if the RPC is unreachable), minus an optional paper tax for taxed memecoins, so it is real practice on real data. Going live is a per-organ switch, and it is refused until that organ's credentials exist.
+- **Paper and live never mix.** Each has its own positions, daily books and cooldowns. A buy follows the switch; a sell follows the position it sells, so a live bag keeps its stop loss even after the switch goes back to paper.
+- **Paused stops risk, not exits.** The kill switch refuses every post, reply and buy, but a stop loss or take profit still fires. An exit that keeps failing backs off (2 min, 4, 8 … up to an hour) and says so once in her thoughts.
 - **Outward actions are data.** `{organ, kind, payload}` is persisted, so an action held for approval survives a restart and runs in whichever mode is current when you approve it. Limits are checked again at approval time.
 - **Two brains.** If `ANTHROPIC_API_KEY` is set, it uses the Anthropic SDK (`claude-opus-5-5` with native tools and server-side refusal fallback, plus `claude-haiku-4-5` for quick reflexes). Otherwise it uses `claude -p` on your Claude subscription, with tools spoken as a text protocol. The PACS function hooks are disabled inside that child process so they don't talk over the harness's prompt.
 - **Not carried over:** x-bridge's Chrome transports (they needed Claude Code's browser extension) and terminal panes and bands.
@@ -48,7 +50,7 @@ PACS was a set of guests living inside Claude Code. Flapa is the host. It runs i
 ```sh
 bun install
 bun start            # → http://127.0.0.1:7777
-bun test             # 20 tests: carried-over logic + cortex, conscience gate, paper trading
+bun test             # 34 tests: carried-over logic, cortex, conscience gate, paper trading, one regression test per review fix
 ```
 
 Environment (all optional; set them in your shell, never paste them into chat):
@@ -58,6 +60,7 @@ Environment (all optional; set them in your shell, never paste them into chat):
 | `ANTHROPIC_API_KEY` | API brain. Without it, Flapa uses `claude -p` |
 | `FLAPA_BRAIN` | force `api` or `cli` |
 | `FLAPA_MODEL`, `FLAPA_QUICK_MODEL`, `FLAPA_EFFORT` | default `claude-opus-5-5`, `claude-haiku-4-5`, `medium` |
+| `FLAPA_BRAIN_TIMEOUT_S` | how long one `claude -p` call may take before it is stopped (default 240) |
 | `X_API_KEY`, `X_API_SECRET`, `X_ACCESS_TOKEN`, `X_ACCESS_TOKEN_SECRET` | voice → live, mentions |
 | `FLAPA_TRADER_KEY` | hands → live. Only `helper/trade.mjs` ever reads it |
 | `FLAPA_TRADER_MAX_BNB` | the helper's own hard cap per buy (default 0.1) |
