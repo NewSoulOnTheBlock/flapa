@@ -214,7 +214,7 @@ function p3() {
   const medals = ['🥇', '🥈', '🥉']
   const R = S.radar, N = S.news
   const TIER = { known: '🔴 known insider-like', active: '🟢 active alpha', emerging: '🟠 emerging', watch: '🟡 watchlist', dormant: '⚫ dormant' }
-  if (R) $('s3').textContent = `${R.counts.wallets.toLocaleString()} wallets watched · ${R.counts.trades.toLocaleString()} trades`
+  if (R) $('s3').textContent = `${R.counts.wallets.toLocaleString()} fomo traders watched · ${R.counts.trades.toLocaleString()} trades`
   keep('p3', () => [
     R ? [h('div', { class: 'sec', style: 'margin-top:0' }, '🕵️ wallet radar', h('span', { class: 'faint' }, R.copyOn ? 'copying the best buys' : 'watching only')),
       h('div', { class: 'faint', style: 'margin-bottom:6px' }, 'insider-like means behavior (in early, ahead of attention, again and again), not proof of inside information.'),

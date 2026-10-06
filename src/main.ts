@@ -5,6 +5,7 @@ import { pickBrain } from './core/brain'
 import { startLive } from './core/live'
 import { startPublishing } from './core/publish'
 import { mem0FromEnv } from './lib/mem0'
+import { fomoApiFromEnv } from './lib/fomoapi'
 import { applySeed } from './core/seed'
 import { serve } from './core/server'
 import { affect } from './organs/affect'
@@ -23,6 +24,7 @@ const home = resolve(process.env.FLAPA_HOME || join(root, 'data'))
 const seeded = applySeed(home, process.env.FLAPA_SEED)
 if (seeded.length) console.log(`[flapa] seeded ${seeded.length} state files into ${home}`)
 const body = new Body({ home, brain: pickBrain() })
+const fomo = fomoApiFromEnv(process.env)
 
 // Order is prompt order: who you are first (cached), then the slow-changing, then the moment.
 body.grow(
@@ -32,10 +34,10 @@ body.grow(
   agenda(body),
   affect(body),
   memory(body, { mem0: mem0FromEnv(process.env) }),
-  eyes(body),
+  eyes(body, fetch, { api: fomo }),
   voice(body, { catalogDir: join(root, 'personas') }),
   hands(body, nodeHelper(root)),
-  scout(body),
+  scout(body, { api: fomo }),
 )
 
 body.bus.listen(s => {

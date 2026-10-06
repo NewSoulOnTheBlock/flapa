@@ -16,6 +16,10 @@ export type SignalContext = {
   priceAtSignal: number; priceNow: number
   tokenMcap: number; tokenAgeMin: number
   held: boolean
+  /** The token's last 5 minutes of flow (FomoAPI stats), when known. */
+  flow?: { buySellRatio: number | null; uniqueBuyers: number }
+  /** Trading is restricted for this token (FomoAPI warnings). */
+  sellBlocked?: boolean
 }
 export type SignalScore = { score: number; reasons: string[]; skip?: string }
 
@@ -26,6 +30,7 @@ export function scoreSignal(c: SignalContext): SignalScore {
   const p = c.profile
   if (!COPY_TIERS.includes(p.tier)) return { score: 0, reasons: [], skip: `wallet is not on the radar (${p.tier})` }
   if (c.held) return { score: 0, reasons: [], skip: 'already holding it' }
+  if (c.sellBlocked) return { score: 0, reasons: [], skip: 'fomo flags it: selling is restricted' }
   const ageMin = (c.now - c.signalAt) / 60_000
   if (ageMin > MAX_SIGNAL_AGE_MIN) return { score: 0, reasons: [], skip: `stale: the wallet bought ${Math.round(ageMin)} min ago` }
   const ran = c.priceAtSignal > 0 ? c.priceNow / c.priceAtSignal - 1 : 0
@@ -41,6 +46,9 @@ export function scoreSignal(c: SignalContext): SignalScore {
   if (fits) { s += 8; reasons.push(`in its specialty: ${p.bestBucket!.name}`) }
   if (p.isLeader) { s += 5; reasons.push('a cluster leader: others tend to follow') }
   if (ran > 0.1) { s -= 6; reasons.push(`price already +${Math.round(ran * 100)}% since its buy`) }
+  const r = c.flow?.buySellRatio
+  if (c.flow && r != null && r >= 1.2 && c.flow.uniqueBuyers >= 8) { s += 5; reasons.push(`buyers in control: ${r.toFixed(1)}x buy/sell volume, ${c.flow.uniqueBuyers} buyers in 5 min`) }
+  else if (c.flow && r != null && r < 0.7) { s -= 5; reasons.push(`sellers in control: ${r.toFixed(1)}x buy/sell volume in 5 min`) }
   return { score: Math.max(0, Math.min(100, Math.round(s))), reasons }
 }
 

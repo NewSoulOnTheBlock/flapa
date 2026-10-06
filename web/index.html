@@ -531,8 +531,8 @@ function p3() {
           h('span', {}, 'copy the radar\'s best buys'),
           h('span', { class: 'faint' }, `· up to`),
           h('input', { class: 'field', style: 'flex:none;width:52px;padding:4px 8px', value: sc.config.maxCopiesPerDay, onchange: e => act('scout', 'config', { maxCopiesPerDay: Number(e.target.value) }) }),
-          h('span', { class: 'faint' }, `/day · watching ${sc.config.watchCount} wallets every ${sc.config.watchEveryMin} min${sc.rpc ? '' : ' (no RPC: pool scans only)'}`)),
-        h('div', { class: 'faint', style: 'margin:6px 0' }, `warehouse: ${sc.counts.trades.toLocaleString()} trades · ${sc.counts.wallets.toLocaleString()} wallets · ${sc.counts.tokens} tokens${sc.summary ? ` · ${sc.summary.wallets} profiled, ${sc.summary.clusters} clusters` : ''}`),
+          h('span', { class: 'faint' }, `/day · ${!sc.api ? 'no FOMO_API_KEY' : sc.live?.isOpen ? `● fomo live stream (${(sc.live.events ?? 0).toLocaleString()} events)` : `○ fomo stream ${sc.live?.status ?? 'connecting'}`}`)),
+        h('div', { class: 'faint', style: 'margin:6px 0' }, `warehouse: ${sc.counts.trades.toLocaleString()} trades · ${sc.counts.wallets.toLocaleString()} fomo traders · ${sc.counts.tokens} tokens${sc.summary ? ` · ${sc.summary.wallets} profiled, ${sc.summary.clusters} clusters` : ''}`),
         groups.length ? h('div', { class: 'stack' }, groups.flatMap(([tier, list]) => [
           h('div', { class: 'dim', style: 'margin-top:4px' }, TIER[tier] ?? tier),
           ...list.slice(0, 3).map(p => h('details', { class: 'card' },

@@ -38,21 +38,28 @@ conscience and the same paper/LIVE switch.
 
 | Source | Organ | What it does |
 |---|---|---|
-| **Wallet copy trading** | scout | Finds wallets with a repeatable edge and copies their best buys. The main engine. |
+| **fomo copy trading** | scout | Finds fomo.family traders with a repeatable edge and copies their best BNB Chain buys, live. The main engine. |
 | **Trade cycle** | hands | Every 2 hours, buys the best-scoring pool on its own read of the market, or rotates out the weakest bag. |
-| **fomo copy-scan** | hands | Off by default. Reads what fomo's top traders bought, when fomo's data feed is up, and lets her judge each one. |
+| **fomo copy-scan** | hands | Off by default. The older, simpler version: what fomo's 24h top 10 bought in the last 2 hours, judged by her. |
 
-### 1. Identify: the wallet warehouse and radar
+All fomo data comes from [FomoAPI](https://fomoapi.family) (`FOMO_API_KEY`): leaderboards, trader swaps and rank
+cards, token stats, warnings and candles over REST, and every buy and sell over a live WebSocket.
+
+### 1. Identify: the trader warehouse and radar
 
 "Insider-like" in Flapa means *behavior* (in early, ahead of attention, again and again), never a claim that anyone
 has non-public information.
 
-**Collect** (every 10 minutes). New launches, trending and top PancakeSwap v2 WBNB pools from GeckoTerminal, every
-trade in a rotating slice of them (wallet, side, size, price, block), and their 5-minute and hourly candles, into a
-SQLite warehouse (`data/wallets.db`). Nothing is deleted, so wallets that faded still count and the rankings are not
-built only from survivors.
+**Her universe** is fomo.family's traders: everyone on the 24h, 7d and 30d leaderboards, plus everyone the live
+stream sees trading on BNB Chain that week. Each is identified by their fomo handle.
 
-**Profile** (every hour, every wallet with 3+ tokens):
+**Collect** (live, and every 15 minutes). The live stream drops every BNB Chain buy and sell into a SQLite warehouse
+(`data/wallets.db`) as it happens. Every 15 minutes she also refreshes a rotating slice of traders' full swap
+histories (all chains: a trader's skill on Solana still tells her something) and 5-minute and hourly candles for the
+tokens they bought this week, most-shared first. Nothing is deleted, so traders who faded still count and the
+rankings are not built only from survivors.
+
+**Profile** (every hour, every trader with 3+ tokens), alongside their real fomo PnL ranks:
 
 | | |
 |---|---|
@@ -72,25 +79,30 @@ discovery 5, influence 5. Once 30 copy signals have known outcomes, the weights 
 actually predicted returns. Every score explains itself:
 
 ```
-🔴 known insider-like  0x7a4f…9201 · score 91 · insider-like, smart money, early money
-  • leads wallet cluster #3 (4 wallets follow its entries)
-  • 94th percentile early-entry timing (median 4 min after launch)
-  • 91st percentile 1-hour forward return (median +38%)
-  • 41 min median lead before volume spikes (12 times)
-  • improving over the last 7 days
+🟢 active alpha  @rugdalio · score 76 · early money, gambler
+  • #9 on fomo's 24h board (+$191,521)
+  • 100th percentile 1-hour forward return (median +103%)
+  • +103% over the day's typical entry, 1h after buying
+  • 53rd percentile early-entry timing (median 25 min after launch)
 ```
+
+(A real profile from the first live run.)
 
 **The radar:** 🔴 known insider-like · 🟢 active alpha · 🟠 emerging · 🟡 watchlist · ⚫ dormant.
 
 ### 2. Copy: from a radar buy to her trade
 
-Every 3 minutes she watches the top radar wallets' token transfers live (Alchemy), and she also catches their buys in
-the pools she scans. Each buy becomes a scored **signal**:
+The live stream delivers every BNB Chain buy on fomo the moment it happens. When the buyer is on her radar, the buy
+becomes a scored **signal**:
 
-- **for it:** the wallet's score and tier, conviction (a buy several times its usual size), confluence (other radar
-  wallets in the same token within 30 minutes), its specialty (the token's market cap or age is where it is best),
-  being a cluster leader
-- **skipped:** stale (30+ minutes old), already held, or the price is already up 30%+ since the wallet bought
+- **for it:** the trader's score and tier, conviction (a buy several times their usual size), confluence (other
+  radar traders in the same token within 30 minutes), their specialty (the token's market cap or age is where they are
+  best), being a cluster leader, and the token's live flow (FomoAPI stats: buyers in control over the last 5 minutes)
+- **against it / skipped:** sellers in control, stale (30+ minutes old), already held, the price already up 30%+
+  since they bought, or fomo flags the token (selling restricted)
+- **not tradable yet:** hands trades PancakeSwap v2 pools against WBNB. Many fomo BNB Chain tokens trade against
+  other tokens (QQQB, BABAB) or on flap.sh; those signals are scored and logged, not copied, until two-hop routing
+  is added
 
 Signals of 65+ are copied (6 a day by default), sized 0.5x to 2x the trade cycle's size by the strength of the signal.
 Every signal's 1-hour outcome is recorded: that log is what the score weights learn from.
@@ -165,9 +177,9 @@ migrate once. Without a key, a local extractor and word-and-entity recall do the
 | Every | Rhythm | Organ |
 |---|---|---|
 | 2 min | exits: copy plans, take-profit, trailing and stop losses | hands |
-| 3 min | watch radar wallets live; copy good signals; follow copied wallets out | scout |
+| live | fomo stream: every BNB Chain buy and sell into the warehouse; radar buys scored and copied; copied traders followed out | scout |
 | 10 min | mentions and crisis watch; auto-reply when on | voice |
-| 10 min | collect pools, trades and candles into the wallet warehouse | scout |
+| 15 min | refresh fomo leaderboards, a slice of traders' swap histories, and candles | scout |
 | 30 min | news; market-move trigger; signal outcomes | eyes, scout |
 | 1 h | rebuild every wallet profile, the graph, scores and the radar | scout |
 | 2 h | trade cycle; outbound replies when on | hands, voice |
@@ -216,7 +228,8 @@ to the Standard plan: every thought starts a `claude` process.
 | `MEM0_API_KEY` | long-term memory in mem0 |
 | `X_API_KEY`, `X_API_SECRET`, `X_ACCESS_TOKEN`, `X_ACCESS_TOKEN_SECRET` | posting, mentions, metrics, search (OAuth 1.0a user keys) |
 | `BLOB_READ_WRITE_TOKEN` | the public window's snapshot (Vercel Blob) |
-| `BSC_RPC_URL` | BNB Chain RPC: trades, and the scout's live watch of radar wallets (Alchemy: `alchemy_getAssetTransfers`) |
+| `FOMO_API_KEY` | FomoAPI: fomo leaderboards, traders, token data and the live stream (the scout, the daily top-3 post, copy-scan, honeypot checks) |
+| `BSC_RPC_URL` | BNB Chain RPC for trades |
 | `FLAPA_TRADER_KEY` | her trading wallet (only the helper reads it) |
 | `FLAPA_WALLET_MODE`, `FLAPA_GAS_KEY` | `fomo` for her fomo.family smart account, and the gas wallet that pays for it |
 | `FLAPA_TRADER_MAX_BNB` | the helper's own hard cap per buy (default 0.1) |
@@ -224,9 +237,8 @@ to the Standard plan: every thought starts a `claude` process.
 | `PORT` / `FLAPA_PUBLIC_PORT`, `RENDER_EXTERNAL_URL` / `FLAPA_PUBLIC_URL` | the public live window: its port, and the address viewers reach it at |
 | `FLAPA_SEED` | one-time state import on a fresh host |
 
-Data sources that need no key: GeckoTerminal (pools, trades, candles), DexScreener (pools), CoinGecko (prices), and the
-four news RSS feeds. GeckoTerminal's free tier allows about 30 calls a minute; the scout stays near 20. Watching 12
-wallets every 3 minutes is about 5-6k Alchemy calls a day.
+Data sources that need no key: GeckoTerminal (the trade cycle's pools), DexScreener (pools), CoinGecko (prices), and the
+four news RSS feeds. The scout makes about 60 FomoAPI calls per 15-minute pass (tunable: traders and tokens per run).
 
 ## Useful scripts
 
@@ -234,7 +246,7 @@ All read-only unless noted.
 
 | script | shows |
 |---|---|
-| `bun scripts/scout-preview.ts [rounds]` | the whole wallet scout on live data in a throwaway body (no trading): collect, score, radar |
+| `bun scripts/scout-preview.ts [seconds]` | the whole scout on live FomoAPI data in a throwaway body (no trading): collect, listen to the stream, score, radar |
 | `bun scripts/cycle-preview.ts` | what the next trade cycle would buy |
 | `bun scripts/x-probe.ts` | what the X keys can read |
 | `bun scripts/learn-preview.ts` | what the measure-and-learn loop sees on her real account |
@@ -276,7 +288,7 @@ src/core          body (organs, queue, clock), brain (API or CLI), store, server
 src/organs        identity · conscience · beliefs · agenda · affect · memory · eyes · voice · hands · scout
 src/lib           the pure logic behind them, one tested file each: analytics, calendar, crisis, lore, mem0, news,
                   posting, rules, social, strategy, triggers, limits, market, …
-src/lib/wallets   warehouse (SQLite + GeckoTerminal parsers), metrics, graph, score, copy
+src/lib/wallets   warehouse (SQLite), metrics, graph, score, copy · src/lib/fomoapi.ts: the FomoAPI client and stream
 personas          flapa.json (who she is) · flapa.topics.json (what she posts about)
 helper            trade.mjs, the only process that touches keys
 web · site        the local dashboard · the public window

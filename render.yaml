@@ -21,6 +21,8 @@ services:
         value: cli
       - key: FLAPA_WALLET_MODE
         value: fomo
+      - key: FOMO_API_KEY
+        sync: false
       - key: MEM0_API_KEY
         sync: false
       - key: CLAUDE_CODE_OAUTH_TOKEN

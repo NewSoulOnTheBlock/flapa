@@ -5,6 +5,7 @@ import type { Organ } from '../core/types'
 import { FOMO_MCP_URL, isDue, parseToolReply, postBrief, rpcBody, toRows, DAILY_DEFAULT, type DailyConfig, type FomoRow, type FomoWindow } from '../lib/fomo'
 import { dexUrl, marketLine, pickPool, type Market } from '../lib/market'
 import { parseGeckoPools, type Candidate } from '../lib/strategy'
+import type { FomoApi } from '../lib/fomoapi'
 import { digestPrompt, FEEDS, newsBrief, newsjackPick, parseDigest, parseRss, stories, type Narrative, type NewsItem } from '../lib/news'
 
 import { bigMoves, moveBrief } from '../lib/triggers'
@@ -28,11 +29,27 @@ export type Eyes = Organ & {
 const GECKO = 'https://api.geckoterminal.com/api/v2/networks/bsc'
 const GECKO_LISTS = [`${GECKO}/trending_pools?page=1`, `${GECKO}/dexes/pancakeswap_v2/pools?page=1&sort=h24_volume_usd_desc`, `${GECKO}/dexes/pancakeswap_v2/pools?page=2&sort=h24_volume_usd_desc`]
 
-export function eyes(body: Body, fetcher: typeof fetch = fetch): Eyes {
+export function eyes(body: Body, fetcher: typeof fetch = fetch, opts: { api?: FomoApi | null } = {}): Eyes {
+  const api = opts.api ?? null
   const store = body.store('eyes')
   let rpcId = 0
 
+  /** fomo data: FomoAPI's REST when FOMO_API_KEY is set (same shapes the old MCP tools returned), else the MCP. */
   async function fomo(tool: string, args: Record<string, unknown>): Promise<any> {
+    if (api) {
+      const a = args as any
+      switch (tool) {
+        case 'fomo_get_leaderboard': return { items: await api.leaderboard(a.window ?? '24h', a.limit ?? 10) }
+        case 'fomo_get_trader': return api.profile(String(a.handle))
+        case 'fomo_list_trader_swaps': return { items: await api.positions(String(a.handle), a.limit ?? 30) }
+        case 'fomo_get_token_warnings': return api.warnings(String(a.address), a.network === 'bnb' ? 56 : Number(a.network) || 56)
+        default: throw new Error(`no FomoAPI route for ${tool}`)
+      }
+    }
+    return fomoMcp(tool, args)
+  }
+
+  async function fomoMcp(tool: string, args: Record<string, unknown>): Promise<any> {
     const r = await fetcher(FOMO_MCP_URL, {
       method: 'POST',
       headers: { 'content-type': 'application/json', accept: 'application/json, text/event-stream', 'mcp-protocol-version': '2025-06-18' },
@@ -129,7 +146,7 @@ export function eyes(body: Body, fetcher: typeof fetch = fetch): Eyes {
 
   return {
     name: 'eyes',
-    role: 'Market sight: DexScreener pools on BNB Chain and the fomo.family leaderboard. Never acts.',
+    role: 'Market sight: DexScreener pools on BNB Chain, the fomo.family leaderboard (FomoAPI), news and prices. Never acts.',
     market,
     fomo,
     candidates,

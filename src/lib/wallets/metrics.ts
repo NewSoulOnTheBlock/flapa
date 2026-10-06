@@ -97,7 +97,7 @@ export function buildPositions(trades: readonly Trade[], tokens: ReadonlyMap<str
       roi: costBnb > 0 && (closed || remainingBnb > 0) ? (proceedsBnb + remainingBnb) / costBnb - 1 : null,
       closed, holdMin: closed && sells.length ? (sells[sells.length - 1]!.at - first.at) / 60_000 : null,
       minutesSinceLaunch: tk ? Math.max(0, (first.at - tk.launchedAt) / 60_000) : NaN,
-      mcapAtEntry: tk && nowPrice > 0 ? tk.fdvUsd * (avgPrice / nowPrice) : NaN,
+      mcapAtEntry: tk && nowPrice > 0 && tk.fdvUsd > 0 ? tk.fdvUsd * (avgPrice / nowPrice) : NaN,
       fwd: tk ? forwardReturns(first.priceUsd, first.at, tk.pool, candles, now) : {},
       peak24h: peakWin.length && first.priceUsd > 0 ? Math.max(...peakWin.map(x => x.h)) / first.priceUsd : null,
       leadMin: c5.length ? leadTime(first.at, first.priceUsd, c5) : null,

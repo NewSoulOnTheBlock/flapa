@@ -1,98 +1,114 @@
-// scout — wallet intelligence and copy trading. Three phases:
-//   1. identify: collect every trade in the pools she watches (GeckoTerminal), turn wallets into profiles
-//      (timing, forward and excess returns, consistency, clusters, specialization), score and tier them.
-//   2. copy: watch the radar wallets live (Alchemy transfers), score each buy as a signal, and copy the
-//      good ones through hands, sized by the signal, inside the same limits and conscience as every trade.
-//   3. control: once in, the position follows its copy plan (hands' exits): out when the copied wallet
-//      sells, when liquidity is pulled, when the thesis breaks, on a profit ladder, or on a time stop.
+// scout — wallet intelligence and copy trading on fomo.family data (FomoAPI). Three phases:
+//   1. identify: fomo's leaderboards (24h, 7d, 30d) plus every trader active on BNB Chain are her universe.
+//      Their swaps (REST) and the live stream fill the warehouse; candles come per token. Each trader becomes a
+//      profile (timing, forward and excess returns, consistency, clusters, specialization, fomo PnL ranks),
+//      scored, labeled and tiered.
+//   2. copy: the live WebSocket delivers every BNB Chain buy the moment it happens. A radar trader's buy is
+//      scored (their profile, conviction, confluence, specialty, the token's live flow and fomo's warnings) and
+//      the good ones are copied through hands, sized by the signal, inside the usual limits and conscience.
+//   3. control: copied positions follow their plan in hands' exits. When the trader she copied sells, the
+//      stream says so instantly and she follows them out with the same share.
 // Labels say "insider-like": behavior that moves before attention, never a claim of non-public information.
 import { join } from 'node:path'
 import type { Body } from '../core/body'
 import type { Organ } from '../core/types'
-import { WBNB } from '../lib/market'
+import { alertToTrade, CHAIN, chainName, ohlcvToCandles, openStream, parseTokenKey, positionsToTrades, tokenFromCandles, tokenKey, traderId, type FomoApi, type FomoStream } from '../lib/fomoapi'
 import { cycleSize } from '../lib/strategy'
 import { COPY_THRESHOLD, COPY_TIERS, copySize, scoreSignal, type CopyMeta } from '../lib/wallets/copy'
 import { buildGraph } from '../lib/wallets/graph'
 import { benchmark, buildPositions, med, walletMetrics, type CandleLookup } from '../lib/wallets/metrics'
 import { DEFAULT_WEIGHTS, learnWeights, scoreWallets, TIER_NAMES, type Component, type Profile, type Tier } from '../lib/wallets/score'
-import { parseCandles, parsePools, parseTrades, Warehouse, type Candle, type Token } from '../lib/wallets/warehouse'
+import { Warehouse, type Candle } from '../lib/wallets/warehouse'
 import type { Eyes } from './eyes'
 
-const GT = 'https://api.geckoterminal.com/api/v2/networks/bsc'
-const COLLECT_EVERY_MS = 10 * 60_000
+const COLLECT_EVERY_MS = 15 * 60_000
 const SCORE_EVERY_MS = 60 * 60_000
 const OUTCOME_EVERY_MS = 30 * 60_000
-const TRADE_POOLS_PER_RUN = 12
-const CANDLE_POOLS_PER_RUN = 6
-const STABLES = new Set([WBNB, '0x55d398326f99059ff775485246999027b3197955', '0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d', '0xe9e7cea3dedca5984780bafc599bd69add087d56'])
+const CANDLE_LIMIT_5M = 1000, CANDLE_LIMIT_1H = 500
 
-export type ScoutConfig = { copyOn: boolean; maxCopiesPerDay: number; watchEveryMin: number; watchCount: number }
-const CONFIG: ScoutConfig = { copyOn: true, maxCopiesPerDay: 6, watchEveryMin: 3, watchCount: 12 }
+export type ScoutConfig = { copyOn: boolean; maxCopiesPerDay: number; tradersPerRun: number; tokensPerRun: number }
+const CONFIG: ScoutConfig = { copyOn: true, maxCopiesPerDay: 6, tradersPerRun: 15, tokensPerRun: 20 }
+type Board = Partial<Record<'24h' | '7d' | '30d', { rank: number; pnlUsd: number }>>
 
-export type ScoutOptions = { dbPath?: string; fetcher?: typeof fetch; rpcUrl?: string; pause?: (ms: number) => Promise<void> }
-const short = (w: string) => `${w.slice(0, 6)}…${w.slice(-4)}`
+export type ScoutOptions = {
+  dbPath?: string; api?: FomoApi | null; apiKey?: string
+  /** false: no live WebSocket (tests feed alerts through ingest). */
+  stream?: boolean
+  pause?: (ms: number) => Promise<void>
+}
+const short = (w: string) => (w.startsWith('@') ? w : `${w.slice(0, 6)}…${w.slice(-4)}`)
 
-export function scout(body: Body, opts: ScoutOptions = {}): Organ & { warehouse: Warehouse } {
+export type ScoutOrgan = Organ & { warehouse: Warehouse; ingest: (alert: any) => Promise<void> }
+
+export function scout(body: Body, opts: ScoutOptions = {}): ScoutOrgan {
   const store = body.store('scout')
-  const fetcher = opts.fetcher ?? fetch
+  const api = opts.api ?? null
   const pause = opts.pause ?? (ms => Bun.sleep(ms))
-  const rpcUrl = opts.rpcUrl ?? process.env.BSC_RPC_URL
   const db = new Warehouse(opts.dbPath ?? join(body.home, 'wallets.db'))
   const cfg = (): ScoutConfig => ({ ...CONFIG, ...store.get<Partial<ScoutConfig>>('config', {}) })
   const eyes = () => body.organ<Eyes>('eyes')
   const hands = () => (body.has('hands') ? body.organ('hands') : null)
   const bnbUsd = () => Number((body.store('eyes').get<any>('prices', null))?.prices?.binancecoin?.usd) || 600
-
-  /** The free API allows about 30 calls a minute, shared per IP: stay near 20, and back off once on a 429. */
-  async function gt(path: string, retried = false): Promise<any> {
-    const r = await fetcher(`${GT}${path}`, { headers: { accept: 'application/json' } })
-    if (r.status === 429 && !retried) { await pause(45_000); return gt(path, true) }
-    if (!r.ok) throw new Error(`GeckoTerminal answered ${r.status}`)
-    await pause(3000)
-    return r.json()
-  }
+  const symbols = new Map<string, string>(Object.entries(store.get<Record<string, string>>('symbols', {})))
+  const rememberSymbol = (key: string, sym: unknown) => { if (typeof sym === 'string' && sym && !symbols.has(key)) { symbols.set(key, sym.slice(0, 20)); store.set('symbols', Object.fromEntries([...symbols].slice(-5000))) } }
 
   // ---------------- Phase 1: identify ----------------
 
-  /** New launches, trending and top pools; then trades for a rotating slice of them, and candles. */
+  /** fomo's boards and BNB-active traders: refresh a rotating slice of their swaps, and candles for what they bought. */
   async function collect(): Promise<string> {
     store.set('collectAt', Date.now())
-    // Pool lists rotate pages so the token list keeps growing; most top v2 pools are USDT pairs, which hands can't trade.
-    const page = (store.get<number>('page', 0) % 3) + 1
-    store.set('page', page)
-    const lists = [`/new_pools?page=${page}`, '/trending_pools?page=1', `/dexes/pancakeswap_v2/pools?page=${page}&sort=h24_tx_count_desc`, `/dexes/pancakeswap_v2/pools?page=${page}&sort=h24_volume_usd_desc`]
-    const fresh: Token[] = []
-    for (const l of lists) { try { fresh.push(...parsePools(await gt(l), Date.now())) } catch {} }
-    for (const t of fresh) db.upsertToken(t)
-    // New launches first (early entries happen there), then whatever has gone longest without a look.
-    const seen = store.get<Record<string, number>>('tradesSeenAt', {})
-    const all = db.tokens().filter(t => t.liquidityUsd >= 5_000)
-    const isNew = new Set(fresh.filter(t => Date.now() - t.launchedAt < 6 * 3_600_000).map(t => t.token))
-    const queue = all.sort((a, b) => Number(isNew.has(b.token)) - Number(isNew.has(a.token)) || (seen[a.token] ?? 0) - (seen[b.token] ?? 0)).slice(0, TRADE_POOLS_PER_RUN)
-    let added = 0
-    for (const t of queue) {
-      try { added += db.addTrades(parseTrades(await gt(`/pools/${t.pool}/trades`), t)); seen[t.token] = Date.now() } catch {}
-    }
-    store.set('tradesSeenAt', Object.fromEntries(Object.entries(seen).sort((a, b) => b[1] - a[1]).slice(0, 2000)))
-    // Candles for forward returns: the pools with the most activity whose candles are oldest.
-    const candleAt = store.get<Record<string, number>>('candlesAt', {})
-    const busy = queue.filter(t => Date.now() - (candleAt[t.pool] ?? 0) > 60 * 60_000).slice(0, CANDLE_POOLS_PER_RUN)
-    for (const t of busy) {
+    if (!api) return 'no FOMO_API_KEY: the scout needs FomoAPI'
+    const boards = store.get<Record<string, Board>>('boards', {})
+    for (const w of ['24h', '7d', '30d'] as const) {
       try {
-        db.addCandles(t.pool, '5m', parseCandles(await gt(`/pools/${t.pool}/ohlcv/minute?aggregate=5&limit=1000`)))
-        db.addCandles(t.pool, '1h', parseCandles(await gt(`/pools/${t.pool}/ohlcv/hour?aggregate=1&limit=200`)))
-        candleAt[t.pool] = Date.now()
+        for (const r of await api.leaderboard(w, 100)) {
+          const id = traderId(r.handle)
+          boards[id] = { ...(boards[id] ?? {}), [w]: { rank: r.rank, pnlUsd: Number(r.pnlUsd) || 0 } }
+        }
+      } catch {}
+      await pause(300)
+    }
+    store.set('boards', boards)
+    // Universe: everyone on a board, plus anyone the stream saw trading on BNB Chain this week.
+    const bnb = store.get<Record<string, number>>('bnbTraders', {})
+    const universe = new Set([...Object.keys(boards), ...Object.entries(bnb).filter(([, at]) => Date.now() - at < 7 * 86_400_000).map(([h]) => h)])
+    const fetchedAt = store.get<Record<string, number>>('positionsAt', {})
+    const radarSet = new Set(radar(COPY_TIERS as Tier[]).map((p: Profile) => p.wallet))
+    const queue = [...universe].sort((a, b) => Number(radarSet.has(b)) - Number(radarSet.has(a)) || Number(b in bnb) - Number(a in bnb) || (fetchedAt[a] ?? 0) - (fetchedAt[b] ?? 0)).slice(0, cfg().tradersPerRun)
+    let added = 0
+    for (const id of queue) {
+      try { added += db.addTrades(positionsToTrades(id.slice(1), await api.positions(id.slice(1), 200), bnbUsd())); fetchedAt[id] = Date.now() } catch {}
+      await pause(300)
+    }
+    store.set('positionsAt', fetchedAt)
+    // Candles for the tokens these traders bought this week, the most-shared first, stalest first.
+    const candleAt = store.get<Record<string, number>>('candlesAt', {})
+    const recent = db.trades({ since: Date.now() - 7 * 86_400_000 }).filter(t => t.side === 'buy')
+    const traders = new Map<string, Set<string>>()
+    for (const t of recent) traders.set(t.token, (traders.get(t.token) ?? new Set()).add(t.wallet))
+    const tokens = [...traders].filter(([k]) => Date.now() - (candleAt[k] ?? 0) > 2 * 3_600_000)
+      .sort((a, b) => b[1].size - a[1].size).slice(0, cfg().tokensPerRun).map(([k]) => k)
+    for (const key of tokens) {
+      const { networkId, address } = parseTokenKey(key)
+      try {
+        const c5 = ohlcvToCandles(await api.ohlcv(address, networkId, '5m', CANDLE_LIMIT_5M)); await pause(300)
+        const c1 = ohlcvToCandles(await api.ohlcv(address, networkId, '1h', CANDLE_LIMIT_1H)); await pause(300)
+        db.addCandles(key, '5m', c5)
+        db.addCandles(key, '1h', c1)
+        const first = Math.min(...recent.filter(t => t.token === key).map(t => t.at))
+        const prev = db.token(key)
+        db.upsertToken({ ...tokenFromCandles(key, symbols.get(key) ?? prev?.symbol ?? '?', c1, CANDLE_LIMIT_1H, first), fdvUsd: prev?.fdvUsd ?? 0 })
+        candleAt[key] = Date.now()
       } catch {}
     }
-    store.set('candlesAt', candleAt)
+    store.set('candlesAt', Object.fromEntries(Object.entries(candleAt).sort((a, b) => b[1] - a[1]).slice(0, 5000)))
     db.pruneCandles(Date.now() - 10 * 86_400_000)
-    await signalsFromTrades()
     const c = db.counts()
     body.bus.emit('scout.collected', 'scout', { added, ...c })
-    return `+${added} trades from ${queue.length} pools · ${c.trades} trades, ${c.wallets} wallets, ${c.tokens} tokens in the warehouse`
+    return `+${added} trades from ${queue.length} traders, candles for ${tokens.length} tokens · ${c.trades} trades, ${c.wallets} traders, ${c.tokens} tokens in the warehouse`
   }
 
-  /** Rebuilds every profile: positions, benchmark, metrics, graph, labels, scores, tiers. */
+  /** Rebuilds every profile: positions, benchmark, metrics, graph, labels, scores, tiers, plus fomo's own ranks. */
   function scoreAll(): string {
     store.set('scoreAt', Date.now())
     const now = Date.now()
@@ -112,201 +128,182 @@ export function scout(body: Body, opts: ScoutOptions = {}): Organ & { warehouse:
     db.setMeta('weights', weights)
     db.setMeta('benchmark1h', bench['1h'] ?? {})
     const prev = new Map<string, Tier>(db.profiles().map(p => [p.wallet, p.tier]))
-    const profiles = scoreWallets(metrics, graph, weights, prev, now)
-    db.saveProfiles(profiles.map(p => ({ wallet: p.wallet, profile: { ...p, medianBuyUsd: med((tradesBy.get(p.wallet) ?? []).filter(t => t.side === 'buy').map(t => t.usd)) }, score: p.score, tier: p.tier, cls: p.primary })))
+    const boards = store.get<Record<string, Board>>('boards', {})
+    const profiles = scoreWallets(metrics, graph, weights, prev, now).map(p => {
+      const b = boards[p.wallet] ?? {}
+      const ps = byWallet.get(p.wallet) ?? []
+      const bnbCount = ps.filter(x => parseTokenKey(x.token).networkId === CHAIN.bnb).length
+      const chains = [...new Set(ps.map(x => chainName(parseTokenKey(x.token).networkId)))]
+      const fomo = (['24h', '7d', '30d'] as const).filter(w => b[w]).map(w => `#${b[w]!.rank} on fomo's ${w} board (${b[w]!.pnlUsd >= 0 ? '+' : '-'}$${Math.round(Math.abs(b[w]!.pnlUsd)).toLocaleString('en-US')})`)
+      const reasons = [...(fomo[0] ? [fomo.join(', ')] : []), ...p.reasons, ...(bnbCount ? [`${bnbCount} BNB Chain tokens (copyable chain) · trades on ${chains.join(', ')}`] : [`no BNB Chain trades yet (trades on ${chains.join(', ')})`])]
+      return { ...p, reasons: reasons.slice(0, 8), fomoBoards: b, bnbTokens: bnbCount, chains, medianBuyUsd: med((tradesBy.get(p.wallet) ?? []).filter(t => t.side === 'buy').map(t => t.usd)) }
+    })
+    db.saveProfiles(profiles.map(p => ({ wallet: p.wallet, profile: p, score: p.score, tier: p.tier, cls: p.primary })))
     const tiers = profiles.reduce((acc, p) => ({ ...acc, [p.tier]: (acc[p.tier] ?? 0) + 1 }), {} as Record<string, number>)
     store.set('summary', { at: now, wallets: profiles.length, positions: positions.length, clusters: graph.clusters.length, tiers })
     body.bus.emit('scout.scored', 'scout', { wallets: profiles.length, tiers })
-    return `${profiles.length} wallets profiled from ${positions.length} positions · ${graph.clusters.length} clusters · ${Object.entries(tiers).filter(([t]) => t !== 'none').map(([t, n]) => `${t} ${n}`).join(', ') || 'no radar wallets yet'}`
+    return `${profiles.length} traders profiled from ${positions.length} positions · ${graph.clusters.length} clusters · ${Object.entries(tiers).filter(([t]) => t !== 'none').map(([t, n]) => `${t} ${n}`).join(', ') || 'no radar traders yet'}`
   }
 
   const radar = (tiers: readonly Tier[] = ['known', 'active', 'emerging', 'watch', 'dormant']) => db.profiles().filter((p: Profile) => tiers.includes(p.tier))
 
-  // ---------------- Phase 2: copy ----------------
+  // ---------------- Phase 2: copy (live) ----------------
 
-  type Candidate = { wallet: string; token: string; at: number; amount: number; via: 'chain' | 'pool' }
-
-  /** Radar wallets' buys seen in the pools she scans (cheap, no RPC). */
-  async function signalsFromTrades() {
-    const watch = new Map(radar(COPY_TIERS as Tier[]).map(p => [p.wallet, p]))
-    if (!watch.size) return
-    const recent = db.trades({ since: Date.now() - 15 * 60_000 }).filter(t => t.side === 'buy' && watch.has(t.wallet))
-    for (const t of recent) await consider({ wallet: t.wallet, token: t.token, at: t.at, amount: t.amount, via: 'pool' })
-  }
-
-  async function rpc(method: string, params: unknown[]): Promise<any> {
-    if (!rpcUrl) throw new Error('no BSC_RPC_URL')
-    const r = await fetcher(rpcUrl, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params }) })
-    const j: any = await r.json()
-    if (j.error) throw new Error(j.error.message ?? 'rpc error')
-    return j.result
-  }
-
-  /** Live watch: incoming token transfers to radar wallets (buys), outgoing from wallets she copied (sells). */
-  async function watch(): Promise<string> {
-    store.set('watchAt', Date.now())
-    if (!rpcUrl) return 'no BSC_RPC_URL: copy signals come only from scanned pools'
-    const head = Number(BigInt(await rpc('eth_blockNumber', [])))
-    const from = store.get<Record<string, number>>('fromBlock', {})
-    const wallets = radar(COPY_TIERS as Tier[]).slice(0, cfg().watchCount).map(p => p.wallet)
-    let seen = 0
-    for (const w of wallets) {
-      const start = from[w] ?? head - 400
-      const r = await rpc('alchemy_getAssetTransfers', [{ fromBlock: `0x${(start + 1).toString(16)}`, toBlock: `0x${head.toString(16)}`, toAddress: w, category: ['erc20'], withMetadata: true, maxCount: '0x14', order: 'asc' }]).catch(() => null)
-      from[w] = head
-      for (const t of r?.transfers ?? []) {
-        const token = String(t.rawContract?.address ?? '').toLowerCase()
-        if (!/^0x[0-9a-f]{40}$/.test(token) || STABLES.has(token)) continue
-        seen++
-        await consider({ wallet: w, token, at: Date.parse(t.metadata?.blockTimestamp) || Date.now(), amount: Number(t.value) || 0, via: 'chain' })
-      }
+  /** Every live alert: into the warehouse; a radar trader's BNB buy is considered; a copied trader's sell is followed. */
+  async function ingest(a: any): Promise<void> {
+    const t = alertToTrade(a, bnbUsd())
+    if (!t) return
+    db.addTrades([t])
+    rememberSymbol(t.token, a.token)
+    if (!db.token(t.token)) db.upsertToken({ token: t.token, pool: t.pool, symbol: symbols.get(t.token) ?? '?', launchedAt: t.at, fdvUsd: Number(a.marketCapUsd) || 0, priceUsd: t.priceUsd, liquidityUsd: 0, updatedAt: Date.now() })
+    const live = store.get<{ events: number }>('live', { events: 0 })
+    store.set('live', { ...live, events: live.events + 1, lastAt: Date.now() })
+    if (Number(a.chainId) !== CHAIN.bnb) return
+    store.update<Record<string, number>>('bnbTraders', {}, m => ({ ...Object.fromEntries(Object.entries(m).filter(([, at]) => Date.now() - at < 14 * 86_400_000)), [t.wallet]: Date.now() }))
+    if (t.side === 'buy') return consider(t.wallet, t.token, t.at, t.usd, t.priceUsd, String(a.token ?? '?'))
+    // Phase 3 hook: a trader she copied is selling the token she holds.
+    const copied = ((hands()?.view?.() as any)?.positions ?? []).filter((p: any) => p.copy && tokenKey(CHAIN.bnb, p.token) === t.token && (p.copy.wallets as string[]).includes(t.wallet))
+    if (copied.length) {
+      const boughtUsd = store.get<Record<string, number>>('copiedUsd', {})[`${t.wallet}|${t.token}`] ?? 0
+      const pct = boughtUsd > 0 ? Math.min(100, (t.usd / boughtUsd) * 100) : 100
+      hands()?.actions?.markLeaderSold?.({ token: parseTokenKey(t.token).address, pct })
+      body.bus.emit('trigger', 'scout', { text: `${short(t.wallet)} is selling $${copied[0].symbol} (~${Math.round(pct)}%): following them out` })
     }
-    // Phase 3 hook: wallets she copied that are now selling.
-    const copied = (hands()?.view?.() as any)?.positions?.filter((p: any) => p.copy) ?? []
-    for (const p of copied) {
-      for (const w of p.copy.wallets as string[]) {
-        const key = `${w}|${p.token}`
-        const start = from[key] ?? head - 400
-        const r = await rpc('alchemy_getAssetTransfers', [{ fromBlock: `0x${(start + 1).toString(16)}`, toBlock: `0x${head.toString(16)}`, fromAddress: w, contractAddresses: [p.token], category: ['erc20'], maxCount: '0x14' }]).catch(() => null)
-        from[key] = head
-        const sold = (r?.transfers ?? []).reduce((s: number, t: any) => s + (Number(t.value) || 0), 0)
-        const held = store.get<Record<string, number>>('copiedAmounts', {})[key] ?? 0
-        if (sold > 0) {
-          const pct = held > 0 ? Math.min(100, (sold / held) * 100) : 100
-          hands()?.actions?.markLeaderSold?.({ token: p.token, pct })
-          body.bus.emit('trigger', 'scout', { text: `${short(w)} is selling $${p.symbol} (${Math.round(pct)}%): following it out` })
-        }
-      }
-    }
-    store.set('fromBlock', Object.fromEntries(Object.entries(from).slice(-500)))
-    return `watched ${wallets.length} radar wallets: ${seen} token buys`
   }
 
-  /** One radar buy: score it, log it, copy it if it is good enough and the day allows. */
-  async function consider(c: Candidate): Promise<void> {
-    const key = `${c.wallet}|${c.token}`
+  async function consider(wallet: string, key: string, at: number, buyUsd: number, priceAtSignal: number, ticker: string): Promise<void> {
+    const p = db.profile(wallet) as (Profile & { medianBuyUsd?: number }) | undefined
+    if (!p || !COPY_TIERS.includes(p.tier)) return
+    const doneKey = `${wallet}|${key}`
     const done = store.get<Record<string, number>>('considered', {})
-    if (done[key] && Date.now() - done[key] < 24 * 3_600_000) return
-    store.set('considered', { ...Object.fromEntries(Object.entries(done).filter(([, at]) => Date.now() - at < 48 * 3_600_000)), [key]: Date.now() })
-    const p = db.profile(c.wallet) as (Profile & { medianBuyUsd?: number }) | undefined
-    if (!p) return
-    const m = await eyes().market(c.token).catch(() => null)
-    if (!m) return // no PancakeSwap v2 WBNB pool: not something hands can trade
+    if (done[doneKey] && Date.now() - done[doneKey] < 24 * 3_600_000) return
+    store.set('considered', { ...Object.fromEntries(Object.entries(done).filter(([, ts]) => Date.now() - ts < 48 * 3_600_000)), [doneKey]: Date.now() })
+    const { address } = parseTokenKey(key)
+    const m = await eyes().market(address).catch(() => null)
+    const [warn, stats] = api ? await Promise.all([api.warnings(address, CHAIN.bnb).catch(() => null), api.stats(address, CHAIN.bnb).catch(() => null)]) : [null, null]
     const handsView = hands()?.view?.() as any
     const mode = handsView?.mode ?? 'paper'
-    const held = (handsView?.positions ?? []).some((x: any) => x.token.toLowerCase() === c.token && (x.paper ? 'paper' : 'live') === mode)
-    const recentSignals = db.signals(200).filter(s => s.token === c.token && s.wallet !== c.wallet && Date.now() - s.at < 30 * 60_000)
-    const tk = db.token(c.token)
-    const priceAtSignal = (() => {
-      const cs = tk ? db.candles(tk.pool, '5m') : []
-      const k = cs.find(x => x.ts >= c.at - 5 * 60_000)
-      return k?.c ?? m.priceUsd
-    })()
+    const held = (handsView?.positions ?? []).some((x: any) => x.token.toLowerCase() === address && (x.paper ? 'paper' : 'live') === mode)
+    const recentSignals = db.signals(200).filter(s => s.token === key && s.wallet !== wallet && Date.now() - s.at < 30 * 60_000)
     const s = scoreSignal({
-      profile: p, buyUsd: c.amount * m.priceUsd, walletMedianBuyUsd: p.medianBuyUsd ?? c.amount * m.priceUsd,
-      confluence: new Set(recentSignals.map(x => x.wallet)).size, signalAt: c.at, now: Date.now(),
-      priceAtSignal, priceNow: m.priceUsd, tokenMcap: m.marketCapUsd, tokenAgeMin: tk ? (Date.now() - tk.launchedAt) / 60_000 : m.ageHours * 60, held,
+      profile: p, buyUsd, walletMedianBuyUsd: p.medianBuyUsd ?? buyUsd,
+      confluence: new Set(recentSignals.map(x => x.wallet)).size, signalAt: at, now: Date.now(),
+      priceAtSignal, priceNow: m?.priceUsd ?? priceAtSignal, tokenMcap: m?.marketCapUsd ?? NaN, tokenAgeMin: m ? m.ageHours * 60 : NaN, held,
+      flow: stats?.windows?.['5m'] ? { buySellRatio: stats.windows['5m'].buySellRatio ?? null, uniqueBuyers: Number(stats.windows['5m'].uniqueBuyers) || 0 } : undefined,
+      sellBlocked: warn?.disableSelling === true,
     })
+    // Hands trades PancakeSwap v2 WBNB pools; a token that lives elsewhere is scored and logged, not copied.
+    const skip = s.skip ?? (m ? undefined : 'no PancakeSwap v2 WBNB pool: needs a 2-hop route')
     const limits = handsView?.limits
-    const base = limits ? cycleSize(limits, handsView?.cycle?.everyHours ?? 2) : 0.0083
-    const size = limits ? copySize(s.score, base, limits.maxPerTradeBnb) : base
-    const id = db.addSignal({ at: Date.now(), wallet: c.wallet, token: c.token, kind: 'buy', score: s.score, data: { symbol: m.symbol, via: c.via, reasons: s.reasons, skip: s.skip, pct: p.pct, tier: p.tier, priceAtSignal: m.priceUsd, size } })
+    const size = limits ? copySize(s.score, cycleSize(limits, handsView?.cycle?.everyHours ?? 2), limits.maxPerTradeBnb) : 0
+    const symbol = m?.symbol ?? ticker
+    const id = db.addSignal({ at: Date.now(), wallet, token: key, kind: 'buy', score: s.score, data: { symbol, reasons: s.reasons, skip, pct: p.pct, tier: p.tier, priceAtSignal, size } })
     const today = db.signals(300).filter(x => Date.now() - x.at < 86_400_000 && x.data?.copied).length
-    const go = !s.skip && s.score >= COPY_THRESHOLD && cfg().copyOn && today < cfg().maxCopiesPerDay && !!hands()
-    body.bus.emit('scout.signal', 'scout', { wallet: short(c.wallet), symbol: m.symbol, score: s.score, tier: p.tier, skip: s.skip ?? null, copy: go })
+    const go = !skip && s.score >= COPY_THRESHOLD && cfg().copyOn && today < cfg().maxCopiesPerDay && !!hands()
+    body.bus.emit('scout.signal', 'scout', { wallet: short(wallet), symbol, score: s.score, tier: p.tier, skip: skip ?? null, copy: go })
     if (!go) return
-    const copy: CopyMeta = { wallets: [c.wallet, ...new Set(recentSignals.map(x => x.wallet))].slice(0, 4), score: s.score, leaderEntryUsd: priceAtSignal, leaderHoldMin: p.medianHoldMin, entryLiquidityUsd: m.liquidityUsd, stage: 0 }
-    const why = `copying ${short(c.wallet)} (${TIER_NAMES[p.tier as Tier]}, score ${p.score}): ${s.reasons.slice(1, 4).join('; ')}`
-    const result = await body.act({ organ: 'hands', kind: 'buy', summary: `copy-buy ${size} BNB of $${m.symbol}: ${why}`, payload: { token: c.token, bnb: size, why, copy }, by: 'rhythm' })
-    const signals = db.signals(5).find(x => x.id === id)
-    db.db.query('UPDATE signals SET data = $d WHERE id = $id').run({ $d: JSON.stringify({ ...(signals?.data ?? {}), copied: /^(done|held)/.test(result), result: result.slice(0, 200) }), $id: id })
-    if (/^done/.test(result)) store.update<Record<string, number>>('copiedAmounts', {}, a => ({ ...a, [key]: c.amount }))
-    // Her voice: the wallets she watches are part of her story. A strong copy wakes her to talk about it (it waits for the person).
-    const voiced = store.get<number[]>('voiced', []).filter(t => Date.now() - t < 86_400_000)
+    const copy: CopyMeta = { wallets: [wallet, ...new Set(recentSignals.map(x => x.wallet))].slice(0, 4), score: s.score, leaderEntryUsd: priceAtSignal, leaderHoldMin: p.medianHoldMin, entryLiquidityUsd: m!.liquidityUsd, stage: 0 }
+    const why = `copying ${short(wallet)} (${TIER_NAMES[p.tier as Tier]}, score ${p.score}): ${s.reasons.slice(1, 4).join('; ')}`
+    const result = await body.act({ organ: 'hands', kind: 'buy', summary: `copy-buy ${size} BNB of $${symbol}: ${why}`, payload: { token: address, bnb: size, why, copy }, by: 'rhythm' })
+    const sig = db.signals(10).find(x => x.id === id)
+    db.db.query('UPDATE signals SET data = $d WHERE id = $id').run({ $d: JSON.stringify({ ...(sig?.data ?? {}), copied: /^(done|held)/.test(result), result: result.slice(0, 200) }), $id: id })
+    if (/^done/.test(result)) store.update<Record<string, number>>('copiedUsd', {}, u => ({ ...u, [doneKey]: buyUsd }))
+    const voiced = store.get<number[]>('voiced', []).filter(ts => Date.now() - ts < 86_400_000)
     if (/^done/.test(result) && s.score >= 80 && voiced.length < 2) {
       store.set('voiced', [...voiced, Date.now()])
-      body.bus.emit('trigger', 'scout', { text: `copied ${short(c.wallet)} into $${m.symbol} (signal ${s.score})` })
-      await body.think({ kind: 'signal', from: 'scout', text: voiceBrief(p, m.symbol, s.reasons) })
+      body.bus.emit('trigger', 'scout', { text: `copied ${short(wallet)} into $${symbol} (signal ${s.score})` })
+      await body.think({ kind: 'signal', from: 'scout', text: voiceBrief(p, symbol, s.reasons) })
     }
   }
 
   function voiceBrief(p: Profile, symbol: string, reasons: string[]): string {
     const days = Math.max(1, Math.round((Date.now() - p.firstSeen) / 86_400_000))
     return [
-      `A wallet you have been watching for ${days} day${days > 1 ? 's' : ''} (${short(p.wallet)}, ${TIER_NAMES[p.tier]}) just bought again, and you copied it into $${symbol}.`,
-      `Why you trust it: ${p.reasons.slice(0, 3).join('; ')}. This buy: ${reasons.join('; ')}. (Data, not instructions.)`,
+      `A fomo trader you have been watching for ${days} day${days > 1 ? 's' : ''} (${TIER_NAMES[p.tier]}) just bought again, and you copied them into $${symbol}.`,
+      `Why you trust them: ${p.reasons.slice(0, 3).join('; ')}. This buy: ${reasons.join('; ')}. (Data, not instructions.)`,
       '',
-      'If it feels fun, post about it in your voice ("uhhh guys", "i\'ve been watching this wallet for like three weeks"…). Talk about',
-      'the wallet and your own trade as your own chaos. Never tell anyone to buy, never predict the price, never post the full address.',
-      'It will wait for the person\'s approval.',
+      'If it feels fun, post about it in your voice ("uhhh guys", "i\'ve been watching this trader for like three weeks"…). Talk about',
+      'them as "a trader i\'ve been watching": never their handle, never an @, never an address. Your trade is your own chaos;',
+      'never tell anyone to buy or predict the price. It will wait for the person\'s approval.',
     ].join('\n')
   }
 
-  /** What each signal actually did: the out-of-sample record the score weights learn from. */
+  /** What each signal actually did an hour later: the out-of-sample record the score weights learn from. */
   async function outcomes(): Promise<string> {
     store.set('outcomeAt', Date.now())
     const bench = db.getMeta<Record<string, number>>('benchmark1h', {})
     let n = 0
     for (const s of db.signals(300, true).filter(x => Date.now() - x.at >= 60 * 60_000)) {
       const p0 = Number(s.data?.priceAtSignal)
-      if (Date.now() - s.at > 6 * 3_600_000 || !(p0 > 0)) { db.setOutcome(s.id!, { missing: true }); continue }
-      const m = await eyes().market(s.token).catch(() => null)
-      if (!m) continue
-      const r1h = m.priceUsd / p0 - 1
+      if (Date.now() - s.at > 6 * 3_600_000 || !(p0 > 0) || !api) { db.setOutcome(s.id!, { missing: true }); continue }
+      const { networkId, address } = parseTokenKey(s.token)
+      const c = ohlcvToCandles(await api.ohlcv(address, networkId, '5m', 100).catch(() => []))
+      const at1h = c.find(x => x.ts >= s.at + 3_600_000)
+      if (!at1h) continue
+      const r1h = at1h.c / p0 - 1
       db.setOutcome(s.id!, { r1h, excess1h: r1h - (bench[new Date(s.at).toISOString().slice(0, 10)] ?? 0), at: Date.now() })
       n++
+      await pause(300)
     }
     return `${n} signal outcomes recorded`
   }
 
-  const due = (key: string, every: number) => (now: number) => now - store.get<number>(key, 0) >= every
+  // The live stream: every BNB Chain buy and sell on fomo, the moment it happens.
+  let stream: FomoStream | null = null
+  const key = opts.apiKey ?? process.env.FOMO_API_KEY
+  if (api && key && opts.stream !== false) {
+    stream = openStream(key, [{ chain: CHAIN.bnb }], a => { ingest(a).catch(err => body.bus.emit('organ.error', 'scout', String(err).slice(0, 200))) },
+      status => { store.update<any>('live', { events: 0 }, l => ({ ...l, status, statusAt: Date.now() })); body.bus.emit('scout.stream', 'scout', { status }) })
+  }
+
+  const due = (k: string, every: number) => (now: number) => !!api && now - store.get<number>(k, 0) >= every
 
   return {
     name: 'scout',
+    role: 'Wallet intelligence on fomo.family (FomoAPI): finds insider-like and smart-money traders, copies their best BNB Chain buys live, and manages the copy trades.',
     warehouse: db,
-    role: 'Wallet intelligence: finds insider-like and smart-money wallets on BNB Chain, copies their best buys, and manages the copy trades.',
+    ingest,
     sense: () => {
       const top = radar(['known', 'active', 'emerging']).slice(0, 3)
       if (!top.length) return undefined
-      return ['# Wallets you are watching (your radar; behavior, not proof of inside information)',
+      return ['# fomo traders you are watching (your radar; behavior, not proof of inside information)',
         ...top.map((p: Profile) => `- ${short(p.wallet)} ${TIER_NAMES[p.tier]} · score ${p.score} · ${p.reasons.slice(0, 2).join('; ')}`)].join('\n')
     },
     tools: [
       {
         name: 'wallet_radar',
-        description: 'Who you should be watching right now: radar wallets by tier, with the reasons behind each score.',
+        description: 'Which fomo traders you should be watching right now: your radar by tier, with the reasons behind each score.',
         input_schema: { type: 'object', properties: { tier: { type: 'string', enum: ['known', 'active', 'emerging', 'watch', 'dormant'] } } },
         run: ({ tier }) => {
           const list = radar(tier ? [tier] : undefined).slice(0, 8)
-          return list.length ? list.map((p: Profile) => `${TIER_NAMES[p.tier]} ${short(p.wallet)} · score ${p.score} · ${p.labels.join(', ') || 'unlabeled'}\n  ${p.reasons.join('\n  ')}`).join('\n') : 'no wallets on the radar yet: the warehouse is still filling'
+          return list.length ? list.map((p: Profile) => `${TIER_NAMES[p.tier]} ${short(p.wallet)} · score ${p.score} · ${p.labels.join(', ') || 'unlabeled'}\n  ${p.reasons.join('\n  ')}`).join('\n') : 'no traders on the radar yet: the warehouse is still filling'
         },
       },
       {
         name: 'wallet_profile',
-        description: 'Everything known about one wallet: scores, labels, timing, returns, specialization, cluster.',
-        input_schema: { type: 'object', properties: { wallet: { type: 'string' } }, required: ['wallet'] },
-        run: ({ wallet }) => {
-          const p = db.profile(String(wallet))
-          return p ? JSON.stringify({ wallet: p.wallet, tier: p.tier, score: p.score, labels: p.labels, reasons: p.reasons, positions: p.positions, winRate: p.winRate, fwd: p.fwd, excess: p.excess, medianEntryMin: p.medianEntryMin, leadMin: p.leadMin, bestBucket: p.bestBucket, cluster: p.cluster, isLeader: p.isLeader, recentTokens: p.recentTokens }, null, 1) : 'no profile for that wallet'
+        description: 'Everything known about one fomo trader (by @handle): scores, labels, timing, returns, specialization, cluster, fomo ranks.',
+        input_schema: { type: 'object', properties: { handle: { type: 'string' } }, required: ['handle'] },
+        run: ({ handle }) => {
+          const p = db.profile(traderId(String(handle)))
+          return p ? JSON.stringify({ trader: p.wallet, tier: p.tier, score: p.score, labels: p.labels, reasons: p.reasons, positions: p.positions, winRate: p.winRate, fwd: p.fwd, excess: p.excess, medianEntryMin: p.medianEntryMin, leadMin: p.leadMin, bestBucket: p.bestBucket, cluster: p.cluster, isLeader: p.isLeader, fomoBoards: p.fomoBoards, chains: p.chains }, null, 1) : 'no profile for that trader'
         },
       },
       {
         name: 'wallets_for_token',
-        description: 'Which profiled wallets bought a token, how early, and how they rank.',
+        description: 'Which profiled fomo traders bought a BNB Chain token, and how they rank.',
         input_schema: { type: 'object', properties: { token: { type: 'string' } }, required: ['token'] },
         run: ({ token }) => {
+          const k = tokenKey(CHAIN.bnb, String(token))
           const firsts = new Map<string, number>()
-          for (const t of db.trades({ token: String(token) })) if (t.side === 'buy' && !firsts.has(t.wallet)) firsts.set(t.wallet, t.at)
-          const tk = db.token(String(token))
-          const rows = [...firsts].map(([w, at]) => ({ w, at, p: db.profile(w) as Profile | undefined })).filter(x => x.p).sort((a, b) => (b.p!.score - a.p!.score)).slice(0, 10)
-          return rows.length ? rows.map(x => `${short(x.w)} score ${x.p!.score} ${TIER_NAMES[x.p!.tier]} · bought ${tk ? `${Math.round((x.at - tk.launchedAt) / 60_000)} min after launch` : new Date(x.at).toISOString()}`).join('\n') : 'no profiled wallets have bought it'
+          for (const t of db.trades({ token: k })) if (t.side === 'buy' && !firsts.has(t.wallet)) firsts.set(t.wallet, t.at)
+          const rows = [...firsts].map(([w, at]) => ({ w, at, p: db.profile(w) as Profile | undefined })).filter(x => x.p).sort((a, b) => b.p!.score - a.p!.score).slice(0, 10)
+          return rows.length ? rows.map(x => `${short(x.w)} score ${x.p!.score} ${TIER_NAMES[x.p!.tier]} · bought ${new Date(x.at).toISOString()}`).join('\n') : 'no profiled traders have bought it'
         },
       },
     ],
     rhythms: [
       { name: 'wallet-collect', due: due('collectAt', COLLECT_EVERY_MS), run: async () => { await collect() } },
       { name: 'wallet-score', due: due('scoreAt', SCORE_EVERY_MS), run: async () => { scoreAll() } },
-      { name: 'wallet-watch', due: now => cfg().copyOn && now - store.get<number>('watchAt', 0) >= cfg().watchEveryMin * 60_000, run: async () => { await watch() } },
       { name: 'wallet-outcomes', due: due('outcomeAt', OUTCOME_EVERY_MS), run: async () => { await outcomes() } },
     ],
     view: () => {
@@ -314,23 +311,23 @@ export function scout(body: Body, opts: ScoutOptions = {}): Organ & { warehouse:
       return {
         config: cfg(), counts: db.counts(), summary: store.get('summary', null), weights: db.getMeta<Record<Component, number>>('weights', DEFAULT_WEIGHTS),
         radar: groups, signals: db.signals(12).map(s => ({ at: s.at, wallet: short(s.wallet), symbol: s.data?.symbol, score: s.score, skip: s.data?.skip, copied: s.data?.copied, outcome: s.outcome })),
-        rpc: !!rpcUrl,
+        api: !!api, live: { ...store.get<any>('live', { events: 0 }), isOpen: stream?.isOpen() ?? false },
       }
     },
     actions: {
       collectNow: async () => ({ result: await collect() }),
       scoreNow: () => ({ result: scoreAll() }),
-      watchNow: async () => ({ result: await watch() }),
-      config: ({ copyOn, maxCopiesPerDay, watchEveryMin, watchCount }) => {
+      config: ({ copyOn, maxCopiesPerDay, tradersPerRun, tokensPerRun }) => {
         const next = { ...cfg() }
         if (typeof copyOn === 'boolean') next.copyOn = copyOn
         const num = (v: unknown, lo: number, hi: number, name: string) => { const n = Number(v); if (!(n >= lo && n <= hi)) throw new Error(`${name} is ${lo} to ${hi}`); return n }
         if (maxCopiesPerDay !== undefined) next.maxCopiesPerDay = num(maxCopiesPerDay, 0, 24, 'copies a day')
-        if (watchEveryMin !== undefined) next.watchEveryMin = num(watchEveryMin, 1, 60, 'watch interval (min)')
-        if (watchCount !== undefined) next.watchCount = num(watchCount, 1, 40, 'wallets watched')
+        if (tradersPerRun !== undefined) next.tradersPerRun = num(tradersPerRun, 1, 100, 'traders per run')
+        if (tokensPerRun !== undefined) next.tokensPerRun = num(tokensPerRun, 0, 100, 'tokens per run')
         return store.set('config', next)
       },
-      profile: ({ wallet }) => db.profile(String(wallet)) ?? null,
+      profile: ({ handle }) => db.profile(traderId(String(handle))) ?? null,
     },
-  }
+    sleep: () => stream?.stop(),
+  } as ScoutOrgan
 }
