@@ -1,0 +1,8 @@
+node_modules
+data
+.env
+*.log
+state-seed.txt
+site
+tests
+.git

@@ -3,6 +3,7 @@ import { join, resolve } from 'node:path'
 import { Body } from './core/body'
 import { pickBrain } from './core/brain'
 import { startPublishing } from './core/publish'
+import { applySeed } from './core/seed'
 import { serve } from './core/server'
 import { affect } from './organs/affect'
 import { agenda } from './organs/agenda'
@@ -15,7 +16,10 @@ import { memory } from './organs/memory'
 import { voice } from './organs/voice'
 
 const root = resolve(import.meta.dir, '..')
-const body = new Body({ home: resolve(process.env.FLAPA_HOME || join(root, 'data')), brain: pickBrain() })
+const home = resolve(process.env.FLAPA_HOME || join(root, 'data'))
+const seeded = applySeed(home, process.env.FLAPA_SEED)
+if (seeded.length) console.log(`[flapa] seeded ${seeded.length} state files into ${home}`)
+const body = new Body({ home, brain: pickBrain() })
 
 // Order is prompt order: who you are first (cached), then the slow-changing, then the moment.
 body.grow(

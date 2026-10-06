@@ -3,3 +3,4 @@ data/
 *.log
 .env
 flapa.log
+state-seed.txt

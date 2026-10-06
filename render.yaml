@@ -1,0 +1,42 @@
+# Render Blueprint: Flapa as an always-on background worker with a small disk for her state.
+# Secrets are marked sync: false; Render asks for each one when the Blueprint is created.
+services:
+  - type: worker
+    name: flapa
+    runtime: docker
+    plan: starter
+    branch: main
+    autoDeploy: false
+    disk:
+      name: flapa-data
+      mountPath: /var/data
+      sizeGB: 1
+    envVars:
+      - key: FLAPA_HOME
+        value: /var/data/flapa
+      - key: FLAPA_BRAIN
+        value: cli
+      - key: FLAPA_WALLET_MODE
+        value: fomo
+      - key: CLAUDE_CODE_OAUTH_TOKEN
+        sync: false
+      - key: FLAPA_SEED
+        sync: false
+      - key: BLOB_READ_WRITE_TOKEN
+        sync: false
+      - key: X_API_KEY
+        sync: false
+      - key: X_API_SECRET
+        sync: false
+      - key: X_ACCESS_TOKEN
+        sync: false
+      - key: X_ACCESS_TOKEN_SECRET
+        sync: false
+      - key: FLAPA_TRADER_KEY
+        sync: false
+      - key: FLAPA_GAS_KEY
+        sync: false
+      - key: BSC_RPC_URL
+        sync: false
+      - key: FLAPA_TRADER_MAX_BNB
+        sync: false
