@@ -6,13 +6,17 @@ import { cleanReply, nextSinceId, pickNew, replyPrompt, replySystem, CHECK_EVERY
 import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { authorization, credentialsFromEnv, nonce } from '../lib/oauth'
-import { engineBrief, pickTopic, validateCatalog, type Catalog, type Pick as TopicPick, type PostRecord } from '../lib/posting'
+import { bestHours, learn, learningNote, statFromTweet, weightNudges, type Learning, type PostStat } from '../lib/analytics'
+import { engineBrief, nudged, pickTopic, validateCatalog, type Catalog, type Pick as TopicPick, type PostRecord } from '../lib/posting'
 import { MAX_WEIGHT, weightedLength } from '../lib/xtext'
 
 const API = 'https://api.x.com/2'
 
-/** `topic` is what the posting engine picked for it, for the feed and the dashboard. */
-export type Posted = { id: string; text: string; at: number; mode: Mode; url?: string; replyTo?: string; topic?: string }
+/** `topic` is what the posting engine picked for it, for the feed and the dashboard; category and format feed the learning. */
+export type Posted = { id: string; text: string; at: number; mode: Mode; url?: string; replyTo?: string; topic?: string; category?: string; format?: string }
+/** Her own posts' numbers are read this often (X reads cost money: four times a day is plenty). */
+const METRICS_EVERY_MS = 6 * 3_600_000
+export type FollowerPoint = { at: number; followers: number }
 type Reply = { mode: 'post' | 'off'; sinceId?: string; handled: string[]; lastCheckAt?: number }
 
 /** Her own posts on a clock. Armed by its first post: lastPostAt stays 0 until then, so nothing fires early. */
@@ -73,10 +77,11 @@ export function voice(body: Body, opts: VoiceOptions | typeof fetch = {}): Organ
     try {
       setSchedule({ lastTryAt: Date.now() })
       const { catalog: cat } = catalog()
-      const pick: TopicPick | undefined = cat ? pickTopic(cat, history(), new Date(), rng) : undefined
+      const learned = learning()
+      const pick: TopicPick | undefined = cat ? pickTopic(nudged(cat, weightNudges(learned)), history(), new Date(), rng) : undefined
       const recent = store.get<Posted[]>('posted', []).filter(p => !p.replyTo).slice(0, 5).map(p => p.text)
       const brief = pick
-        ? engineBrief(pick, { recent, storyline: schedule().themes, everyHours: schedule().everyHours })
+        ? engineBrief(pick, { recent, storyline: schedule().themes, everyHours: schedule().everyHours, learned: learningNote(learned) })
         : postBrief(schedule().everyHours, schedule().themes)
       if (pick) body.bus.emit('topic', 'voice', { topic: pick.topic, category: pick.category, blend: pick.blend?.topic ?? null, format: pick.format })
       const r = await body.think({ kind: 'post', text: brief, from: 'voice' })
@@ -87,7 +92,7 @@ export function voice(body: Body, opts: VoiceOptions | typeof fetch = {}): Organ
           store.update<PostRecord[]>('postHistory', [], h => [...h, { at: Date.now(), category: pick.category, topic: pick.topic, blend: pick.blend?.topic, format: pick.format }].slice(-200))
           const label = pick.blend ? `${pick.topic} × ${pick.blend.topic}` : pick.topic
           // A post that went out carries its topic; one held for the person carries it on its approval card's summary.
-          if (/^done/.test(sent.result)) store.update<Posted[]>('posted', [], l => (l[0] ? [{ ...l[0], topic: label }, ...l.slice(1)] : l))
+          if (/^done/.test(sent.result)) store.update<Posted[]>('posted', [], l => (l[0] ? [{ ...l[0], topic: label, category: pick.category, format: pick.format }, ...l.slice(1)] : l))
         }
       }
       body.bus.emit('schedule', 'voice', { posted: !!sent, topic: pick?.topic ?? null, result: sent?.result.slice(0, 200) ?? r.text.slice(0, 200) })
@@ -130,6 +135,41 @@ export function voice(body: Body, opts: VoiceOptions | typeof fetch = {}): Organ
     const seen = new Set(list.map(m => m.id))
     store.set('mentions', [...list, ...store.get<XMention[]>('mentions', []).filter(m => !seen.has(m.id))].slice(0, 50))
     return list
+  }
+
+  const learning = (): Learning | null => learn(store.get<PostStat[]>('stats', []))
+
+  /** Reads her own recent posts' numbers and her follower count. Tags come from what the engine recorded. */
+  async function measure(): Promise<string> {
+    store.set('metricsAt', Date.now())
+    const { id } = await me()
+    const fields = 'created_at,public_metrics,non_public_metrics'
+    const path = (f: string) => `/users/${id}/tweets?max_results=40&exclude=replies,retweets&tweet.fields=${f}`
+    // Private metrics only exist for the last 30 days; older pages fall back to public numbers.
+    const r = await x('GET', path(fields)).catch(() => x('GET', path('created_at,public_metrics')))
+    const posted = store.get<Posted[]>('posted', [])
+    const tags = new Map(posted.map(p => [p.id, { category: p.category, format: p.format }]))
+    // Posts made before tagging existed: match the engine's record by time (within ten minutes).
+    const records = history()
+    const tagFor = (tweetId: string, at: number) => tags.get(tweetId)?.category
+      ? tags.get(tweetId)!
+      : (() => { const h = records.find(r => Math.abs(r.at - at) < 10 * 60_000); return h ? { category: h.category, format: h.format } : {} })()
+    const fresh = (r.data ?? []).map((t: any) => statFromTweet(t, tagFor(String(t.id), Date.parse(t.created_at) || 0)))
+    const keep = new Map(store.get<PostStat[]>('stats', []).map(s => [s.id, s]))
+    for (const s of fresh) keep.set(s.id, s)
+    store.set('stats', [...keep.values()].sort((a, b) => b.at - a.at).slice(0, 300))
+    const u = await x('GET', '/users/me?user.fields=public_metrics')
+    const followers = Number(u.data?.public_metrics?.followers_count)
+    if (Number.isFinite(followers)) store.update<FollowerPoint[]>('followers', [], l => [...l, { at: Date.now(), followers }].slice(-400))
+    body.bus.emit('measured', 'voice', { posts: fresh.length, followers })
+    return `measured ${fresh.length} posts; ${followers} followers`
+  }
+
+  const growth = () => {
+    const l = store.get<FollowerPoint[]>('followers', [])
+    const now = l.at(-1)
+    const weekAgo = l.find(p => p.at >= Date.now() - 7 * 86_400_000)
+    return now ? { followers: now.followers, week: weekAgo ? now.followers - weekAgo.followers : 0, at: now.at } : null
   }
 
   const persona = () => {
@@ -189,6 +229,10 @@ export function voice(body: Body, opts: VoiceOptions | typeof fetch = {}): Organ
       return entry.url ?? `${o.kind} kept in the paper feed`
     },
     rhythms: [{
+      name: 'metrics',
+      due: now => !!creds() && now - store.get<number>('metricsAt', 0) >= METRICS_EVERY_MS,
+      run: async () => { await measure() },
+    }, {
       name: 'scheduled-post',
       due: now => scheduleDue(schedule(), now),
       run: scheduledPost,
@@ -226,9 +270,15 @@ export function voice(body: Body, opts: VoiceOptions | typeof fetch = {}): Organ
         }
       })(),
       posted: store.get<Posted[]>('posted', []).slice(0, 30), mentions: store.get<XMention[]>('mentions', []).slice(0, 15),
+      analytics: (() => {
+        const l = learning()
+        return { growth: growth(), measuredAt: store.get<number>('metricsAt', 0), learning: l, bestHours: bestHours(l), note: learningNote(l) }
+      })(),
     }),
     actions: {
       autoreply: ({ isOn }) => store.set('reply', { ...reply(), mode: isOn ? 'post' : 'off' }),
+      /** Reads her posts' numbers now instead of waiting for the six-hour clock. */
+      measureNow: async () => ({ result: await measure() }),
       /** Turns the clock on or off, or changes its period. Turning it on arms nothing: the first post does. */
       schedule: ({ isOn, everyHours, themes }) => {
         const s: Partial<Schedule> = {}

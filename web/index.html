@@ -419,6 +419,18 @@ const MIND = {
         v.engine.recent.length ? h('div', { class: 'row wrap', style: 'gap:4px' }, v.engine.recent.map(r => h('span', { class: 'tag' }, r.blend ? `${r.topic} × ${r.blend}` : r.topic))) : null,
         h('div', { class: 'row', style: 'margin-top:8px' },
           h('button', { class: 'btn ghost small', onclick: () => act('voice', 'roll').then(r => toast(`next could be: ${r.value.topic}${r.value.blend ? ` × ${r.value.blend.topic}` : ''} (${r.value.format.split(':')[0]})`)).catch(() => {}) }, '🎲 roll a preview'))),
+      v.analytics ? h('div', { class: 'card', style: 'margin:0 0 8px' },
+        h('div', { class: 'row between' },
+          h('b', {}, '📈 how she\'s doing'),
+          v.analytics.growth ? h('span', { class: 'faint' }, `${v.analytics.growth.followers} followers${v.analytics.growth.week ? ` · ${v.analytics.growth.week > 0 ? '+' : ''}${v.analytics.growth.week} this week` : ''}`) : null),
+        v.analytics.learning
+          ? h('div', { class: 'stack', style: 'margin-top:4px' },
+              h('div', { class: 'faint' }, `usual post: ${Math.round(v.analytics.learning.baseline.impressions)} views · ${(v.analytics.learning.baseline.engagementRate * 100).toFixed(1)}% engage${v.analytics.bestHours.length ? ` · best hours ${v.analytics.bestHours.join(', ')}` : ''}`),
+              ...v.analytics.learning.winners.slice(0, 2).map(w => h('div', { class: 'faint' }, `🏆 ${w.ratio}× · ${w.text.slice(0, 60)}… — ${w.why.slice(0, 3).join(', ')}`)),
+              v.analytics.note ? h('div', { class: 'dim', style: 'white-space:pre-wrap' }, v.analytics.note) : null)
+          : h('div', { class: 'faint', style: 'margin-top:4px' }, 'no numbers yet: she reads them every 6 hours once X is connected.'),
+        h('div', { class: 'row', style: 'margin-top:8px' },
+          h('button', { class: 'btn ghost small', onclick: () => act('voice', 'measureNow').then(r => toast(String(r.value?.result ?? 'measured'))).catch(() => {}) }, '📈 measure now'))) : null,
       h('form', { class: 'card row', style: 'margin:0 0 8px', onsubmit: e => { e.preventDefault(); act('voice', 'schedule', { themes: $('themesIn').value }).then(() => toast('storyline saved ♡')) } },
         h('span', { class: 'dim', style: 'flex:none', title: 'woven into about 1 in 5 posts, when it fits' }, 'storyline'),
         h('input', { class: 'field', id: 'themesIn', value: v.schedule.themes ?? '', placeholder: "what's going on with her lately (mentioned now and then)", autocomplete: 'off' }),

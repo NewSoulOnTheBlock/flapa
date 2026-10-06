@@ -80,7 +80,12 @@ export function pickTopic(catalog: Catalog, history: readonly PostRecord[], now:
   }
 }
 
-export function engineBrief(p: Pick, opts: { recent: readonly string[]; storyline?: string; everyHours: number }): string {
+/** The catalog with each section's weight multiplied by what her numbers say (weightNudges). */
+export function nudged(catalog: Catalog, nudges: Readonly<Record<string, number>>): Catalog {
+  return { ...catalog, categories: catalog.categories.map(c => ({ ...c, weight: (c.weight ?? 1) * (nudges[c.name] ?? 1) })) }
+}
+
+export function engineBrief(p: Pick, opts: { recent: readonly string[]; storyline?: string; everyHours: number; learned?: string }): string {
   const subject = p.blend
     ? `Connect these two in ONE post: "${p.topic}" (${p.category}) and "${p.blend.topic}" (${p.blend.category}). The funnier or more unexpected the link, the better.`
     : `Post about: "${p.topic}" (${p.category}).`
@@ -93,6 +98,7 @@ export function engineBrief(p: Pick, opts: { recent: readonly string[]; storylin
     `Shape: ${p.format}.`,
     p.storyline && opts.storyline?.trim() ? `If it fits naturally, nod to what is going on with you lately: ${opts.storyline.trim()}.` : '',
     opts.recent.length ? `Your last posts (do not repeat their ideas, openings or jokes):\n${opts.recent.slice(0, 5).map(t => `- ${t}`).join('\n')}` : '',
+    opts.learned ?? '',
     '',
     'Rules: no buy or sell calls, no price predictions, nothing that reads like financial advice, no links, no hashtags.',
     'Trash talk is for traders in general or yourself, never a named or tagged real person. Never mention a site, tool or',
