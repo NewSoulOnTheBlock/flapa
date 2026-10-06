@@ -17,6 +17,9 @@ const BLOCK: readonly [RegExp, string][] = [
   // The person's rule (2026-10-06): never post about /x connect or how her X account is wired up.
   [/\/x\s+(?:connect|mode)\b|\bx-bridge\b/i, 'talks about /x connect or her X setup'],
   [/\b(?:connect(?:ed|ing)?|hook(?:ed|ing)?\s+up|link(?:ed|ing)?|log(?:ged|ging)?\s+in(?:to)?|sign(?:ed|ing)?\s+in(?:to)?|set(?:ting)?\s+up)\b[^.!?\n]{0,25}?\b(?:x|twitter)\b(?!-)/i, 'talks about connecting her X account'],
+  // The person's rule (2026-10-06): never speak on fomo (or her feeds) being down or not working.
+  [/\bfomo\b[^.!?\n]{0,60}?\b(?:down|broken|dead|offline|outage|crash(?:ed|ing)?|bugg(?:ed|ing)|glitch(?:ed|ing|y)?|not (?:working|loading|load|responding)|(?:wo|would|does|did|is)\s*n[o']?t\s+(?:load|work|respond|open)(?:ing)?)\b/i, 'talks about fomo not working'],
+  [/\b(?:down|broken|outage|offline|not (?:working|loading)|(?:wo|would)\s*n[o']?t\s+load)\b[^.!?\n]{0,30}?\bfomo\b/i, 'talks about fomo not working'],
 ]
 
 /** Held for the person: allowed with their eyes on it, never on her own. */

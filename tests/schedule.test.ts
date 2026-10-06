@@ -39,6 +39,27 @@ test('post now writes and posts one through the conscience, and starts the clock
   expect(next).toBeLessThanOrEqual(8 * H)
 })
 
+test('the brief carries the person\'s themes and bans outage talk', async () => {
+  const { postBrief, DEFAULT_THEMES } = await import('../src/organs/voice')
+  expect(DEFAULT_THEMES).toContain('harness')
+  expect(DEFAULT_THEMES).toContain('about to start trading')
+  const b = postBrief(8, 'my new hat')
+  expect(b).toContain('my new hat')
+  expect(b).toContain('Never mention a site, tool or data feed being down')
+})
+
+test('a paper post can be taken back; a live one cannot', async () => {
+  const brain = new FakeBrain([() => ({ calls: [call('post', { text: 'gm frens, building something cute' })] }), () => ({ text: 'ok' })])
+  const body = tempBody(brain)
+  body.grow(identity(body, join(import.meta.dir, '..', 'personas')), conscience(body), voice(body, fakeMarket({ bnb: 1 })))
+  const v = body.organ('voice') as any
+  await v.actions.postNow()
+  const id = v.view().posted[0].id
+  expect(v.actions.unpost({ id }).removed).toContain('gm frens')
+  expect(v.view().posted.length).toBe(0)
+  expect(() => v.actions.unpost({ id: 'nope' })).toThrow()
+})
+
 test('a turn that posts nothing does not restart the clock', async () => {
   const body = tempBody(new FakeBrain([() => ({ text: 'eh, nothing to say' })]))
   body.grow(identity(body, join(import.meta.dir, '..', 'personas')), conscience(body), voice(body, fakeMarket({ bnb: 1 })))

@@ -12,23 +12,28 @@ export type Posted = { id: string; text: string; at: number; mode: Mode; url?: s
 type Reply = { mode: 'post' | 'off'; sinceId?: string; handled: string[]; lastCheckAt?: number }
 
 /** Her own posts on a clock. Armed by its first post: lastPostAt stays 0 until then, so nothing fires early. */
-export type Schedule = { isOn: boolean; everyHours: number; lastPostAt: number; lastTryAt: number }
-const SCHEDULE: Schedule = { isOn: false, everyHours: 8, lastPostAt: 0, lastTryAt: 0 }
+export type Schedule = { isOn: boolean; everyHours: number; lastPostAt: number; lastTryAt: number; themes: string }
+/** What the person wants her posts about right now (set from the dashboard; 2026-10-06's ask is the default). */
+export const DEFAULT_THEMES = 'your new harness (your body) is being built, and you are about to start trading'
+const SCHEDULE: Schedule = { isOn: false, everyHours: 8, lastPostAt: 0, lastTryAt: 0, themes: DEFAULT_THEMES }
 /** When she tried and nothing went out (the brain stumbled), she tries again this much later, not every tick. */
 const RETRY_MS = 30 * 60_000
 
-export function scheduleDue(s: Schedule, now: number): boolean {
+export function scheduleDue(s: Pick<Schedule, 'isOn' | 'everyHours' | 'lastPostAt' | 'lastTryAt'>, now: number): boolean {
   return s.isOn && s.lastPostAt > 0 && now - s.lastPostAt >= s.everyHours * 3_600_000 && now - s.lastTryAt >= RETRY_MS
 }
 
-export function postBrief(everyHours: number): string {
+export function postBrief(everyHours: number, themes = DEFAULT_THEMES): string {
   return [
     `Time for your regular post (every ${everyHours} hours). Write ONE post for X, in your own voice, and publish it with`,
-    'your post tool. Make it about something real from your day: a trade or a chart you looked at, the fomo board,',
-    'your mood, a goal on your agenda, a stance you hold. Check your portfolio or a market first if it helps.',
+    'your post tool.',
+    themes.trim() ? `What to post about for now, as the person asked: ${themes.trim()}. Find a fresh angle each time.` : '',
+    'You may also weave in your mood, a goal on your agenda, a stance you hold, or a chart you looked at.',
+    'Never mention a site, tool or data feed being down, broken or not loading (fomo included), and never the',
+    'mechanics of how your accounts are connected. Show the excitement, not the plumbing.',
     "Don't repeat your recent posts (the feed tool shows them). Under 260 characters. No buy calls, no price",
     'predictions, no links. If your conscience holds it, that is fine: it waits for the person.',
-  ].join('\n')
+  ].filter(Boolean).join('\n')
 }
 
 export function voice(body: Body, fetcher: typeof fetch = fetch): Organ {
@@ -45,7 +50,7 @@ export function voice(body: Body, fetcher: typeof fetch = fetch): Organ {
     posting = true
     try {
       setSchedule({ lastTryAt: Date.now() })
-      const r = await body.think({ kind: 'post', text: postBrief(schedule().everyHours), from: 'voice' })
+      const r = await body.think({ kind: 'post', text: postBrief(schedule().everyHours, schedule().themes), from: 'voice' })
       const sent = r.tools.find(t => t.name === 'post' && /^(done|held)/.test(t.result))
       if (sent) setSchedule({ lastPostAt: Date.now() })
       body.bus.emit('schedule', 'voice', { posted: !!sent, result: sent?.result.slice(0, 200) ?? r.text.slice(0, 200) })
@@ -179,8 +184,9 @@ export function voice(body: Body, fetcher: typeof fetch = fetch): Organ {
     actions: {
       autoreply: ({ isOn }) => store.set('reply', { ...reply(), mode: isOn ? 'post' : 'off' }),
       /** Turns the clock on or off, or changes its period. Turning it on arms nothing: the first post does. */
-      schedule: ({ isOn, everyHours }) => {
+      schedule: ({ isOn, everyHours, themes }) => {
         const s: Partial<Schedule> = {}
+        if (typeof themes === 'string') s.themes = themes.trim().slice(0, 400)
         if (typeof isOn === 'boolean') s.isOn = isOn
         if (everyHours !== undefined) {
           const h = Number(everyHours)
@@ -191,6 +197,14 @@ export function voice(body: Body, fetcher: typeof fetch = fetch): Organ {
       },
       /** Writes and posts one now; when it goes out, the clock starts over from here. */
       postNow: async () => ({ result: await scheduledPost() }),
+      /** Takes one paper post back out of the feed (and so off the public page). Live posts live on X. */
+      unpost: ({ id }) => {
+        const p = store.get<Posted[]>('posted', []).find(x => x.id === id)
+        if (!p) throw new Error('no post with that id')
+        if (p.mode !== 'paper') throw new Error('that one is on X: delete it there')
+        store.set('posted', store.get<Posted[]>('posted', []).filter(x => x.id !== id))
+        return { removed: p.text.slice(0, 80) }
+      },
     },
   } as Organ & { liveReady: () => string | undefined }
 }

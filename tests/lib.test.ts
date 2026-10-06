@@ -79,7 +79,24 @@ describe('never posts about /x connect', () => {
     'charts hate me today lol',
     '10x or nothing, kidding, that is not a call',
     'liquidity looks connected to the whale wallet flows',
-    'the fomo board is down and i am staring at a dead page',
+    'staring at the fomo board like it owes me money',
+  ])('lets through: %s', text => expect(screen(text, allow).verdict).not.toBe('block'))
+})
+
+describe('never speaks on fomo not working', () => {
+  const allow = { domains: [], addresses: [] }
+  test.each([
+    "tried to check the fomo board today and it literally would not load. just me refreshing a dead page",
+    'fomo is down again smh',
+    'the fomo leaderboard keeps crashing',
+    'fomo not loading rn',
+    "fomo won't load and i'm sad",
+    'another outage on fomo',
+  ])('blocks: %s', text => expect(screen(text, allow).verdict).toBe('block'))
+  test.each([
+    'climbing the fomo leaderboard one bad decision at a time',
+    'my new body is almost built and i am about to start trading. #1 on fomo is coming',
+    'my bags are down 12% today but my spirit is not',
   ])('lets through: %s', text => expect(screen(text, allow).verdict).not.toBe('block'))
 })
 
