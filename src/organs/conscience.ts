@@ -62,7 +62,8 @@ export function conscience(body: Body): Organ {
       audit({ id: o.id, organ: o.organ, kind: o.kind, summary: o.summary, by: o.by, verdict: 'refused', reasons: [`paused: ${store.get('pausedWhy', '')}`] })
       return `refused: the person paused all outward actions${store.get('pausedWhy', '') ? ` (${store.get('pausedWhy', '')})` : ''}`
     }
-    const reasons: string[] = []
+    // Tiers: a rule block is red (never), a hold is yellow (the person decides), a clean pass is green (goes out).
+    const reasons: string[] = o.tier === 'yellow' ? [`yellow tier: ${o.tierWhy ?? 'always reviewed'}`] : []
     if (o.text) {
       const s = screen(o.text, allow())
       if (s.verdict === 'block') {

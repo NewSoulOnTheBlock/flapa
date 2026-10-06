@@ -399,6 +399,12 @@ const MIND = {
   posts: () => {
     const v = S.organs.voice.view
     return [
+      v.crisis?.active ? h('div', { class: 'approve', style: 'margin:8px 0' },
+        h('b', {}, `🚨 crisis mode · ${ago(v.crisis.at)}`),
+        h('div', { class: 'why' }, `${v.crisis.why}. All posting is paused until you set the dial back to auto.`),
+        ...v.crisis.sample.map(s => h('div', { class: 'faint' }, s)),
+        v.crisis.draft ? h('div', { class: 'card', style: 'margin-top:6px' }, h('span', { class: 'faint' }, 'her draft statement (never posted on its own): '), v.crisis.draft) : null,
+        h('div', { class: 'row', style: 'margin-top:6px' }, h('button', { class: 'btn small', onclick: () => act('voice', 'clearCrisis', {}) }, 'handled ✓'))) : null,
       ...approvals('voice'),
       h('div', { class: 'card row wrap', style: 'margin:8px 0' }, sw(v.reply.mode === 'post', () => act('voice', 'autoreply', { isOn: v.reply.mode !== 'post' })),
         h('span', {}, 'reply to mentions by herself'), h('span', { class: 'faint' }, v.connected ? `· X connected${v.me ? ` as @${v.me.username}` : ''}` : '· X not connected (paper posts still work)')),

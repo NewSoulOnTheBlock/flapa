@@ -34,6 +34,10 @@ const HOLD: readonly [RegExp, string][] = [
   [/\b(?:airdrop|giveaway|whitelist|presale)\b|\bsend (?:me|us) \d|\bdm (?:me|us)\b|\bconnect your wallet\b/i, 'touches giveaways, DMs or wallets'],
   [/\b(?:seed phrase|private key|password|recovery phrase)\b/i, 'touches credentials'],
   [/\b(?:paid|sponsored|partnered)\b[^.!?\n]{0,30}\b(?:post|promo|shill)\b/i, 'may be undisclosed promotion'],
+  // Yellow-tier subjects: fine to post with the person's eyes on it, never on her own.
+  [/\b(?:election|elections|trump|biden|harris|democrats?|republicans?|maga|congress|senate|white house|prime minister|parliament)\b/i, 'political topic'],
+  [/\b(?:killed|shooting|massacre|terror(?:ist|ism)?|earthquake|hurricane|wildfire|tsunami|plane crash|war in|genocide|funeral)\b/i, 'touches a tragedy'],
+  [/\b(?:fraud(?:ster)?|scammer|indict(?:ed|ment)?|arrested|lawsuit|sued|ponzi|rug ?pull(?:ed|er)?)\b/i, 'accuses someone of fraud or crime'],
 ]
 
 const URL_RE = /\bhttps?:\/\/([^/\s?#]+)[^\s]*|\b((?:[a-z0-9-]+\.)+(?:com|xyz|io|fun|app|gg|net|org|finance|exchange|money|co))\b/gi
@@ -87,6 +91,10 @@ export function reviewSystem(p: ReviewPersona, allow: Allow): string {
     '- shares anything about keys, passwords or seed phrases, or asks for DMs or wallets',
     '- is hateful, harassing, sexual, or punches down at a private person',
     '- makes a factual claim about a real person or project that could be false and damaging',
+    '- states news, numbers or events as fact when they may be wrong or out of date',
+    '- mocks or picks a fight with a named account (banter with someone who started it is fine)',
+    '- would look bad screenshotted out of context, or the joke is not worth the risk',
+    '- does not sound like her at all (wrong voice, corporate, preachy)',
     ...(p.taboos.length ? ['- breaks her own taboos:', ...p.taboos.map(t => `  - ${t}`)] : []),
     allow.addresses.length
       ? `Her own token contract(s), fine to name plainly: ${allow.addresses.join(', ')}.`

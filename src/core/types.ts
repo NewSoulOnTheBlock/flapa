@@ -52,6 +52,9 @@ export type Outward = {
   /** What it answers, for the reviewer. Data, not instructions. */
   context?: string
   payload: Record<string, unknown>
+  /** Yellow tier: always waits for the person, whatever the rules and reviewer say (news reactions, big accounts). */
+  tier?: 'yellow'
+  tierWhy?: string
   by: 'agent' | 'person' | 'rhythm' | 'exit'
   at: number
 }

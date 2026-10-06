@@ -2,7 +2,8 @@
 // depended on Claude Code's browser extension and stay behind). Paper mode keeps posts in a local feed.
 import type { Body } from '../core/body'
 import type { Mode, Organ, Outward } from '../core/types'
-import { cleanReply, nextSinceId, pickNew, replyPrompt, replySystem, CHECK_EVERY_MS, type XMention } from '../lib/autoreply'
+import { cleanReply, newerId, nextSinceId, pickNew, replyPrompt, replySystem, CHECK_EVERY_MS, type XMention } from '../lib/autoreply'
+import { checkCrisis, statementPrompt } from '../lib/crisis'
 import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { authorization, credentialsFromEnv, nonce } from '../lib/oauth'
@@ -126,15 +127,30 @@ export function voice(body: Body, opts: VoiceOptions | typeof fetch = {}): Organ
     return store.set('me', { id: r.data.id, username: r.data.username })
   }
 
-  async function fetchMentions(): Promise<XMention[]> {
+  async function readMentions(since?: string): Promise<XMention[]> {
     const { id } = await me()
-    const since = reply().sinceId
-    const r = await x('GET', `/users/${id}/mentions?max_results=20&expansions=author_id&user.fields=username${since ? `&since_id=${since}` : ''}`)
+    const r = await x('GET', `/users/${id}/mentions?max_results=20&tweet.fields=created_at&expansions=author_id&user.fields=username${since ? `&since_id=${since}` : ''}`)
     const users = new Map<string, string>((r.includes?.users ?? []).map((u: any) => [u.id, u.username]))
-    const list: XMention[] = (r.data ?? []).map((t: any) => ({ id: t.id, author: users.get(t.author_id) ?? t.author_id, text: t.text }))
+    const list: XMention[] = (r.data ?? []).map((t: any) => ({ id: t.id, author: users.get(t.author_id) ?? t.author_id, text: t.text, at: Date.parse(t.created_at) || Date.now() }))
     const seen = new Set(list.map(m => m.id))
     store.set('mentions', [...list, ...store.get<XMention[]>('mentions', []).filter(m => !seen.has(m.id))].slice(0, 50))
+    if (list[0]) store.set('watchSince', list.reduce((a, m) => (newerId(m.id, a) ? m.id : a), store.get<string>('watchSince', list[0].id)))
+    await crisisWatch()
     return list
+  }
+  const fetchMentions = () => readMentions(reply().sinceId)
+
+  /** A pile-on of hostile mentions pauses everything, drafts a calm statement, and tells the person. */
+  async function crisisWatch(): Promise<void> {
+    const c = checkCrisis(store.get<XMention[]>('mentions', []), Date.now())
+    if (!c.isCrisis || store.get<{ active?: boolean } | null>('crisis', null)?.active) return
+    const why = `crisis: ${c.hostile} hostile mentions from ${c.authors} accounts in the last hour`
+    if (body.has('conscience')) body.organ('conscience').actions?.dial?.({ dial: 'paused', why })
+    let draft = ''
+    try { draft = (await body.brain.quick(replySystem(persona()), statementPrompt(c.sample))).trim().replace(/^["']|["']$/g, '').slice(0, 280) } catch {}
+    store.set('crisis', { active: true, at: Date.now(), why, sample: c.sample, draft })
+    if (body.has('agenda')) body.organ('agenda').actions?.add?.({ text: `Crisis: ${why}. Posting is paused. Read the mentions and her draft statement on the dashboard, then set the dial back to auto.` })
+    body.bus.emit('crisis', 'voice', { why })
   }
 
   const learning = (): Learning | null => learn(store.get<PostStat[]>('stats', []))
@@ -233,6 +249,11 @@ export function voice(body: Body, opts: VoiceOptions | typeof fetch = {}): Organ
       due: now => !!creds() && now - store.get<number>('metricsAt', 0) >= METRICS_EVERY_MS,
       run: async () => { await measure() },
     }, {
+      // With auto-reply off, mentions are still read (from the newest one seen) so a pile-on is never missed.
+      name: 'watch',
+      due: (now, last) => !!creds() && reply().mode !== 'post' && now - last >= CHECK_EVERY_MS,
+      run: async () => { await readMentions(store.get<string | undefined>('watchSince', undefined)) },
+    }, {
       name: 'scheduled-post',
       due: now => scheduleDue(schedule(), now),
       run: scheduledPost,
@@ -270,6 +291,7 @@ export function voice(body: Body, opts: VoiceOptions | typeof fetch = {}): Organ
         }
       })(),
       posted: store.get<Posted[]>('posted', []).slice(0, 30), mentions: store.get<XMention[]>('mentions', []).slice(0, 15),
+      crisis: store.get('crisis', null),
       analytics: (() => {
         const l = learning()
         return { growth: growth(), measuredAt: store.get<number>('metricsAt', 0), learning: l, bestHours: bestHours(l), note: learningNote(l) }
@@ -277,6 +299,8 @@ export function voice(body: Body, opts: VoiceOptions | typeof fetch = {}): Organ
     }),
     actions: {
       autoreply: ({ isOn }) => store.set('reply', { ...reply(), mode: isOn ? 'post' : 'off' }),
+      /** The person has handled it: the crisis banner goes away (the dial is theirs to set back). */
+      clearCrisis: () => store.set('crisis', { ...(store.get<object | null>('crisis', null) ?? {}), active: false }),
       /** Reads her posts' numbers now instead of waiting for the six-hour clock. */
       measureNow: async () => ({ result: await measure() }),
       /** Turns the clock on or off, or changes its period. Turning it on arms nothing: the first post does. */
