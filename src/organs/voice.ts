@@ -10,20 +10,25 @@ import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { authorization, credentialsFromEnv, nonce, pct } from '../lib/oauth'
 import { bestHours, learn, learningNote, statFromTweet, weightNudges, type Learning, type PostStat } from '../lib/analytics'
-import { engineBrief, nudged, pickTopic, validateCatalog, type Catalog, type Pick as TopicPick, type PostRecord } from '../lib/posting'
+import { engineBrief, nudged, parseScore, pickTopic, validateCatalog, type Catalog, type Pick as TopicPick, type PostRecord } from '../lib/posting'
+import { nextSlots, slotDue, slotHours } from '../lib/calendar'
 import { MAX_WEIGHT, weightedLength } from '../lib/xtext'
 
 const API = 'https://api.x.com/2'
 
 /** `topic` is what the posting engine picked for it, for the feed and the dashboard; category and format feed the learning. */
-export type Posted = { id: string; text: string; at: number; mode: Mode; url?: string; replyTo?: string; topic?: string; category?: string; format?: string }
+export type Posted = {
+  id: string; text: string; at: number; mode: Mode; url?: string; replyTo?: string; topic?: string; category?: string; format?: string
+  objective?: string; kind?: string; score?: number
+}
 /** Her own posts' numbers are read this often (X reads cost money: four times a day is plenty). */
 const METRICS_EVERY_MS = 6 * 3_600_000
 export type FollowerPoint = { at: number; followers: number }
 type Reply = { mode: 'post' | 'off'; sinceId?: string; handled: string[]; lastCheckAt?: number }
 
-/** Her own posts on a clock. Armed by its first post: lastPostAt stays 0 until then, so nothing fires early. */
-export type Schedule = { isOn: boolean; everyHours: number; lastPostAt: number; lastTryAt: number; themes: string }
+/** Her own posts on a clock. 'slots' (the default) posts perDay times at her best hours; 'every' keeps a fixed
+ *  period and is armed by its first post (lastPostAt stays 0 until then, so nothing fires early). */
+export type Schedule = { isOn: boolean; everyHours: number; lastPostAt: number; lastTryAt: number; themes: string; mode?: 'slots' | 'every'; perDay?: number }
 /** What the person wants her posts about right now (set from the dashboard; 2026-10-06's ask is the default). */
 export const DEFAULT_THEMES = 'your new harness (your body) is being built, and you are about to start trading'
 const SCHEDULE: Schedule = { isOn: false, everyHours: 8, lastPostAt: 0, lastTryAt: 0, themes: DEFAULT_THEMES }
@@ -54,7 +59,23 @@ export function voice(body: Body, opts: VoiceOptions | typeof fetch = {}): Organ
   const store = body.store('voice')
   const creds = () => credentialsFromEnv(process.env)
   const reply = () => ({ mode: 'off', handled: [], ...store.get<Partial<Reply>>('reply', {}) }) as Reply
-  const schedule = () => ({ ...SCHEDULE, ...store.get<Partial<Schedule>>('schedule', {}) })
+  const schedule = () => ({ mode: 'slots' as const, perDay: 3, ...SCHEDULE, ...store.get<Partial<Schedule>>('schedule', {}) })
+  // The day's posting hours follow her best hours; recomputed at most once a minute.
+  let slotMemo = { at: 0, hours: [] as number[] }
+  const hours = () => {
+    if (Date.now() - slotMemo.at > 60_000) slotMemo = { at: Date.now(), hours: slotHours(bestHours(learning()), schedule().perDay ?? 3) }
+    return slotMemo.hours
+  }
+  const due = (now: number) => {
+    const s = schedule()
+    return s.mode === 'every' ? scheduleDue(s, now) : s.isOn && slotDue(now, hours(), s.lastPostAt, s.lastTryAt, RETRY_MS)
+  }
+  const nextPostAt = () => {
+    const s = schedule()
+    if (!s.isOn) return null
+    if (s.mode === 'every') return s.lastPostAt ? s.lastPostAt + s.everyHours * 3_600_000 : null
+    return nextSlots(Date.now(), hours(), 1)[0] ?? null
+  }
   const setSchedule = (s: Partial<Schedule>) => store.set('schedule', { ...schedule(), ...s })
   const history = () => store.get<PostRecord[]>('postHistory', [])
 
@@ -92,10 +113,10 @@ export function voice(body: Body, opts: VoiceOptions | typeof fetch = {}): Organ
       if (sent) {
         setSchedule({ lastPostAt: Date.now() })
         if (pick) {
-          store.update<PostRecord[]>('postHistory', [], h => [...h, { at: Date.now(), category: pick.category, topic: pick.topic, blend: pick.blend?.topic, format: pick.format }].slice(-200))
+          store.update<PostRecord[]>('postHistory', [], h => [...h, { at: Date.now(), category: pick.category, topic: pick.topic, blend: pick.blend?.topic, format: pick.format, objective: pick.objective, kind: pick.kind }].slice(-200))
           const label = pick.blend ? `${pick.topic} × ${pick.blend.topic}` : pick.topic
           // A post that went out carries its topic; one held for the person carries it on its approval card's summary.
-          if (/^done/.test(sent.result)) store.update<Posted[]>('posted', [], l => (l[0] ? [{ ...l[0], topic: label, category: pick.category, format: pick.format }, ...l.slice(1)] : l))
+          if (/^done/.test(sent.result)) store.update<Posted[]>('posted', [], l => (l[0] ? [{ ...l[0], topic: label, category: pick.category, format: pick.format, objective: pick.objective, kind: pick.kind, score: parseScore(r.text)?.total }, ...l.slice(1)] : l))
         }
       }
       body.bus.emit('schedule', 'voice', { posted: !!sent, topic: pick?.topic ?? null, result: sent?.result.slice(0, 200) ?? r.text.slice(0, 200) })
@@ -221,12 +242,12 @@ export function voice(body: Body, opts: VoiceOptions | typeof fetch = {}): Organ
     // Private metrics only exist for the last 30 days; older pages fall back to public numbers.
     const r = await x('GET', path(fields)).catch(() => x('GET', path('created_at,public_metrics')))
     const posted = store.get<Posted[]>('posted', [])
-    const tags = new Map(posted.map(p => [p.id, { category: p.category, format: p.format }]))
+    const tags = new Map(posted.map(p => [p.id, { category: p.category, format: p.format, objective: p.objective }]))
     // Posts made before tagging existed: match the engine's record by time (within ten minutes).
     const records = history()
     const tagFor = (tweetId: string, at: number) => tags.get(tweetId)?.category
       ? tags.get(tweetId)!
-      : (() => { const h = records.find(r => Math.abs(r.at - at) < 10 * 60_000); return h ? { category: h.category, format: h.format } : {} })()
+      : (() => { const h = records.find(r => Math.abs(r.at - at) < 10 * 60_000); return h ? { category: h.category, format: h.format, objective: h.objective } : {} })()
     const fresh = (r.data ?? []).map((t: any) => statFromTweet(t, tagFor(String(t.id), Date.parse(t.created_at) || 0)))
     const keep = new Map(store.get<PostStat[]>('stats', []).map(s => [s.id, s]))
     for (const s of fresh) keep.set(s.id, s)
@@ -262,14 +283,28 @@ export function voice(body: Body, opts: VoiceOptions | typeof fetch = {}): Organ
     tools: [
       {
         name: 'post',
-        description: 'Publish a post on X in your own voice. It passes your conscience first and may be held for the person.',
-        input_schema: { type: 'object', properties: { text: { type: 'string' } }, required: ['text'] },
-        run: async ({ text }, turn) => {
-          const t = String(text ?? '').trim()
-          if (!t) return 'error: empty post'
-          const long = tooLong(t)
-          if (long) return long
-          return body.act({ organ: 'voice', kind: 'post', summary: `post: ${t}`, text: t, payload: { text: t }, by: turn.stimulus.kind === 'chat' ? 'agent' : 'rhythm' })
+        description: 'Publish a post on X in your own voice: a single post, a poll (text is the question, plus 2-4 options), or a short thread (3-4 posts). It passes your conscience first and may be held for the person.',
+        input_schema: {
+          type: 'object',
+          properties: {
+            text: { type: 'string', description: 'the post, or the poll question' },
+            poll: { type: 'array', items: { type: 'string' }, description: 'poll options, 2 to 4, each under 25 characters' },
+            thread: { type: 'array', items: { type: 'string' }, description: 'a thread instead of one post: 3 or 4 posts in order' },
+          },
+          required: ['text'],
+        },
+        run: async ({ text, poll, thread }, turn) => {
+          const by = turn.stimulus.kind === 'chat' ? 'agent' : 'rhythm'
+          const parts = Array.isArray(thread) && thread.length ? thread.map((p: unknown) => String(p ?? '').trim()).filter(Boolean) : [String(text ?? '').trim()]
+          if (!parts[0]) return 'error: empty post'
+          if (parts.length > 5) return 'error: a thread is at most 5 posts'
+          for (const p of parts) { const long = tooLong(p); if (long) return long }
+          const options = Array.isArray(poll) ? poll.map((o: unknown) => String(o ?? '').trim()).filter(Boolean) : []
+          if (options.length && (options.length < 2 || options.length > 4 || options.some(o => o.length > 25))) return 'error: a poll has 2 to 4 options, each under 25 characters'
+          if (options.length && parts.length > 1) return 'error: a post is a poll or a thread, not both'
+          const all = options.length ? `${parts[0]}\n${options.map(o => `◻ ${o}`).join('\n')}` : parts.join('\n\n')
+          const label = options.length ? 'poll' : parts.length > 1 ? `thread (${parts.length})` : 'post'
+          return body.act({ organ: 'voice', kind: 'post', summary: `${label}: ${all}`, text: all, payload: { text: parts[0], ...(options.length ? { poll: options } : {}), ...(parts.length > 1 ? { thread: parts } : {}) }, by })
         },
       },
       {
@@ -289,13 +324,22 @@ export function voice(body: Body, opts: VoiceOptions | typeof fetch = {}): Organ
     perform: async (o: Outward, mode: Mode) => {
       const text = String(o.payload.text)
       const replyTo = o.payload.replyTo ? String(o.payload.replyTo) : undefined
+      const poll = Array.isArray(o.payload.poll) ? (o.payload.poll as string[]) : undefined
+      const thread = Array.isArray(o.payload.thread) ? (o.payload.thread as string[]) : undefined
+      const shown = poll ? `${text}\n${poll.map(p => `◻ ${p}`).join('\n')}` : thread ? thread.join('\n\n') : text
       let entry: Posted
       if (mode === 'paper') {
-        entry = { id: `paper-${o.id}`, text, at: Date.now(), mode, replyTo }
+        entry = { id: `paper-${o.id}`, text: shown, at: Date.now(), mode, replyTo, ...(poll ? { kind: 'poll' } : thread ? { kind: 'thread' } : {}) }
       } else {
-        const r = await x('POST', '/tweets', { text, ...(replyTo ? { reply: { in_reply_to_tweet_id: replyTo } } : {}) })
+        const r = await x('POST', '/tweets', {
+          text, ...(replyTo ? { reply: { in_reply_to_tweet_id: replyTo } } : {}),
+          ...(poll ? { poll: { options: poll, duration_minutes: 1440 } } : {}),
+        })
+        // A thread: each later post answers the one before it.
+        let prev = r.data.id
+        for (const next of thread?.slice(1) ?? []) prev = (await x('POST', '/tweets', { text: next, reply: { in_reply_to_tweet_id: prev } })).data.id
         const { username } = await me()
-        entry = { id: r.data.id, text, at: Date.now(), mode, replyTo, url: `https://x.com/${username}/status/${r.data.id}` }
+        entry = { id: r.data.id, text: shown, at: Date.now(), mode, replyTo, url: `https://x.com/${username}/status/${r.data.id}`, ...(poll ? { kind: 'poll' } : thread ? { kind: 'thread' } : {}) }
       }
       store.update<Posted[]>('posted', [], l => [entry, ...l].slice(0, 100))
       body.bus.emit('posted', 'voice', entry)
@@ -316,7 +360,7 @@ export function voice(body: Body, opts: VoiceOptions | typeof fetch = {}): Organ
       run: async () => { await readMentions(store.get<string | undefined>('watchSince', undefined)) },
     }, {
       name: 'scheduled-post',
-      due: now => scheduleDue(schedule(), now),
+      due: now => due(now),
       run: scheduledPost,
     }, {
       name: 'autoreply',
@@ -342,7 +386,7 @@ export function voice(body: Body, opts: VoiceOptions | typeof fetch = {}): Organ
     }],
     view: () => ({
       connected: !!creds(), me: store.get('me', null), reply: { ...reply(), handled: reply().handled.length },
-      schedule: { ...schedule(), nextAt: schedule().isOn && schedule().lastPostAt ? schedule().lastPostAt + schedule().everyHours * 3_600_000 : null },
+      schedule: { ...schedule(), nextAt: nextPostAt(), hours: hours(), calendar: schedule().isOn && schedule().mode !== 'every' ? nextSlots(Date.now(), hours(), 6) : [] },
       engine: (() => {
         const { catalog: cat, problems } = catalog()
         return {
@@ -384,7 +428,7 @@ export function voice(body: Body, opts: VoiceOptions | typeof fetch = {}): Organ
       /** Reads her posts' numbers now instead of waiting for the six-hour clock. */
       measureNow: async () => ({ result: await measure() }),
       /** Turns the clock on or off, or changes its period. Turning it on arms nothing: the first post does. */
-      schedule: ({ isOn, everyHours, themes }) => {
+      schedule: ({ isOn, everyHours, themes, mode, perDay }) => {
         const s: Partial<Schedule> = {}
         if (typeof themes === 'string') s.themes = themes.trim().slice(0, 400)
         if (typeof isOn === 'boolean') s.isOn = isOn
@@ -393,6 +437,13 @@ export function voice(body: Body, opts: VoiceOptions | typeof fetch = {}): Organ
           if (!(h >= 1 && h <= 168)) throw new Error('every 1 to 168 hours')
           s.everyHours = h
         }
+        if (mode === 'slots' || mode === 'every') s.mode = mode
+        if (perDay !== undefined) {
+          const n = Number(perDay)
+          if (!(n >= 1 && n <= 6)) throw new Error('1 to 6 posts a day')
+          s.perDay = n
+        }
+        slotMemo.at = 0
         return setSchedule(s)
       },
       /** Writes and posts one now; when it goes out, the clock starts over from here. */

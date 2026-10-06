@@ -4,7 +4,7 @@
 
 export type PostStat = {
   id: string; at: number; text: string
-  category?: string; format?: string
+  category?: string; format?: string; objective?: string
   impressions: number; likes: number; replies: number; reposts: number; quotes: number; bookmarks: number
   profileClicks?: number
 }
@@ -14,7 +14,7 @@ export type Outlier = { id: string; text: string; ratio: number; why: string[] }
 export type Learning = {
   posts: number
   baseline: { impressions: number; engagementRate: number }
-  categories: TagResult[]; formats: TagResult[]; hours: TagResult[]
+  categories: TagResult[]; formats: TagResult[]; hours: TagResult[]; objectives: TagResult[]
   winners: Outlier[]; losers: Outlier[]
 }
 
@@ -81,6 +81,7 @@ export function learn(stats: readonly PostStat[], now = Date.now()): Learning | 
     categories: byTag(scored.map(x => ({ tag: x.p.category, perf: x.perf }))),
     formats: byTag(scored.map(x => ({ tag: x.p.format, perf: x.perf }))),
     hours: byTag(scored.map(x => ({ tag: hourBlock(x.p.at), perf: x.perf }))),
+    objectives: byTag(scored.map(x => ({ tag: x.p.objective, perf: x.perf }))),
     winners: sorted.filter(x => x.perf >= 1.8).slice(0, 3).map(outlier),
     losers: sorted.reverse().filter(x => x.perf <= 0.5).slice(0, 2).map(outlier),
   }
@@ -116,7 +117,7 @@ export function learningNote(l: Learning | null): string {
 }
 
 /** X's tweet object -> a row, keeping the tags the engine recorded when it posted. */
-export function statFromTweet(t: any, tags: { category?: string; format?: string } = {}): PostStat {
+export function statFromTweet(t: any, tags: { category?: string; format?: string; objective?: string } = {}): PostStat {
   const m = t?.public_metrics ?? {}, np = t?.non_public_metrics ?? {}
   const n = (v: unknown) => (Number.isFinite(Number(v)) ? Number(v) : 0)
   return {

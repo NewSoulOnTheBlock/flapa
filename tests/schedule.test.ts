@@ -29,7 +29,7 @@ test('post now writes and posts one through the conscience, and starts the clock
   const body = tempBody(brain)
   body.grow(identity(body, join(import.meta.dir, '..', 'personas')), conscience(body), voice(body, fakeMarket({ bnb: 1 })))
   const v = body.organ('voice') as any
-  v.actions.schedule({ isOn: true, everyHours: 8 })
+  v.actions.schedule({ isOn: true, everyHours: 8, mode: 'every' })
   expect(v.view().schedule.nextAt).toBeNull()
   const out = await v.actions.postNow()
   expect(out.result).toContain('done (paper)')
@@ -68,4 +68,16 @@ test('a turn that posts nothing does not restart the clock', async () => {
   expect((await v.actions.postNow()).result).toContain('no post went out')
   expect(v.view().schedule.lastPostAt).toBe(0)
   expect(() => v.actions.schedule({ everyHours: 0 })).toThrow()
+})
+
+test('calendar mode (the default) shows the day\'s posting hours and the next slot', () => {
+  const body = tempBody(new FakeBrain([]))
+  body.grow(identity(body, join(import.meta.dir, '..', 'personas')), conscience(body), voice(body, fakeMarket({ bnb: 1 })))
+  const v = body.organ('voice') as any
+  v.actions.schedule({ isOn: true, perDay: 3 })
+  const s = v.view().schedule
+  expect(s.mode).toBe('slots')
+  expect(s.hours).toEqual([9, 13, 20])
+  expect(s.nextAt).toBe(s.calendar[0])
+  expect(s.calendar.length).toBe(6)
 })
