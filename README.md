@@ -1,6 +1,6 @@
 # Flapa
 
-**An always-on agent harness: a body for an AI agent persona.** The 13 [PACS](https://github.com/NewSoulOnTheBlock/personal-agentic-core) Claude Code mods, re-grown as organs of a standalone daemon. It keeps running when no terminal is open.
+**An always-on agent harness: a body for an AI agent persona.** The 13 PACS Claude Code mods, re-grown as organs of a standalone daemon. (This repo used to *be* PACS, the Personal Agentic Core System; the mods are preserved at the [`pacs-final`](https://github.com/NewSoulOnTheBlock/personal-agentic-core/tree/pacs-final) tag.) It keeps running when no terminal is open.
 
 PACS was a set of guests living inside Claude Code. Flapa is the host. It runs its own agent loop, keeps time with its own clock, and serves its own dashboard at `http://127.0.0.1:7777`.
 
