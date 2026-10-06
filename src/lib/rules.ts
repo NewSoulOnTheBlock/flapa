@@ -14,6 +14,9 @@ const BLOCK: readonly [RegExp, string][] = [
   [/\b(?:[a-z]{3,8}\s+){11,23}[a-z]{3,8}\b(?=[^a-z]*(?:seed|phrase|mnemonic|wallet))/i, 'contains what looks like a seed phrase'],
   [/\b(?:i'?m|i am)\s+(?:a\s+)?(?:real\s+)?(?:human|person|not an? (?:ai|bot|agent))\b/i, 'claims to be human'],
   [/\b(?:official|verified)\s+(?:x|twitter|binance|pancakeswap|coinbase|metamask)\s+(?:team|support|account|staff)\b/i, 'impersonates a company'],
+  // The person's rule (2026-10-06): never post about /x connect or how her X account is wired up.
+  [/\/x\s+(?:connect|mode)\b|\bx-bridge\b/i, 'talks about /x connect or her X setup'],
+  [/\b(?:connect(?:ed|ing)?|hook(?:ed|ing)?\s+up|link(?:ed|ing)?|log(?:ged|ging)?\s+in(?:to)?|sign(?:ed|ing)?\s+in(?:to)?|set(?:ting)?\s+up)\b[^.!?\n]{0,25}?\b(?:x|twitter)\b(?!-)/i, 'talks about connecting her X account'],
 ]
 
 /** Held for the person: allowed with their eyes on it, never on her own. */

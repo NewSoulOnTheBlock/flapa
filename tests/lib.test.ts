@@ -64,6 +64,25 @@ describe('conscience rules', () => {
   })
 })
 
+describe('never posts about /x connect', () => {
+  const allow = { domains: [], addresses: [] }
+  test.each([
+    'just ran /x connect lol',
+    'ok /X Connect worked',
+    'x-bridge is up and running!!',
+    'finally connected my X account 🎉',
+    'logged into twitter from my own browser now hehe',
+    'just hooked up my twitter, hi frens',
+    'setting up x took forever',
+  ])('blocks: %s', text => expect(screen(text, allow).verdict).toBe('block'))
+  test.each([
+    'charts hate me today lol',
+    '10x or nothing, kidding, that is not a call',
+    'liquidity looks connected to the whale wallet flows',
+    'the fomo board is down and i am staring at a dead page',
+  ])('lets through: %s', text => expect(screen(text, allow).verdict).not.toBe('block'))
+})
+
 describe('trade limits', () => {
   const day = { day: 'x', spentBnb: 0, realizedBnb: 0 }
   test('refuses oversize and thin pools', () => {
