@@ -3,10 +3,19 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 
 import { join } from 'node:path'
 import type { Body } from '../core/body'
 import type { Organ } from '../core/types'
+import { learn, type PostStat } from '../lib/analytics'
+import { EMPTY_LORE, loreSection, lorePrompt, mergeLore, storyChapters, type Lore } from '../lib/lore'
 
+export type Style = { always: string[]; never: string[]; notes: string[] }
 export type Persona = {
   id: string; name: string; handle: string; tagline: string
   voice: string; backstory: string; values: string[]; taboos: string[]; examples: string[]
+  /** Phrases she uses, phrases she never uses, and notes on caps, emoji, length, punctuation, memes, conflict. */
+  style: Style
+  /** What X should think she is; every post should reinforce it. */
+  reputation: string
+  /** Accounts she follows closely: the default watch list for outbound replies. */
+  favorites: string[]
 }
 
 /** Every persona keeps these, whatever a forge draft or a hand edit says. */
@@ -28,6 +37,10 @@ export function personaSection(p: Persona): string {
     p.values.length > 0 && `Values and convictions:\n${list(p.values)}`,
     p.taboos.length > 0 && `${p.name} never:\n${list(p.taboos)}`,
     p.examples.length > 0 && `Examples of your voice (match the style, do not repeat them):\n${p.examples.map(x => `> ${x}`).join('\n')}`,
+    p.style.notes.length > 0 && `Style:\n${list(p.style.notes)}`,
+    p.style.always.length > 0 && `Words and phrases you use: ${p.style.always.join(' · ')}`,
+    p.style.never.length > 0 && `Words and phrases you never use: ${p.style.never.join(' · ')}`,
+    p.reputation && `How X sees you, and what every post should reinforce: ${p.reputation}`,
   ].filter(Boolean).join('\n\n')
 }
 
@@ -41,6 +54,9 @@ export function normalizePersona(raw: any): Persona {
   return {
     id, name, handle: str(raw?.handle, 15).replace(/^@/, ''), tagline: str(raw?.tagline, 200),
     voice: str(raw?.voice), backstory: str(raw?.backstory), values: arr(raw?.values), taboos, examples: arr(raw?.examples),
+    style: { always: arr(raw?.style?.always), never: arr(raw?.style?.never), notes: arr(raw?.style?.notes) },
+    reputation: str(raw?.reputation, 300),
+    favorites: arr(raw?.favorites).map(h => h.replace(/^@/, '')).filter(h => /^\w{1,15}$/.test(h)),
   }
 }
 
@@ -74,15 +90,72 @@ export function identity(body: Body, seedDir: string): Organ {
   let personas = load()
   const active = () => personas.find(p => p.id === store.get('activeId', personas[0]?.id ?? '')) ?? personas[0] ?? null
 
+  // Lore lives per persona in the store; her "birthday" is her first post, or the day the lore began.
+  const pid = () => active()?.id ?? "none"
+  const loreKey = () => `lore:${pid()}`
+  const lore = (): Lore => ({ ...EMPTY_LORE, ...store.get<Partial<Lore>>(loreKey(), {}) })
+  const bornAt = () => {
+    const k = `bornAt:${pid()}`
+    const posts = body.store('voice').get<{ at: number }[]>('posted', [])
+    const firstPost = posts.length ? Math.min(...posts.map(p => p.at)) : Date.now()
+    const known = store.get<number | undefined>(k, undefined)
+    return known !== undefined && known <= firstPost ? known : store.set(k, firstPost)
+  }
+
+  /** New chapters from her real trades, follower milestones and posts that blew up. */
+  function writeStory(): string[] {
+    store.set('storyAt', Date.now())
+    const stats = body.store('voice').get<PostStat[]>('stats', [])
+    const l = learn(stats)
+    const byId = new Map(stats.map(s => [s.id, s.at]))
+    const chapters = storyChapters({
+      bornAt: bornAt(),
+      trades: body.store('hands').get<{ at: number; side: string; symbol: string; pnlBnb?: number; paper: boolean }[]>('trades', []),
+      followers: body.store('voice').get<{ at: number; followers: number }[]>('followers', []),
+      bigPosts: (l?.winners ?? []).map(w => ({ at: byId.get(w.id) ?? Date.now(), ratio: w.ratio, text: w.text })),
+    }, new Set(lore().chapters.map(c => c.key)))
+    if (chapters.length) {
+      store.set(loreKey(), { ...lore(), chapters: [...lore().chapters, ...chapters].slice(-40) })
+      body.bus.emit('story', 'identity', { chapters: chapters.map(c => c.title) })
+    }
+    return chapters.map(c => c.title)
+  }
+
+  /** Once a week: did anything she posted become a catchphrase, a running joke or a character? */
+  async function growLore(): Promise<string[]> {
+    store.set('loreAt', Date.now())
+    const posts = body.store('voice').get<{ text: string; replyTo?: string }[]>('posted', []).filter(p => !p.replyTo).map(p => p.text)
+    if (posts.length < 5) return []
+    const raw = await body.brain.quick(`You are ${active()?.name ?? 'the agent'}, keeping your own lore.`, lorePrompt(lore(), posts))
+    let proposal: unknown = {}
+    try { proposal = JSON.parse(raw.slice(raw.indexOf('{'), raw.lastIndexOf('}') + 1)) } catch {}
+    const { lore: next, added } = mergeLore(lore(), proposal)
+    if (added.length) { store.set(loreKey(), next); body.bus.emit('lore', 'identity', { added }) }
+    return added
+  }
+
   return {
     name: 'identity',
-    role: 'Who the mind is: persona, voice, values, taboos.',
+    role: 'Who the mind is: persona, voice, values, taboos, style, lore and story.',
     sense: () => {
       const p = active()
-      return p ? personaSection(p) : 'You have no persona yet: speak plainly as an AI agent, and suggest the person forge one.'
+      if (!p) return 'You have no persona yet: speak plainly as an AI agent, and suggest the person forge one.'
+      return [personaSection(p), loreSection(lore(), bornAt())].filter(Boolean).join('\n\n')
     },
-    view: () => ({ active: active(), personas: personas.map(p => ({ id: p.id, name: p.name, tagline: p.tagline })) }),
+    rhythms: [
+      { name: 'story', due: now => now - store.get<number>('storyAt', 0) >= 6 * 3_600_000, run: async () => { writeStory() } },
+      { name: 'lore', due: now => now - store.get<number>('loreAt', Date.now()) >= 7 * 86_400_000, run: async () => { await growLore() } },
+    ],
+    view: () => ({ active: active(), personas: personas.map(p => ({ id: p.id, name: p.name, tagline: p.tagline })), lore: lore(), bornAt: bornAt() }),
     actions: {
+      story: () => ({ added: writeStory() }),
+      growLore: async () => ({ added: await growLore() }),
+      /** The person edits the lore by hand: replace one list. */
+      setLore: ({ list, items }) => {
+        if (!['catchphrases', 'jokes', 'characters'].includes(list)) throw new Error('list is catchphrases | jokes | characters')
+        const clean = (Array.isArray(items) ? items : String(items ?? '').split('\n')).map((s: unknown) => String(s).trim()).filter(Boolean).slice(0, 12)
+        return store.set(loreKey(), { ...lore(), [list]: clean })
+      },
       activate: ({ id }) => {
         if (!personas.some(p => p.id === id)) throw new Error(`no persona ${id}`)
         store.set('activeId', id)

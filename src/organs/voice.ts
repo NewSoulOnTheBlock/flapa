@@ -4,6 +4,7 @@ import type { Body } from '../core/body'
 import type { Mode, Organ, Outward } from '../core/types'
 import { cleanReply, newerId, nextSinceId, pickNew, replySystem, CHECK_EVERY_MS, type XMention } from '../lib/autoreply'
 import { checkCrisis, statementPrompt } from '../lib/crisis'
+import { neverHits } from '../lib/lore'
 import { notePerson, opportunityQuery, pickOpportunities, planMention, replyBrief, strength, YELLOW_FOLLOWERS, type Candidate as ReplyCandidate, type Person } from '../lib/social'
 import type { MemoryOrgan } from './memory'
 import { existsSync, readFileSync } from 'node:fs'
@@ -193,6 +194,7 @@ export function voice(body: Body, opts: VoiceOptions | typeof fetch = {}): Organ
   async function answer(o: { replyTo: string; author: string; text: string; context?: string; kind: Parameters<typeof replyBrief>[0]['kind']; yellow?: string }): Promise<string | null> {
     const brief = replyBrief({ author: o.author, text: o.text, context: o.context, remembered: await remembered(o.author, o.text), kind: o.kind })
     const text = cleanReply(await body.brain.quick(replySystem(persona()), brief), o.author)
+    if (text && neverHits(text, persona().never).length) return null
     if (!text || tooLong(text)) return null
     const result = await body.act({
       organ: 'voice', kind: 'reply', summary: `reply to @${o.author}: ${text}`, text, context: o.text, payload: { text, replyTo: o.replyTo }, by: 'rhythm',
@@ -217,7 +219,7 @@ export function voice(body: Body, opts: VoiceOptions | typeof fetch = {}): Organ
     const log = store.get<OutLog[]>('outboundLog', [])
     const today = log.filter(l => Date.now() - l.at < 86_400_000 && /^(done|held)/.test(l.result)).length
     if (today >= cfg.perDay) return `daily cap reached (${cfg.perDay})`
-    const q = pct(opportunityQuery(cfg.watch))
+    const q = pct(opportunityQuery(cfg.watch.length ? cfg.watch : persona().favorites))
     const r = await x('GET', `/tweets/search/recent?query=${q}&max_results=20&tweet.fields=created_at,public_metrics,author_id&expansions=author_id&user.fields=username,public_metrics`)
     const users = new Map<string, any>((r.includes?.users ?? []).map((u: any) => [u.id, u]))
     const cands: ReplyCandidate[] = (r.data ?? []).map((t: any) => {
@@ -225,7 +227,7 @@ export function voice(body: Body, opts: VoiceOptions | typeof fetch = {}): Organ
       return { id: t.id, author: u?.username ?? t.author_id, authorFollowers: Number(u?.public_metrics?.followers_count) || 0, text: t.text, at: Date.parse(t.created_at) || 0, likes: m.like_count ?? 0, replies: m.reply_count ?? 0, reposts: m.retweet_count ?? 0 }
     })
     const { username } = await me()
-    const best = pickOpportunities(cands, Date.now(), new Set(cfg.watch.map(w => w.replace(/^@/, '').toLowerCase())), { self: username, already: new Set(log.map(l => l.id)) })[0]
+    const best = pickOpportunities(cands, Date.now(), new Set((cfg.watch.length ? cfg.watch : persona().favorites).map(w => w.replace(/^@/, '').toLowerCase())), { self: username, already: new Set(log.map(l => l.id)) })[0]
     if (!best) return `nothing worth a reply among ${cands.length} posts`
     const big = best.c.authorFollowers >= YELLOW_FOLLOWERS ? `@${best.c.author} has ${best.c.authorFollowers.toLocaleString('en-US')} followers` : undefined
     const result = (await answer({ replyTo: best.c.id, author: best.c.author, text: best.c.text, kind: 'outbound', yellow: big })) ?? 'no reply written'
@@ -268,7 +270,7 @@ export function voice(body: Body, opts: VoiceOptions | typeof fetch = {}): Organ
 
   const persona = () => {
     const p = body.has('identity') ? (body.organ('identity').view?.() as any)?.active : null
-    return { name: p?.name ?? 'agent', handle: p?.handle ?? '', tagline: p?.tagline ?? '', voice: p?.voice ?? '', examples: p?.examples ?? [], taboos: p?.taboos ?? [] }
+    return { name: p?.name ?? 'agent', handle: p?.handle ?? '', tagline: p?.tagline ?? '', voice: p?.voice ?? '', examples: p?.examples ?? [], taboos: p?.taboos ?? [], never: (p?.style?.never ?? []) as string[], favorites: (p?.favorites ?? []) as string[] }
   }
 
   const tooLong = (text: string) => {
@@ -296,6 +298,8 @@ export function voice(body: Body, opts: VoiceOptions | typeof fetch = {}): Organ
         run: async ({ text, poll, thread }, turn) => {
           const by = turn.stimulus.kind === 'chat' ? 'agent' : 'rhythm'
           const parts = Array.isArray(thread) && thread.length ? thread.map((p: unknown) => String(p ?? '').trim()).filter(Boolean) : [String(text ?? '').trim()]
+          const banned = parts.flatMap(p => neverHits(p, persona().never))
+          if (banned.length) return `error: uses "${banned[0]}", which you never say; rewrite it in your own words`
           if (!parts[0]) return 'error: empty post'
           if (parts.length > 5) return 'error: a thread is at most 5 posts'
           for (const p of parts) { const long = tooLong(p); if (long) return long }

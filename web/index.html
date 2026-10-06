@@ -467,6 +467,22 @@ const MIND = {
         h('span', { class: 'dim', style: 'flex:none', title: 'woven into about 1 in 5 posts, when it fits' }, 'storyline'),
         h('input', { class: 'field', id: 'themesIn', value: v.schedule.themes ?? '', placeholder: "what's going on with her lately (mentioned now and then)", autocomplete: 'off' }),
         h('button', { class: 'btn small' }, 'save')),
+      (() => {
+        const id = S.organs.identity?.view, lore = id?.lore
+        if (!lore) return null
+        const day = at => Math.max(1, Math.floor((at - id.bornAt) / 86400000) + 1)
+        const edit = (list, label) => h('form', { class: 'row', style: 'margin-top:4px', onsubmit: e => { e.preventDefault(); act('identity', 'setLore', { list, items: e.target.elements[0].value.split(' · ') }).then(() => toast(`${label} saved ♡`)) } },
+          h('span', { class: 'dim', style: 'flex:none;width:96px' }, label),
+          h('input', { class: 'field', value: lore[list].join(' · '), placeholder: 'separate with  ·  ', autocomplete: 'off' }),
+          h('button', { class: 'btn ghost small' }, 'save'))
+        return h('details', { style: 'margin:0 0 8px' }, h('summary', { class: 'dim', style: 'cursor:pointer' }, `📖 her story & lore · day ${day(Date.now())}`),
+          h('div', { class: 'stack', style: 'margin-top:6px' },
+            lore.chapters.length ? h('div', { class: 'stack' }, lore.chapters.slice(-8).map(c => h('div', { class: 'faint' }, `Day ${day(c.at)} · ${c.title}`))) : h('div', { class: 'faint' }, 'no chapters yet: they write themselves from her first trade, wins, losses and milestones.'),
+            edit('catchphrases', 'catchphrases'), edit('jokes', 'running jokes'), edit('characters', 'characters'),
+            h('div', { class: 'row', style: 'margin-top:4px' },
+              h('button', { class: 'btn ghost small', onclick: () => act('identity', 'story', {}).then(r => toast(r.value?.added?.length ? `new: ${r.value.added.join(', ')}` : 'no new chapters')) }, '📖 check for chapters'),
+              h('button', { class: 'btn ghost small', onclick: () => act('identity', 'growLore', {}).then(r => toast(r.value?.added?.length ? `new: ${r.value.added.join(', ')}` : 'nothing new yet')) }, '✨ grow lore'))))
+      })(),
       v.posted.length ? h('div', { class: 'stack' }, v.posted.map(p => h('div', { class: 'card' }, p.text,
         h('div', { class: 'row wrap', style: 'margin-top:4px' }, h('span', { class: `tag ${p.mode === 'live' ? 'hot' : ''}` }, p.mode === 'live' ? 'LIVE 🔥' : 'paper 🧸'),
           p.topic ? h('span', { class: 'tag her' }, `🎲 ${p.topic}`) : null,
