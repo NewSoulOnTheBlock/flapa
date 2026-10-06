@@ -7,6 +7,8 @@ import { dexUrl, marketLine, pickPool, type Market } from '../lib/market'
 import { parseGeckoPools, type Candidate } from '../lib/strategy'
 import { digestPrompt, FEEDS, newsBrief, newsjackPick, parseDigest, parseRss, stories, type Narrative, type NewsItem } from '../lib/news'
 
+import { bigMoves, moveBrief } from '../lib/triggers'
+
 const NEWS_EVERY_MS = 30 * 60_000
 
 const DAILY_RETRY_MS = 15 * 60_000
@@ -167,6 +169,22 @@ export function eyes(body: Body, fetcher: typeof fetch = fetch): Eyes {
       name: 'news',
       due: now => now - store.get<number>('newsAt', 0) >= NEWS_EVERY_MS,
       run: async () => { await readNews() },
+    }, {
+      // Trigger: BNB or BTC moving 5%+ in a day wakes her to react (once per coin per 12 hours).
+      name: 'market-move',
+      due: now => now - store.get<number>('pricesAt', 0) >= NEWS_EVERY_MS,
+      run: async () => {
+        store.set('pricesAt', Date.now())
+        const r = await fetcher('https://api.coingecko.com/api/v3/simple/price?ids=binancecoin,bitcoin&vs_currencies=usd&include_24hr_change=true')
+        if (!r.ok) return
+        const prices = await r.json()
+        store.set('prices', { at: Date.now(), prices })
+        const move = bigMoves(prices, store.get<Record<string, number>>('movesFired', {}), Date.now())[0]
+        if (!move) return
+        store.update<Record<string, number>>('movesFired', {}, f => ({ ...f, [move.coin]: Date.now() }))
+        body.bus.emit('trigger', 'eyes', { text: `${move.symbol} ${move.pct > 0 ? 'up' : 'down'} ${Math.abs(move.pct).toFixed(1)}% today: reacting` })
+        await body.think({ kind: 'signal', text: moveBrief(move), from: 'eyes' })
+      },
     }, {
       name: 'digest',
       // Daily, once there are enough headlines to say something.

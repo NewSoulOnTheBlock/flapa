@@ -5,6 +5,7 @@ import type { Mode, Organ, Outward } from '../core/types'
 import { cleanReply, newerId, nextSinceId, pickNew, replySystem, CHECK_EVERY_MS, type XMention } from '../lib/autoreply'
 import { checkCrisis, statementPrompt } from '../lib/crisis'
 import { neverHits } from '../lib/lore'
+import { crossedMilestone, isSlump, milestoneBrief, NOTABLE_FOLLOWER, SLUMP_NOTE, VIP_FOLLOWERS } from '../lib/triggers'
 import { notePerson, opportunityQuery, pickOpportunities, planMention, replyBrief, strength, YELLOW_FOLLOWERS, type Candidate as ReplyCandidate, type Person } from '../lib/social'
 import type { MemoryOrgan } from './memory'
 import { existsSync, readFileSync } from 'node:fs'
@@ -106,7 +107,7 @@ export function voice(body: Body, opts: VoiceOptions | typeof fetch = {}): Organ
       const pick: TopicPick | undefined = cat ? pickTopic(nudged(cat, weightNudges(learned)), history(), new Date(), rng) : undefined
       const recent = store.get<Posted[]>('posted', []).filter(p => !p.replyTo).slice(0, 5).map(p => p.text)
       const brief = pick
-        ? engineBrief(pick, { recent, storyline: schedule().themes, everyHours: schedule().everyHours, learned: learningNote(learned) })
+        ? engineBrief(pick, { recent, storyline: schedule().themes, everyHours: schedule().everyHours, learned: [learningNote(learned), slumping() ? SLUMP_NOTE : ''].filter(Boolean).join('\n') })
         : postBrief(schedule().everyHours, schedule().themes)
       if (pick) body.bus.emit('topic', 'voice', { topic: pick.topic, category: pick.category, blend: pick.blend?.topic ?? null, format: pick.format })
       const r = await body.think({ kind: 'post', text: brief, from: 'voice' })
@@ -164,6 +165,11 @@ export function voice(body: Body, opts: VoiceOptions | typeof fetch = {}): Organ
     })
     const fresh = list.filter(m => !store.get<XMention[]>('mentions', []).some(o => o.id === m.id))
     store.update<Record<string, Person>>('people', {}, p => fresh.reduce((acc, m) => notePerson(acc, { handle: m.author, at: m.at ?? Date.now(), text: m.text, kind: planMention(m.text, m.followers).kind, followers: m.followers }), p))
+    // Trigger: a big account talking to her is something the person should see right away.
+    for (const m of fresh.filter(m => (m.followers ?? 0) >= VIP_FOLLOWERS)) {
+      body.bus.emit('trigger', 'voice', { text: `@${m.author} (${m.followers!.toLocaleString('en-US')} followers) mentioned her` })
+      if (body.has('agenda')) body.organ('agenda').actions?.add?.({ text: `@${m.author} (${m.followers!.toLocaleString('en-US')} followers) mentioned Flapa: "${m.text.slice(0, 120)}"` })
+    }
     const seen = new Set(list.map(m => m.id))
     store.set('mentions', [...list, ...store.get<XMention[]>('mentions', []).filter(m => !seen.has(m.id))].slice(0, 50))
     if (list[0]) store.set('watchSince', list.reduce((a, m) => (newerId(m.id, a) ? m.id : a), store.get<string>('watchSince', list[0].id)))
@@ -256,9 +262,44 @@ export function voice(body: Body, opts: VoiceOptions | typeof fetch = {}): Organ
     store.set('stats', [...keep.values()].sort((a, b) => b.at - a.at).slice(0, 300))
     const u = await x('GET', '/users/me?user.fields=public_metrics')
     const followers = Number(u.data?.public_metrics?.followers_count)
+    const before = store.get<FollowerPoint[]>('followers', []).at(-1)?.followers
     if (Number.isFinite(followers)) store.update<FollowerPoint[]>('followers', [], l => [...l, { at: Date.now(), followers }].slice(-400))
     body.bus.emit('measured', 'voice', { posts: fresh.length, followers })
+    await afterMeasure(before, followers, id)
     return `measured ${fresh.length} posts; ${followers} followers`
+  }
+
+  const trigger = (text: string) => body.bus.emit('trigger', 'voice', { text })
+  const tellPerson = (text: string) => { if (body.has('agenda')) body.organ('agenda').actions?.add?.({ text }) }
+  const slumping = () => Date.now() - store.get<number>('slumpAt', 0) < 48 * 3_600_000
+
+  /** Triggers that ride on the six-hour measure: follower milestones, a slump, notable new followers. */
+  async function afterMeasure(before: number | undefined, followers: number, id: string): Promise<void> {
+    const milestone = before !== undefined && Number.isFinite(followers) ? crossedMilestone(before, followers) : undefined
+    const celebrated = store.get<number[]>('milestones', [])
+    if (milestone && !celebrated.includes(milestone)) {
+      store.set('milestones', [...celebrated, milestone])
+      trigger(`passed ${milestone} followers: celebrating`)
+      await body.think({ kind: 'post', text: milestoneBrief(milestone), from: 'voice' })
+    }
+    if (!slumping() && isSlump(store.get<PostStat[]>('stats', []), Date.now())) {
+      store.set('slumpAt', Date.now())
+      trigger('engagement slump: her next posts change shape and lead harder')
+    }
+    // New followers with a real audience: worth the person's attention. The first run only learns who is there.
+    try {
+      const r = await x('GET', `/users/${id}/followers?max_results=100&user.fields=public_metrics`)
+      const known = store.get<string[] | null>('followerIds', null)
+      const list: any[] = r.data ?? []
+      if (known) {
+        const seen = new Set(known)
+        for (const f of list.filter(f => !seen.has(f.id) && Number(f.public_metrics?.followers_count) >= NOTABLE_FOLLOWER)) {
+          trigger(`@${f.username} (${Number(f.public_metrics.followers_count).toLocaleString('en-US')} followers) followed her`)
+          tellPerson(`@${f.username} (${Number(f.public_metrics.followers_count).toLocaleString('en-US')} followers) just followed Flapa: worth a look.`)
+        }
+      }
+      store.set('followerIds', [...new Set([...list.map(f => String(f.id)), ...(known ?? [])])].slice(0, 3000))
+    } catch {}
   }
 
   const growth = () => {

@@ -22,6 +22,9 @@ and private metrics (impressions, profile clicks), mentions, followers, user loo
 
 ## Build order
 
+All seven were built on 2026-10-06 (commits c2cbf33, a734187, 2855215, 7251da8, b9249cf, 4d52db2 and the
+triggers commit). Memory runs on mem0 when `MEM0_API_KEY` is set.
+
 1. **Measure and learn** (9, 27, 28, 29, 30-lite): collect every post's metrics, find what beats her
    baseline (topic section, shape, hour), explain outliers, nudge the topic weights toward what works, and
    tell her what is working in each brief. A/B testing is the engine's natural variety, compared by tag.

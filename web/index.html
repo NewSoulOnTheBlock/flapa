@@ -321,7 +321,7 @@ function cat(mood, working) {
 }
 const meter = (n, full, emptyIcon) => h('span', { class: 'meter' }, Array.from({ length: 5 }, (_, i) => h('i', { class: i < Math.round(n * 5) ? 'full' : '' }, i < Math.round(n * 5) ? full : emptyIcon)))
 
-const THOUGHT_ICON = { 'turn.start': '💡', 'turn.text': '💭', 'tool.call': '🔧', 'tool.result': '✨', 'memory.added': '📝', mood: '💗', stance: '🌟', 'act.hold': '🙏', 'act.block': '🚫', 'act.done': '✅', 'turn.error': '😵', research: '🔍', trade: '💸', posted: '💌', 'exit.stuck': '⏳', 'act.failed': '😵', topic: '🎲' }
+const THOUGHT_ICON = { 'turn.start': '💡', 'turn.text': '💭', 'tool.call': '🔧', 'tool.result': '✨', 'memory.added': '📝', mood: '💗', stance: '🌟', 'act.hold': '🙏', 'act.block': '🚫', 'act.done': '✅', 'turn.error': '😵', research: '🔍', trade: '💸', posted: '💌', 'exit.stuck': '⏳', 'act.failed': '😵', topic: '🎲', trigger: '⚡', newsjack: '📰', crisis: '🚨', story: '📖', lore: '✨', measured: '📈' }
 function thoughtText(s) {
   const d = s.data || {}
   switch (s.type) {
@@ -338,6 +338,12 @@ function thoughtText(s) {
     case 'posted': return `${d.mode} post: ${d.text}`
     case 'exit.stuck': return `couldn't ${d.why} on $${d.symbol}: ${d.result}. retrying slower`
     case 'topic': return `next post is about: ${d.topic}${d.blend ? ` × ${d.blend}` : ''} (${String(d.format).split(':')[0]})`
+    case 'trigger': return d.text
+    case 'newsjack': return `breaking: ${d.title} (${(d.sources || []).join(', ')})`
+    case 'crisis': return d.why
+    case 'story': return `new chapter: ${(d.chapters || []).join('; ')}`
+    case 'lore': return `lore grew: ${(d.added || []).join('; ')}`
+    case 'measured': return `read her numbers: ${d.posts} posts, ${d.followers} followers`
     default: return s.type.startsWith('act.') ? `${d.organ}.${d.kind} ${s.type.slice(4)}: ${d.summary}` : null
   }
 }
