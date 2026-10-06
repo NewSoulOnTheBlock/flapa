@@ -139,7 +139,7 @@ export function hands(body: Body, helper: Helper): Organ {
   return {
     name: 'hands',
     role: 'Trades on BNB Chain (PancakeSwap v2) inside hard limits. Paper by default.',
-    liveReady: () => (process.env.SOMA_TRADER_KEY || process.env.FLAPA_TRADER_KEY ? undefined : 'set SOMA_TRADER_KEY in the environment (never paste it anywhere)'),
+    liveReady: () => (process.env.FLAPA_TRADER_KEY ? undefined : 'set FLAPA_TRADER_KEY in the environment (never paste it anywhere)'),
     tools: [
       { name: 'portfolio', description: 'Your positions, today\'s books and your limits.', input_schema: { type: 'object', properties: {} }, run: portfolio },
       {

@@ -94,9 +94,9 @@ describe('conscience gate', () => {
   test('live needs credentials first', () => {
     const { gate } = grown()
     const saved = { ...process.env }
-    delete process.env.SOMA_TRADER_KEY
     delete process.env.FLAPA_TRADER_KEY
-    expect(() => gate.live({ organ: 'hands', isLive: true })).toThrow(/SOMA_TRADER_KEY/)
+    delete process.env.FLAPA_TRADER_KEY
+    expect(() => gate.live({ organ: 'hands', isLive: true })).toThrow(/FLAPA_TRADER_KEY/)
     Object.assign(process.env, saved)
   })
 })

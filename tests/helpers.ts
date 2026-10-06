@@ -36,7 +36,7 @@ export class FakeBrain implements Brain {
 }
 
 export function tempBody(brain: Brain = new FakeBrain()): Body {
-  return new Body({ home: mkdtempSync(join(tmpdir(), 'soma-test-')), brain })
+  return new Body({ home: mkdtempSync(join(tmpdir(), 'flapa-test-')), brain })
 }
 
 export const TOKEN = '0x1111111111111111111111111111111111111111'

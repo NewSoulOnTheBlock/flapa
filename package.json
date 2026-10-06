@@ -1,7 +1,7 @@
 {
-  "name": "soma",
+  "name": "flapa",
   "version": "0.1.0",
-  "description": "SOMA: an always-on body for an AI agent persona. The PACS mods, re-grown as organs.",
+  "description": "Flapa: an always-on agent harness for an AI agent persona. The PACS mods, re-grown as organs.",
   "type": "module",
   "private": true,
   "license": "MIT",

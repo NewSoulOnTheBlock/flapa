@@ -1,4 +1,4 @@
-// SOMA: grow the organs, wake the body, open the skin.
+// Flapa: grow the organs, wake the body, open the skin.
 import { join, resolve } from 'node:path'
 import { Body } from './core/body'
 import { pickBrain } from './core/brain'
@@ -14,7 +14,7 @@ import { memory } from './organs/memory'
 import { voice } from './organs/voice'
 
 const root = resolve(import.meta.dir, '..')
-const body = new Body({ home: resolve(process.env.SOMA_HOME || join(root, 'data')), brain: pickBrain() })
+const body = new Body({ home: resolve(process.env.FLAPA_HOME || join(root, 'data')), brain: pickBrain() })
 
 // Order is prompt order: who you are first (cached), then the slow-changing, then the moment.
 body.grow(
@@ -36,8 +36,8 @@ body.bus.listen(s => {
   }
 })
 
-const { url } = serve(body, { port: Number(process.env.SOMA_PORT || 7777), page: join(root, 'web', 'index.html') })
+const { url } = serve(body, { port: Number(process.env.FLAPA_PORT || 7777), page: join(root, 'web', 'index.html') })
 body.wake()
-console.log(`SOMA is awake · brain: ${body.brain.kind} · ${body.organs.length} organs · ${url}`)
+console.log(`Flapa is awake · brain: ${body.brain.kind} · ${body.organs.length} organs · ${url}`)
 
 for (const sig of ['SIGINT', 'SIGTERM'] as const) process.on(sig, () => { body.sleep(); process.exit(0) })

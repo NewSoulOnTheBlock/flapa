@@ -45,7 +45,7 @@ export function normalizePersona(raw: any): Persona {
 }
 
 const FORGE_SYSTEM = [
-  'You design AI agent personas for SOMA, an always-on agent body that chats, posts on X and paper-trades.',
+  'You design AI agent personas for Flapa, an always-on agent harness that chats, posts on X and paper-trades.',
   "From the person's notes, write one persona as JSON with exactly these keys:",
   '{"id": "slug", "name": "...", "handle": "x handle or empty", "tagline": "one line",',
   ' "voice": "how they talk, 2-4 paragraphs", "backstory": "1-3 paragraphs",',

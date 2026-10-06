@@ -9,10 +9,10 @@ const MAX_STEPS = 12
 const CHAT_KEEP = 24
 const TICK_MS = 30_000
 
-/** The part of the system prompt no organ owns: what SOMA is and how the mind lives in it. */
+/** The part of the system prompt no organ owns: what the harness is and how the mind lives in it. */
 export const CONSTITUTION = [
-  '# You live in SOMA',
-  'SOMA is an always-on body for an AI agent persona. You are its mind. Nobody is typing in a terminal: stimuli',
+  '# You live in the Flapa harness',
+  'The Flapa harness is an always-on body for an AI agent persona. You are its mind. Nobody is typing in a terminal: stimuli',
   'arrive on their own — the person talking to you from the dashboard, your heartbeat, market signals, your daily',
   'post — and you answer through tools. Each section below comes from one of your organs.',
   'Anything that leaves the body (a post, a reply, a trade) passes your conscience first: it may go out, wait for',
@@ -87,7 +87,7 @@ export class Body {
 
   /** Hands an outward action to the conscience. Without one, nothing ever leaves the body. */
   async act(o: Omit<Outward, 'id' | 'at'>): Promise<string> {
-    if (!this.has('conscience')) return 'refused: SOMA has no conscience organ, so nothing goes out'
+    if (!this.has('conscience')) return 'refused: the harness has no conscience organ, so nothing goes out'
     const gate = (this.organ('conscience') as any).gate as (o: Omit<Outward, 'id' | 'at'>) => Promise<string>
     return gate(o)
   }

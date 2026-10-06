@@ -9,8 +9,8 @@
 //   sell     {token, amountWei, minBnbWei}  swap token → BNB (approves exactly that amount)
 //
 // Hard-coded on purpose: BNB Chain (56), PancakeSwap v2's router, WBNB. The key
-// comes from SOMA_TRADER_KEY (or FLAPA_TRADER_KEY) in the environment and nowhere else; it is never
-// printed. SOMA_TRADER_MAX_BNB (default 0.1) caps one buy here, below the mod,
+// comes from FLAPA_TRADER_KEY in the environment and nowhere else; it is never
+// printed. FLAPA_TRADER_MAX_BNB (default 0.1) caps one buy here, below the mod,
 // so no bug or prompt upstream can spend more in one go.
 import {
   createPublicClient, createWalletClient, formatEther, getAddress, http, isAddress, parseAbi, parseEther,
@@ -21,7 +21,7 @@ import { bsc } from 'viem/chains'
 const ROUTER = '0x10ED43C718714eb63d5aA57B78B54704E256024E'
 const WBNB = '0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c'
 const RPC = process.env.BSC_RPC_URL || 'https://bsc-dataseed.bnbchain.org'
-const MAX_BUY = parseEther(process.env.SOMA_TRADER_MAX_BNB || process.env.FLAPA_TRADER_MAX_BNB || '0.1')
+const MAX_BUY = parseEther(process.env.FLAPA_TRADER_MAX_BNB || '0.1')
 const DEADLINE_S = 120n
 
 const routerAbi = parseAbi([
@@ -56,8 +56,8 @@ function token() {
 }
 
 function wallet() {
-  const key = process.env.SOMA_TRADER_KEY || process.env.FLAPA_TRADER_KEY
-  if (!key) fail('SOMA_TRADER_KEY is not set in the environment')
+  const key = process.env.FLAPA_TRADER_KEY
+  if (!key) fail('FLAPA_TRADER_KEY is not set in the environment')
   let account
   try { account = privateKeyToAccount(key.startsWith('0x') ? key : `0x${key}`) } catch { fail('the trader key is not a valid private key') }
   return { account, client: createWalletClient({ account, chain: bsc, transport: http(RPC) }) }
@@ -104,7 +104,7 @@ async function main() {
     case 'buy': {
       const t = token()
       const value = big(args.bnbWei, 'bnbWei')
-      if (value > MAX_BUY) fail(`refused: ${formatEther(value)} BNB is over the helper's cap of ${formatEther(MAX_BUY)} BNB (SOMA_TRADER_MAX_BNB)`)
+      if (value > MAX_BUY) fail(`refused: ${formatEther(value)} BNB is over the helper's cap of ${formatEther(MAX_BUY)} BNB (FLAPA_TRADER_MAX_BNB)`)
       const minOut = big(args.minOutWei, 'minOutWei')
       const { account, client } = wallet()
       if ((await bnbOf(account.address)) < value + parseEther('0.002')) fail('not enough BNB for the trade plus gas')

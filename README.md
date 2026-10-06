@@ -1,8 +1,8 @@
-# SOMA
+# Flapa
 
-**An always-on body for an AI agent persona.** The 13 [PACS](https://github.com/NewSoulOnTheBlock/personal-agentic-core) Claude Code mods, re-grown as organs of a standalone daemon. It keeps running when no terminal is open.
+**An always-on agent harness: a body for an AI agent persona.** The 13 [PACS](https://github.com/NewSoulOnTheBlock/personal-agentic-core) Claude Code mods, re-grown as organs of a standalone daemon. It keeps running when no terminal is open.
 
-PACS was a set of guests living inside Claude Code. SOMA is the host. It runs its own agent loop, keeps time with its own clock, and serves its own dashboard at `http://127.0.0.1:7777`.
+PACS was a set of guests living inside Claude Code. Flapa is the host. It runs its own agent loop, keeps time with its own clock, and serves its own dashboard at `http://127.0.0.1:7777`.
 
 ```
             ┌──────────── stimuli ─────────────┐
@@ -40,7 +40,7 @@ PACS was a set of guests living inside Claude Code. SOMA is the host. It runs it
 - **Always on.** Rhythms (heartbeat, exits, auto-reply, copy-scan, daily post) run on the body's clock, not on a terminal session.
 - **Paper first.** Every outward organ starts in paper mode. Paper posts land in a local feed. Paper trades fill at the live pool price minus the 0.25% fee, so it is real practice on real data. Going live is a per-organ switch, and it is refused until that organ's credentials exist.
 - **Outward actions are data.** `{organ, kind, payload}` is persisted, so an action held for approval survives a restart and runs in whichever mode is current when you approve it. Limits are checked again at approval time.
-- **Two brains.** If `ANTHROPIC_API_KEY` is set, it uses the Anthropic SDK (`claude-opus-5-5` with native tools and server-side refusal fallback, plus `claude-haiku-4-5` for quick reflexes). Otherwise it uses `claude -p` on your Claude subscription, with tools spoken as a text protocol. The PACS function hooks are disabled inside that child process so they don't talk over SOMA's prompt.
+- **Two brains.** If `ANTHROPIC_API_KEY` is set, it uses the Anthropic SDK (`claude-opus-5-5` with native tools and server-side refusal fallback, plus `claude-haiku-4-5` for quick reflexes). Otherwise it uses `claude -p` on your Claude subscription, with tools spoken as a text protocol. The PACS function hooks are disabled inside that child process so they don't talk over the harness's prompt.
 - **Not carried over:** x-bridge's Chrome transports (they needed Claude Code's browser extension) and terminal panes and bands.
 
 ## Run
@@ -55,13 +55,13 @@ Environment (all optional; set them in your shell, never paste them into chat):
 
 | var | for |
 |---|---|
-| `ANTHROPIC_API_KEY` | API brain. Without it, SOMA uses `claude -p` |
-| `SOMA_BRAIN` | force `api` or `cli` |
-| `SOMA_MODEL`, `SOMA_QUICK_MODEL`, `SOMA_EFFORT` | default `claude-opus-5-5`, `claude-haiku-4-5`, `medium` |
+| `ANTHROPIC_API_KEY` | API brain. Without it, Flapa uses `claude -p` |
+| `FLAPA_BRAIN` | force `api` or `cli` |
+| `FLAPA_MODEL`, `FLAPA_QUICK_MODEL`, `FLAPA_EFFORT` | default `claude-opus-5-5`, `claude-haiku-4-5`, `medium` |
 | `X_API_KEY`, `X_API_SECRET`, `X_ACCESS_TOKEN`, `X_ACCESS_TOKEN_SECRET` | voice → live, mentions |
-| `SOMA_TRADER_KEY` (or `FLAPA_TRADER_KEY`) | hands → live. Only `helper/trade.mjs` ever reads it |
-| `SOMA_TRADER_MAX_BNB` | the helper's own hard cap per buy (default 0.1) |
-| `SOMA_PORT`, `SOMA_HOME` | default `7777`, `./data` |
+| `FLAPA_TRADER_KEY` | hands → live. Only `helper/trade.mjs` ever reads it |
+| `FLAPA_TRADER_MAX_BNB` | the helper's own hard cap per buy (default 0.1) |
+| `FLAPA_PORT`, `FLAPA_HOME` | default `7777`, `./data` |
 
 The dashboard only listens on 127.0.0.1. Every API call carries a per-boot token baked into the page, so other websites you visit can't drive the body.
 

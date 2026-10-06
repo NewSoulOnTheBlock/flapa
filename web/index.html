@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>SOMA ♡</title>
+<title>FLAPA ♡</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;800&family=M+PLUS+Rounded+1c:wght@400;500;700&display=swap" rel="stylesheet">
@@ -177,7 +177,7 @@ main {
 
 <header>
   <span class="heart" id="heart">♥</span>
-  <span class="logo">SOMA</span>
+  <span class="logo">FLAPA</span>
   <select class="pill" id="persona" title="who's home"></select>
   <span class="pill" id="brain" style="cursor:default">brain</span>
   <span class="spacer"></span>
@@ -213,9 +213,9 @@ main {
 <div id="toast"></div>
 
 <script>
-const TOKEN = '__SOMA_TOKEN__'
+const TOKEN = '__FLAPA_TOKEN__'
 let S = null, sending = null, tick = 0
-let mindTab = load('soma.mindTab', 'talk')
+let mindTab = load('flapa.mindTab', 'talk')
 const events = []
 
 function load(k, d) { try { return localStorage.getItem(k) || d } catch { return d } }
@@ -234,7 +234,7 @@ function h(tag, attrs, ...kids) {
   return el
 }
 async function api(path, body) {
-  const r = await fetch(`/api/${path}`, { method: body ? 'POST' : 'GET', headers: { 'x-soma-token': TOKEN, 'content-type': 'application/json' }, body: body ? JSON.stringify(body) : undefined })
+  const r = await fetch(`/api/${path}`, { method: body ? 'POST' : 'GET', headers: { 'x-flapa-token': TOKEN, 'content-type': 'application/json' }, body: body ? JSON.stringify(body) : undefined })
   const j = await r.json()
   if (j.error) { toast(`oops: ${j.error}`); throw new Error(j.error) }
   return j
@@ -356,7 +356,7 @@ function p2() {
         h('div', { class: 'row wrap', style: 'margin-top:6px;gap:14px' },
           h('span', { class: 'row' }, h('span', { class: 'faint' }, 'happy'), meter((mood.valence + 1) / 2, '💖', '🤍')),
           h('span', { class: 'row' }, h('span', { class: 'faint' }, 'energy'), meter(mood.energy, '⚡', '·'))))),
-    h('div', { class: 'tabs' }, tabs.map(([k, label]) => h('button', { class: mindTab === k ? 'on' : '', onclick: () => { mindTab = k; save('soma.mindTab', k); p2() } }, label, k === 'posts' && pendingPosts ? h('span', { class: 'badge' }, pendingPosts) : null))),
+    h('div', { class: 'tabs' }, tabs.map(([k, label]) => h('button', { class: mindTab === k ? 'on' : '', onclick: () => { mindTab = k; save('flapa.mindTab', k); p2() } }, label, k === 'posts' && pendingPosts ? h('span', { class: 'badge' }, pendingPosts) : null))),
     MIND[mindTab](),
   )
   if (mindTab === 'talk' && (atEnd || sending)) box.scrollTop = box.scrollHeight
@@ -408,7 +408,7 @@ const MIND = {
 }
 
 // ---------- 3. fomo stats & research ----------
-let fomoWin = load('soma.fomoWin', '24h')
+let fomoWin = load('flapa.fomoWin', '24h')
 function p3() {
   const v = S.organs.eyes.view
   $('fomoSub').textContent = v.board ? `board ${v.board.window} · ${ago(v.board.at)}` : ''
@@ -416,7 +416,7 @@ function p3() {
   const medals = ['🥇', '🥈', '🥉']
   $('p3').replaceChildren(
     h('div', { class: 'row between wrap' },
-      h('span', { class: 'seg' }, ['24h', '7d', '30d', 'all'].map(w => h('button', { class: fomoWin === w ? 'on' : '', onclick: () => { fomoWin = w; save('soma.fomoWin', w); p3() } }, w))),
+      h('span', { class: 'seg' }, ['24h', '7d', '30d', 'all'].map(w => h('button', { class: fomoWin === w ? 'on' : '', onclick: () => { fomoWin = w; save('flapa.fomoWin', w); p3() } }, w))),
       h('button', { class: 'btn small', onclick: e => { e.target.textContent = 'peeking… 👀'; act('eyes', 'refresh', { window: fomoWin }).catch(() => {}).finally(() => p3()) } }, 'refresh ↻')),
     h('div', { class: 'sec' }, '🏆 fomo leaderboard'),
     v.board?.rows?.length ? h('div', { class: 'stack' }, v.board.rows.map((r, i) => h('div', { class: 'card lb' },
@@ -489,7 +489,7 @@ $('say').addEventListener('submit', async e => {
   const text = $('text').value.trim()
   if (!text || sending) return
   sending = text; $('text').value = ''
-  if (mindTab !== 'talk') { mindTab = 'talk'; save('soma.mindTab', 'talk') }
+  if (mindTab !== 'talk') { mindTab = 'talk'; save('flapa.mindTab', 'talk') }
   render()
   try { await api('chat', { text }) } catch {} finally { sending = null; refresh() }
 })

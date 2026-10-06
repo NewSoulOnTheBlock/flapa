@@ -26,9 +26,9 @@ export interface Brain {
   quick(system: string, prompt: string): Promise<string>
 }
 
-export const DEEP_MODEL = process.env.SOMA_MODEL || 'claude-opus-5-5'
-export const QUICK_MODEL = process.env.SOMA_QUICK_MODEL || 'claude-haiku-4-5'
-const EFFORT = (process.env.SOMA_EFFORT || 'medium') as 'low' | 'medium' | 'high' | 'xhigh' | 'max'
+export const DEEP_MODEL = process.env.FLAPA_MODEL || 'claude-opus-5-5'
+export const QUICK_MODEL = process.env.FLAPA_QUICK_MODEL || 'claude-haiku-4-5'
+const EFFORT = (process.env.FLAPA_EFFORT || 'medium') as 'low' | 'medium' | 'high' | 'xhigh' | 'max'
 
 const textOf = (blocks: readonly { type: string; text?: string }[]) =>
   blocks.filter(b => b.type === 'text').map(b => b.text ?? '').join('').trim()
@@ -127,7 +127,7 @@ export class CliBrain implements Brain {
   readonly kind = 'cli'
 
   private async run(system: string, prompt: string, model: string): Promise<string> {
-    const dir = mkdtempSync(join(tmpdir(), 'soma-'))
+    const dir = mkdtempSync(join(tmpdir(), 'flapa-'))
     const sysFile = join(dir, 'system.md')
     writeFileSync(sysFile, system)
     try {
@@ -138,7 +138,7 @@ export class CliBrain implements Brain {
           stdin: new TextEncoder().encode(prompt),
           stdout: 'pipe',
           stderr: 'pipe',
-          // The PACS mods must not wake inside the brain: persona-core would talk over SOMA's own prompt.
+          // The PACS mods must not wake inside the brain: persona-core would talk over the harness's own prompt.
           env: { ...process.env, CLAUDE_CODE_ENABLE_FUNCTION_HOOKS: '0' },
         },
       )
@@ -169,7 +169,7 @@ export class CliBrain implements Brain {
 }
 
 export function pickBrain(): Brain {
-  const want = process.env.SOMA_BRAIN
+  const want = process.env.FLAPA_BRAIN
   if (want === 'cli') return new CliBrain()
   if (want === 'api' || process.env.ANTHROPIC_API_KEY || process.env.ANTHROPIC_AUTH_TOKEN) return new ApiBrain()
   return new CliBrain()
