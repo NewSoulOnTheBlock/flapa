@@ -1,0 +1,22 @@
+{
+  "name": "soma",
+  "version": "0.1.0",
+  "description": "SOMA: an always-on body for an AI agent persona. The PACS mods, re-grown as organs.",
+  "type": "module",
+  "private": true,
+  "license": "MIT",
+  "scripts": {
+    "start": "bun run src/main.ts",
+    "dev": "bun --watch run src/main.ts",
+    "test": "bun test",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.131.0",
+    "viem": "2.37.8"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.4.2",
+    "typescript": "^7.0.2"
+  }
+}
