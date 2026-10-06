@@ -2,32 +2,47 @@
 //
 //   node trade.mjs <command> '<json args>'   →  one line of JSON on stdout
 //
-//   address                                 the wallet's address
-//   balance  {token?}                       BNB (and token) balance
-//   quote    {side, token, amountWei}       PancakeSwap v2 quote, no key needed
-//   buy      {token, bnbWei, minOutWei}     swap BNB → token
-//   sell     {token, amountWei, minBnbWei}  swap token → BNB (approves exactly that amount)
+//   address                                       the wallet's address (and the gas wallet's, in fomo mode)
+//   balance  {token?}                             trading balance (BNB, or WBNB in fomo mode), token balance
+//   quote    {side, token, amountWei}             PancakeSwap v2 quote, no key needed
+//   buy      {token, bnbWei, minOutWei, dryRun?}  swap BNB (or WBNB) → token
+//   sell     {token, amountWei, minBnbWei, dryRun?}  swap token → BNB (or WBNB); approves exactly that amount
 //
-// Hard-coded on purpose: BNB Chain (56), PancakeSwap v2's router, WBNB. The key
-// comes from FLAPA_TRADER_KEY in the environment and nowhere else; it is never
-// printed. FLAPA_TRADER_MAX_BNB (default 0.1) caps one buy here, below the mod,
-// so no bug or prompt upstream can spend more in one go.
+// Two wallet modes:
+//   plain (default)        a normal wallet that holds native BNB and pays its own gas.
+//   fomo (FLAPA_WALLET_MODE=fomo)  the person's fomo.family wallet: an EIP-7702 Simple7702Account on
+//       EntryPoint v0.8 that holds WBNB (fomo wraps incoming BNB) and no native BNB. Trades are user operations
+//       signed with FLAPA_TRADER_KEY on Flapa's own nonce lane, with a gas price of 0 inside, submitted through
+//       EntryPoint by a separate gas wallet (FLAPA_GAS_KEY) that pays the outer transaction's few cents of gas.
+//       Every operation is simulated as the wallet itself first, and its success flag is checked after.
+//
+// Hard-coded on purpose: BNB Chain (56), PancakeSwap v2's router, WBNB, EntryPoint v0.8 and the Simple7702
+// implementation. Keys come from the environment only and are never printed. FLAPA_TRADER_MAX_BNB (default
+// 0.1) caps one buy here, below the mod, so no bug or prompt upstream can spend more in one go.
 import {
-  createPublicClient, createWalletClient, formatEther, getAddress, http, isAddress, parseAbi, parseEther,
+  createPublicClient, createWalletClient, decodeEventLog, encodeFunctionData, formatEther, getAddress, http, isAddress,
+  parseAbi, parseEther,
 } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
+import { entryPoint08Abi, entryPoint08Address, toPackedUserOperation, toSimple7702SmartAccount } from 'viem/account-abstraction'
 import { bsc } from 'viem/chains'
 
 const ROUTER = '0x10ED43C718714eb63d5aA57B78B54704E256024E'
 const WBNB = '0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c'
+const SIMPLE7702 = '0xe6Cae83BdE06E4c305530e199D7217f42808555B'
 const RPC = process.env.BSC_RPC_URL || 'https://bsc-dataseed.bnbchain.org'
 const MAX_BUY = parseEther(process.env.FLAPA_TRADER_MAX_BNB || '0.1')
+const SMART = process.env.FLAPA_WALLET_MODE === 'fomo'
+/** Flapa's own EntryPoint nonce lane ("FLAPA"), so her operations never collide with fomo's. */
+const LANE = 0x464c415041n
+const MIN_GAS_WEI = parseEther('0.0003')
 const DEADLINE_S = 120n
 
 const routerAbi = parseAbi([
   'function getAmountsOut(uint256 amountIn, address[] path) view returns (uint256[] amounts)',
   'function swapExactETHForTokensSupportingFeeOnTransferTokens(uint256 amountOutMin, address[] path, address to, uint256 deadline) payable',
   'function swapExactTokensForETHSupportingFeeOnTransferTokens(uint256 amountIn, uint256 amountOutMin, address[] path, address to, uint256 deadline)',
+  'function swapExactTokensForTokensSupportingFeeOnTransferTokens(uint256 amountIn, uint256 amountOutMin, address[] path, address to, uint256 deadline)',
 ])
 const erc20Abi = parseAbi([
   'function balanceOf(address) view returns (uint256)',
@@ -55,11 +70,19 @@ function token() {
   return t
 }
 
+function keyAccount(name) {
+  const key = process.env[name]
+  if (!key) fail(`${name} is not set in the environment`)
+  try { return privateKeyToAccount(key.startsWith('0x') ? key : `0x${key}`) } catch { fail(`${name} is not a valid private key`) }
+}
+
 function wallet() {
-  const key = process.env.FLAPA_TRADER_KEY
-  if (!key) fail('FLAPA_TRADER_KEY is not set in the environment')
-  let account
-  try { account = privateKeyToAccount(key.startsWith('0x') ? key : `0x${key}`) } catch { fail('the trader key is not a valid private key') }
+  const account = keyAccount('FLAPA_TRADER_KEY')
+  return { account, client: createWalletClient({ account, chain: bsc, transport: http(RPC) }) }
+}
+
+function gasWallet() {
+  const account = keyAccount('FLAPA_GAS_KEY')
   return { account, client: createWalletClient({ account, chain: bsc, transport: http(RPC) }) }
 }
 
@@ -70,6 +93,76 @@ const deadline = async () => (await pub.getBlock()).timestamp + DEADLINE_S
 
 async function bnbOf(a) { return pub.getBalance({ address: a }) }
 async function tokOf(t, a) { return pub.readContract({ address: t, abi: erc20Abi, functionName: 'balanceOf', args: [a] }) }
+/** What the wallet trades with: native BNB, or WBNB in fomo mode. */
+async function fundsOf(a) { return SMART ? tokOf(WBNB, a) : bnbOf(a) }
+
+const call = (to, abi, functionName, fnArgs) => ({ to, value: 0n, data: encodeFunctionData({ abi, functionName, args: fnArgs }) })
+
+/** The calls for an exact-amount approval, when the current allowance is short. Never unlimited. */
+async function approveIfNeeded(tok, owner, amount) {
+  const allowance = await pub.readContract({ address: tok, abi: erc20Abi, functionName: 'allowance', args: [owner, ROUTER] })
+  return allowance < amount ? [call(tok, erc20Abi, 'approve', [ROUTER, amount])] : []
+}
+
+/**
+ * Runs calls as the fomo smart account: simulate as the wallet, sign a user operation (gas price 0) on
+ * Flapa's lane, submit it through EntryPoint from the gas wallet, and check the operation's own success flag.
+ */
+async function smartExec(calls, dryRun) {
+  const owner = keyAccount('FLAPA_TRADER_KEY')
+  const code = (await pub.getCode({ address: owner.address })) ?? '0x'
+  if (code.toLowerCase() !== `0xef0100${SIMPLE7702.slice(2).toLowerCase()}`) {
+    fail('fomo mode: the wallet is not a Simple7702 smart account (expected the fomo.family delegation)')
+  }
+  const sa = await toSimple7702SmartAccount({ client: pub, owner })
+  const callData = await sa.encodeCalls(calls)
+
+  // 1. The whole batch, as the wallet itself (the account allows calls from itself): a revert stops here.
+  try { await pub.call({ account: owner.address, to: owner.address, data: callData }) } catch (err) {
+    fail(`simulation reverted: ${String(err?.shortMessage ?? err?.message ?? err).slice(0, 200)}`)
+  }
+
+  // 2. Sign, on Flapa's own nonce lane. Gas price 0 inside: the wallet needs no native BNB and prefunds nothing.
+  const nonce = await sa.getNonce({ key: LANE })
+  const userOp = {
+    sender: owner.address, nonce, callData,
+    callGasLimit: 900_000n, verificationGasLimit: 200_000n, preVerificationGas: 60_000n,
+    maxFeePerGas: 0n, maxPriorityFeePerGas: 0n, signature: '0x',
+  }
+  userOp.signature = await sa.signUserOperation(userOp)
+  const packed = toPackedUserOperation(userOp)
+
+  // 3. Through EntryPoint, from the gas wallet; simulated again there, which also checks the signature.
+  const gas = gasWallet()
+  const gasBal = await bnbOf(gas.account.address)
+  // A dry run simulates even with an empty gas wallet (a simulation costs nothing); a real one needs the gas.
+  if (!dryRun && gasBal < MIN_GAS_WEI) fail(`the gas wallet ${gas.account.address} holds ${formatEther(gasBal)} BNB; send it at least ${formatEther(MIN_GAS_WEI)} BNB`)
+  let request
+  try {
+    ;({ request } = await pub.simulateContract({
+      account: gas.account, address: entryPoint08Address, abi: entryPoint08Abi,
+      functionName: 'handleOps', args: [[packed], gas.account.address],
+    }))
+  } catch (err) {
+    fail(`EntryPoint simulation failed (signature, nonce or gas): ${String(err?.shortMessage ?? err?.message ?? err).slice(0, 200)}`)
+  }
+  if (dryRun) return { dryRun: true, simulated: true, calls: calls.length, gasReady: gasBal >= MIN_GAS_WEI }
+  const hash = await gas.client.writeContract(request)
+  const receipt = await pub.waitForTransactionReceipt({ hash })
+  if (receipt.status !== 'success') fail(`handleOps reverted: ${hash}`)
+
+  // 4. handleOps succeeds even when the operation inside fails: its own event says which.
+  let ok = null
+  for (const log of receipt.logs) {
+    if (log.address.toLowerCase() !== entryPoint08Address.toLowerCase()) continue
+    try {
+      const ev = decodeEventLog({ abi: entryPoint08Abi, data: log.data, topics: log.topics })
+      if (ev.eventName === 'UserOperationEvent' && ev.args.sender.toLowerCase() === owner.address.toLowerCase()) ok = ev.args.success
+    } catch { /* another event */ }
+  }
+  if (ok !== true) fail(`the operation inside failed (${ok === null ? 'no UserOperationEvent' : 'success=false'}): ${hash}`)
+  return { hash, gasWei: receipt.gasUsed * receipt.effectiveGasPrice }
+}
 
 async function main() {
   try { args = JSON.parse(raw) } catch { fail('arguments are not JSON') }
@@ -78,11 +171,18 @@ async function main() {
 
   switch (cmd) {
     case 'address': {
-      return out({ address: wallet().account.address })
+      const r = { address: wallet().account.address, mode: SMART ? 'fomo' : 'plain' }
+      if (SMART && process.env.FLAPA_GAS_KEY) r.gasWallet = gasWallet().account.address
+      return out(r)
     }
     case 'balance': {
       const { account } = wallet()
-      const r = { address: account.address, bnbWei: await bnbOf(account.address) }
+      const r = { address: account.address, mode: SMART ? 'fomo' : 'plain', bnbWei: await fundsOf(account.address), nativeWei: await bnbOf(account.address) }
+      if (SMART && process.env.FLAPA_GAS_KEY) {
+        const g = gasWallet().account.address
+        r.gasWallet = g
+        r.gasWei = await bnbOf(g)
+      }
       if (args.token) {
         const t = token()
         r.tokenWei = await tokOf(t, account.address)
@@ -106,6 +206,19 @@ async function main() {
       const value = big(args.bnbWei, 'bnbWei')
       if (value > MAX_BUY) fail(`refused: ${formatEther(value)} BNB is over the helper's cap of ${formatEther(MAX_BUY)} BNB (FLAPA_TRADER_MAX_BNB)`)
       const minOut = big(args.minOutWei, 'minOutWei')
+      if (SMART) {
+        const owner = keyAccount('FLAPA_TRADER_KEY').address
+        const have = await tokOf(WBNB, owner)
+        if (have < value) fail(`the fomo wallet holds ${formatEther(have)} WBNB, under the ${formatEther(value)} this buy needs`)
+        const before = await tokOf(t, owner)
+        const calls = [
+          ...(await approveIfNeeded(WBNB, owner, value)),
+          call(ROUTER, routerAbi, 'swapExactTokensForTokensSupportingFeeOnTransferTokens', [value, minOut, [WBNB, t], owner, await deadline()]),
+        ]
+        const r = await smartExec(calls, args.dryRun === true)
+        if (r.dryRun) return out(r)
+        return out({ hash: r.hash, tokensWei: (await tokOf(t, owner)) - before, gasWei: r.gasWei })
+      }
       const { account, client } = wallet()
       if ((await bnbOf(account.address)) < value + parseEther('0.002')) fail('not enough BNB for the trade plus gas')
       const before = await tokOf(t, account.address)
@@ -113,6 +226,7 @@ async function main() {
         account, address: ROUTER, abi: routerAbi, functionName: 'swapExactETHForTokensSupportingFeeOnTransferTokens',
         args: [minOut, [WBNB, t], account.address, await deadline()], value,
       })
+      if (args.dryRun === true) return out({ dryRun: true, simulated: true })
       const hash = await client.writeContract(request)
       const receipt = await pub.waitForTransactionReceipt({ hash })
       if (receipt.status !== 'success') fail(`buy reverted: ${hash}`)
@@ -123,6 +237,19 @@ async function main() {
       const t = token()
       const amount = big(args.amountWei, 'amountWei')
       const minBnb = BigInt(args.minBnbWei ?? '0')
+      if (SMART) {
+        const owner = keyAccount('FLAPA_TRADER_KEY').address
+        const held = await tokOf(t, owner)
+        if (held < amount) fail(`holds ${held} of that token, asked to sell ${amount}`)
+        const before = await tokOf(WBNB, owner)
+        const calls = [
+          ...(await approveIfNeeded(t, owner, amount)),
+          call(ROUTER, routerAbi, 'swapExactTokensForTokensSupportingFeeOnTransferTokens', [amount, minBnb, [t, WBNB], owner, await deadline()]),
+        ]
+        const r = await smartExec(calls, args.dryRun === true)
+        if (r.dryRun) return out(r)
+        return out({ hash: r.hash, bnbWei: (await tokOf(WBNB, owner)) - before, gasWei: r.gasWei })
+      }
       const { account, client } = wallet()
       const held = await tokOf(t, account.address)
       if (held < amount) fail(`holds ${held} of that token, asked to sell ${amount}`)

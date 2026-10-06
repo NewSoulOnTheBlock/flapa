@@ -180,7 +180,12 @@ export function hands(body: Body, helper: Helper): Organ {
   return {
     name: 'hands',
     role: 'Trades on BNB Chain (PancakeSwap v2) inside hard limits. Paper by default; paper and live keep separate books.',
-    liveReady: () => (process.env.FLAPA_TRADER_KEY ? undefined : 'set FLAPA_TRADER_KEY in the environment (never paste it anywhere)'),
+    liveReady: () => {
+      if (!process.env.FLAPA_TRADER_KEY) return 'set FLAPA_TRADER_KEY in the environment (never paste it anywhere)'
+      // fomo mode trades through her fomo.family smart account; the gas wallet submits and pays for the operations.
+      if (process.env.FLAPA_WALLET_MODE === 'fomo' && !process.env.FLAPA_GAS_KEY) return 'fomo mode needs a gas wallet: run bun scripts/new-gas-key.ts and fund it'
+      return undefined
+    },
     tools: [
       { name: 'portfolio', description: 'Your positions, today\'s books (paper and live) and your limits.', input_schema: { type: 'object', properties: {} }, run: portfolio },
       {
