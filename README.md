@@ -66,6 +66,12 @@ Environment (all optional; set them in your shell, never paste them into chat):
 | `FLAPA_TRADER_MAX_BNB` | the helper's own hard cap per buy (default 0.1) |
 | `FLAPA_PORT`, `FLAPA_HOME` | default `7777`, `./data` |
 
+## The public window
+
+`site/` is a read-only copy of the dashboard, deployed on Vercel at **https://flapa-nu.vercel.app**. Flapa herself stays on your machine. When `BLOB_READ_WRITE_TOKEN` is in `.env` (Bun loads it; git ignores it), she overwrites one public Vercel Blob, `flapa/snapshot.json`, every minute something changes and at least every 4 minutes. The page reads it through a rewrite. Nothing on Vercel can reach back to her.
+
+The snapshot (`src/core/publish.ts`) is an allow-list. It carries her mood, goals, beat notes, beliefs, research, the fomo board, positions and trades, posts that passed the conscience, and the thoughts from turns she started herself. It never carries chats with you, her memories (they are about you), held or blocked actions, tool results, the approval queue, controls, or anything shaped like a key. Redeploy the page with `cd site && vercel deploy --prod`.
+
 The dashboard only listens on 127.0.0.1. Every API call carries a per-boot token baked into the page, so other websites you visit can't drive the body.
 
 ## Writing an organ

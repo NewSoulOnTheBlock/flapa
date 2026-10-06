@@ -2,6 +2,7 @@
 import { join, resolve } from 'node:path'
 import { Body } from './core/body'
 import { pickBrain } from './core/brain'
+import { startPublishing } from './core/publish'
 import { serve } from './core/server'
 import { affect } from './organs/affect'
 import { agenda } from './organs/agenda'
@@ -38,6 +39,12 @@ body.bus.listen(s => {
 
 const { url } = serve(body, { port: Number(process.env.FLAPA_PORT || 7777), page: join(root, 'web', 'index.html') })
 body.wake()
+
+// The public window on Vercel: only when a Blob token is set (in .env, which Bun loads; never committed).
+if (process.env.BLOB_READ_WRITE_TOKEN) {
+  startPublishing(body, process.env.BLOB_READ_WRITE_TOKEN)
+  console.log('Publishing a public read-only snapshot every minute.')
+}
 console.log(`Flapa is awake · brain: ${body.brain.kind} · ${body.organs.length} organs · ${url}`)
 
 for (const sig of ['SIGINT', 'SIGTERM'] as const) process.on(sig, () => { body.sleep(); process.exit(0) })
