@@ -181,7 +181,7 @@ migrate once. Without a key, a local extractor and word-and-entity recall do the
 ```sh
 bun install
 bun start            # → http://127.0.0.1:7777
-bun test             # 129 tests
+bun test             # 131 tests
 ```
 
 Put keys in `.env` (git ignores it; Bun loads it). Never paste them into chat. Every outward organ starts on
@@ -189,8 +189,11 @@ Put keys in `.env` (git ignores it; Bun loads it). Never paste them into chat. E
 
 ## Run it 24/7 on Render
 
-`Dockerfile` + `render.yaml` describe a Render background worker (Starter plan, 1 GB disk for her state and the wallet
-warehouse).
+`Dockerfile` + `render.yaml` describe a Render **web service**, `flapa-live` (Starter plan, 1 GB disk for her state and
+the wallet warehouse). It is a web service so the live window has a public address; its health check is
+`/public/health`. Moving from the older background worker: open the worker's Shell and run
+`bun scripts/pack-state.ts && cat state-seed.txt`, use that as `FLAPA_SEED` for the new service, and delete the worker
+once the new one says `seeded`.
 
 1. `claude setup-token` on your machine: a one-year token for the brain (`CLAUDE_CODE_OAUTH_TOKEN`).
 2. `bun scripts/pack-state.ts` right before deploying: packs her state into `state-seed.txt` for `FLAPA_SEED`.
@@ -217,7 +220,8 @@ to the Standard plan: every thought starts a `claude` process.
 | `FLAPA_TRADER_KEY` | her trading wallet (only the helper reads it) |
 | `FLAPA_WALLET_MODE`, `FLAPA_GAS_KEY` | `fomo` for her fomo.family smart account, and the gas wallet that pays for it |
 | `FLAPA_TRADER_MAX_BNB` | the helper's own hard cap per buy (default 0.1) |
-| `FLAPA_PORT`, `FLAPA_HOME` | default `7777`, `./data` |
+| `FLAPA_PORT`, `FLAPA_HOME` | the private dashboard port (default `7777`, 127.0.0.1 only) and her state folder (`./data`) |
+| `PORT` / `FLAPA_PUBLIC_PORT`, `RENDER_EXTERNAL_URL` / `FLAPA_PUBLIC_URL` | the public live window: its port, and the address viewers reach it at |
 | `FLAPA_SEED` | one-time state import on a fresh host |
 
 Data sources that need no key: GeckoTerminal (pools, trades, candles), DexScreener (pools), CoinGecko (prices), and the
@@ -247,11 +251,23 @@ people, lore); markets, research, news and the 🕵️ wallet radar; and trades 
 the trade cycle, the diary). It listens on 127.0.0.1 only, checks the Host header, and every call carries a
 per-boot token, so other websites can't drive her.
 
-`site/` is a read-only copy on Vercel at https://flapa-nu.vercel.app. Flapa uploads one public Vercel Blob,
-`flapa/snapshot.json`, whenever something changes and at least every 4 minutes. The snapshot (`src/core/publish.ts`) is
-an allow-list: mood, goals, beliefs, research, positions and trades, posts that went out, and thoughts from turns she
-started herself. Never chats with you, memories, held or blocked actions, the approval queue, controls, or anything
-shaped like a key. Nothing on Vercel can reach back to her. Redeploy with `cd site && vercel deploy --prod`.
+`site/` is the public, read-only page on Vercel at https://flapa-nu.vercel.app. It is **live**:
+
+- **Live window** (`src/core/live.ts`): Flapa runs a second, public server with a read-only WebSocket at
+  `/public/ws`. The page connects and shows **● live**. Every change is pushed as it happens: the full snapshot at
+  most once a second when something changed, each public thought instantly, a heartbeat every 20 seconds. Viewers
+  cannot send it anything (whatever they send is ignored), it has no controls and no private routes, and it caps at
+  300 viewers. It runs when `PORT` (Render web services) or `FLAPA_PUBLIC_PORT` is set; its address comes from
+  `RENDER_EXTERNAL_URL` or `FLAPA_PUBLIC_URL` and is announced in the snapshot, so the page finds it by itself.
+- **Fallback**: Flapa also uploads the snapshot to a public Vercel Blob (`flapa/snapshot.json`) on every change and at
+  least every 4 minutes. When the socket is down the page reads that every 15 seconds and keeps reconnecting.
+  `?live=wss://…/public/ws` on the page URL points it at another live window (handy for a local copy).
+
+The snapshot (`src/core/publish.ts`) is the same allow-list either way: mood, goals, beliefs, research, her numbers,
+calendar, story, news, the wallet radar (short addresses only), positions with copy plans, trades, posts that went
+out, and thoughts from turns she started herself. Never chats with you, memories, the people she talks to, held or
+blocked actions, the approval queue, controls, or anything shaped like a key. Redeploy the page with
+`cd site && vercel deploy --prod`.
 
 ## Layout
 

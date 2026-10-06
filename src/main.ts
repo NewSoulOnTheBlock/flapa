@@ -2,6 +2,7 @@
 import { join, resolve } from 'node:path'
 import { Body } from './core/body'
 import { pickBrain } from './core/brain'
+import { startLive } from './core/live'
 import { startPublishing } from './core/publish'
 import { mem0FromEnv } from './lib/mem0'
 import { applySeed } from './core/seed'
@@ -48,9 +49,18 @@ const { url } = serve(body, { port: Number(process.env.FLAPA_PORT || 7777), page
 body.wake()
 
 // The public window on Vercel: only when a Blob token is set (in .env, which Bun loads; never committed).
+// The live window: a public read-only WebSocket. On Render (a web service) PORT and RENDER_EXTERNAL_URL are set;
+// elsewhere set FLAPA_PUBLIC_PORT, and FLAPA_PUBLIC_URL to the address viewers can reach.
+const publicPort = Number(process.env.PORT || process.env.FLAPA_PUBLIC_PORT || 0)
+const publicUrl = process.env.RENDER_EXTERNAL_URL || process.env.FLAPA_PUBLIC_URL || (publicPort ? `http://localhost:${publicPort}` : '')
+const stream = publicUrl ? `${publicUrl.replace(/^http/, 'ws').replace(/\/$/, '')}/public/ws` : undefined
+if (publicPort) {
+  startLive(body, { port: publicPort, stream })
+  console.log(`Live window: ${stream}`)
+}
 if (process.env.BLOB_READ_WRITE_TOKEN) {
-  startPublishing(body, process.env.BLOB_READ_WRITE_TOKEN)
-  console.log('Publishing a public read-only snapshot every minute.')
+  startPublishing(body, process.env.BLOB_READ_WRITE_TOKEN, undefined, stream)
+  console.log('Publishing a public read-only snapshot every minute (the page falls back to it when the live window is unreachable).')
 }
 console.log(`Flapa is awake · brain: ${body.brain.kind} · ${body.organs.length} organs · ${url}`)
 

@@ -1,12 +1,15 @@
-# Render Blueprint: Flapa as an always-on background worker with a small disk for her state.
+# Render Blueprint: Flapa as an always-on web service with a small disk for her state. It is a web service (not a
+# worker) so the public live window has an address: a read-only WebSocket at /public/ws on Render's PORT. The
+# private dashboard still listens on 127.0.0.1 inside the container and is never exposed.
 # Secrets are marked sync: false; Render asks for each one when the Blueprint is created.
 services:
-  - type: worker
-    name: flapa
+  - type: web
+    name: flapa-live
     runtime: docker
     plan: starter
     branch: main
     autoDeploy: false
+    healthCheckPath: /public/health
     disk:
       name: flapa-data
       mountPath: /var/data
@@ -18,6 +21,8 @@ services:
         value: cli
       - key: FLAPA_WALLET_MODE
         value: fomo
+      - key: MEM0_API_KEY
+        sync: false
       - key: CLAUDE_CODE_OAUTH_TOKEN
         sync: false
       - key: FLAPA_SEED

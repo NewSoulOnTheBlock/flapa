@@ -73,7 +73,7 @@ export class ThoughtLog {
 
 const view = (body: Body, organ: string): any => (body.has(organ) ? body.organ(organ).view?.() ?? null : null)
 
-export function publicSnapshot(body: Body, thoughts: readonly PublicThought[], now = Date.now()) {
+export function publicSnapshot(body: Body, thoughts: readonly PublicThought[], now = Date.now(), stream?: string) {
   const id = view(body, 'identity')?.active
   const mood = view(body, 'affect')
   const agenda = view(body, 'agenda')
@@ -87,6 +87,8 @@ export function publicSnapshot(body: Body, thoughts: readonly PublicThought[], n
   const short = (w: unknown) => { const s = String(w ?? ''); return /^0x[0-9a-f]{40}$/i.test(s) ? `${s.slice(0, 6)}…${s.slice(-4)}` : clip(s, 14) }
   return redact({
     v: 1,
+    // Where the page can connect for live updates (the public WebSocket), when she runs one.
+    stream: stream ?? null,
     at: now,
     persona: id ? { name: clip(id.name, 40), handle: clip(id.handle, 20), tagline: clip(id.tagline, 200) } : null,
     busy: body.busy ? body.busy.kind : null,
@@ -154,14 +156,14 @@ export function publicSnapshot(body: Body, thoughts: readonly PublicThought[], n
 }
 
 /** Overwrites the one public blob every minute, only when something changed. */
-export function startPublishing(body: Body, token: string, upload: typeof put = put): { stop: () => void; publishNow: (now?: number) => Promise<string | null> } {
+export function startPublishing(body: Body, token: string, upload: typeof put = put, stream?: string): { stop: () => void; publishNow: (now?: number) => Promise<string | null> } {
   const log = new ThoughtLog()
   for (const s of body.bus.recent(300)) log.see(s)
   const unlisten = body.bus.listen(s => log.see(s))
   let last = ''
   let lastAt = 0
   const publishNow = async (now = Date.now()): Promise<string | null> => {
-    const snap = publicSnapshot(body, log.items, now)
+    const snap = publicSnapshot(body, log.items, now, stream)
     const { at: _at, ...rest } = snap
     const key = JSON.stringify(rest)
     // Unchanged is skipped, but never for long: the page reads an old `at` as "her body is offline".

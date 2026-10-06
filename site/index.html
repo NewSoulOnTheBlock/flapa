@@ -99,6 +99,7 @@ a { color: var(--lav); }
   <span class="pill" id="who">✿ …</span>
   <span class="dim" id="seen">connecting…</span>
   <span class="spacer"></span>
+  <span class="pill" id="liveDot">○ connecting</span>
   <span class="pill" id="mPosts">💌 posts</span>
   <span class="pill" id="mTrades">💸 trades</span>
 </header>
@@ -272,18 +273,46 @@ function p4() {
   ])
 }
 
-function render() { if (!S) return; header(); p1(); p2(); p3(); p4() }
+function render() { if (!S) return; header(); p1(); p2(); p3(); p4(); liveBadge() }
+
+// ---- live: a WebSocket straight to her body; the blob is only the fallback ----
+let ws = null, wsOpen = false, retry = 1000
+const liveParam = new URLSearchParams(location.search).get('live')
+const safeWs = u => (typeof u === 'string' && /^wss?:\/\/[^\s/]+(:\d+)?\/public\/ws$/.test(u) ? u : null)
+function liveBadge() {
+  const el = $('liveDot')
+  el.textContent = wsOpen ? '● live' : '○ catching up'
+  el.className = `pill ${wsOpen ? 'live' : ''}`
+}
+function connect(url) {
+  if (ws || !url) return
+  ws = new WebSocket(url)
+  ws.onopen = () => { wsOpen = true; retry = 1000; liveBadge() }
+  ws.onmessage = e => {
+    let m; try { m = JSON.parse(e.data) } catch { return }
+    if (m.type === 'snapshot' && m.data?.v === 1) { S = m.data; render() }
+    else if (m.type === 'thought' && S) { S.thoughts = [m.data, ...S.thoughts].slice(0, 40); S.at = m.data.at; p2(); header() }
+    else if (m.type === 'alive' && S) { S.at = m.at; header() }
+  }
+  ws.onclose = () => {
+    ws = null; wsOpen = false; liveBadge()
+    setTimeout(() => connect(url), retry)
+    retry = Math.min(30_000, retry * 2)
+  }
+}
 async function load() {
+  if (wsOpen) return // the socket is already pushing everything
   try {
     // Straight from the blob, with a fresh query: a rewrite would drop the query and serve one cached copy.
-    const r = await fetch(`${SNAPSHOT}?t=${Math.floor(Date.now() / 30000)}`, { cache: 'no-store' })
+    const r = await fetch(`${SNAPSHOT}?t=${Math.floor(Date.now() / 15000)}`, { cache: 'no-store' })
     if (!r.ok) throw new Error(r.status)
     const next = await r.json()
     if (next && next.v === 1) { S = next; render() }
   } catch { if (!S) $('seen').textContent = "can't reach her right now" }
+  connect(safeWs(liveParam) ?? safeWs(S?.stream))
 }
 setInterval(() => { tick++; const c = $('cat'); if (c && S) c.textContent = cat(S.mood?.label, !!S.busy, asleep()) }, 300)
-setInterval(load, 30_000)
+setInterval(load, 15_000)
 setInterval(() => S && header(), 30_000)
 load()
 </script>
