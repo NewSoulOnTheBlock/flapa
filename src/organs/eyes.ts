@@ -5,6 +5,9 @@ import type { Organ } from '../core/types'
 import { FOMO_MCP_URL, isDue, parseToolReply, postBrief, rpcBody, toRows, DAILY_DEFAULT, type DailyConfig, type FomoRow, type FomoWindow } from '../lib/fomo'
 import { dexUrl, marketLine, pickPool, type Market } from '../lib/market'
 import { parseGeckoPools, type Candidate } from '../lib/strategy'
+import { digestPrompt, FEEDS, newsBrief, newsjackPick, parseDigest, parseRss, stories, type Narrative, type NewsItem } from '../lib/news'
+
+const NEWS_EVERY_MS = 30 * 60_000
 
 const DAILY_RETRY_MS = 15 * 60_000
 
@@ -84,6 +87,44 @@ export function eyes(body: Body, fetcher: typeof fetch = fetch): Eyes {
 
   const daily = () => ({ ...DAILY_DEFAULT, ...store.get<Partial<DailyConfig>>('daily', {}) })
 
+  type Newsjack = { isOn: boolean; perDay: number; done: string[]; fired: number[] }
+  const newsjack = (): Newsjack => ({ isOn: true, perDay: 2, done: [], fired: [], ...store.get<Partial<Newsjack>>('newsjack', {}) })
+
+  /** Headlines from the feeds, each kept with its source and time; then a fast reaction if one is squarely hers. */
+  async function readNews(): Promise<string> {
+    store.set('newsAt', Date.now())
+    const got: NewsItem[] = []
+    for (const f of FEEDS) {
+      try {
+        const r = await fetcher(f.url, { headers: { 'user-agent': 'Mozilla/5.0 (compatible; FlapaBot/1.0)' } })
+        if (r.ok) got.push(...parseRss(await r.text(), f.source))
+      } catch {}
+    }
+    const keep = new Map(store.get<NewsItem[]>('news', []).map(n => [n.link || n.title, n]))
+    for (const n of got) keep.set(n.link || n.title, n)
+    store.set('news', [...keep.values()].filter(n => Date.now() - n.at <= 48 * 3_600_000).sort((a, b) => b.at - a.at).slice(0, 250))
+    const nj = newsjack()
+    const today = nj.fired.filter(t => Date.now() - t < 86_400_000)
+    const pick = nj.isOn && today.length < nj.perDay ? newsjackPick(stories(store.get<NewsItem[]>('news', []), Date.now()), Date.now(), new Set(nj.done)) : undefined
+    if (pick) {
+      // Marked first: one story gets one reaction, whatever happens in the thought.
+      store.set('newsjack', { ...nj, done: [...nj.done, pick.link || pick.title].slice(-200), fired: [...today, Date.now()] })
+      body.bus.emit('newsjack', 'eyes', { title: pick.title, sources: pick.sources })
+      await body.think({ kind: 'news', text: newsBrief(pick), from: 'eyes' })
+    }
+    return `${got.length} headlines from ${FEEDS.length} feeds${pick ? `; reacting to: ${pick.title}` : ''}`
+  }
+
+  /** Once a day: the three narratives that matter, with their sources. */
+  async function writeDigest(): Promise<string> {
+    const s = stories(store.get<NewsItem[]>('news', []), Date.now()).filter(x => x.relevance > 0 || x.confidence === 'confirmed')
+    let trending: string[] = []
+    try { trending = (await candidates()).sort((a, b) => b.volume24hUsd - a.volume24hUsd).slice(0, 10).map(c => `$${c.symbol}`) } catch {}
+    const narratives = parseDigest(await body.brain.quick('You are a careful crypto market researcher. You only report what the sources support.', digestPrompt(s, trending)))
+    store.set('digest', { at: Date.now(), narratives })
+    return narratives.length ? narratives.map(n => n.name).join(' · ') : 'no digest this time'
+  }
+
   return {
     name: 'eyes',
     role: 'Market sight: DexScreener pools on BNB Chain and the fomo.family leaderboard. Never acts.',
@@ -122,9 +163,35 @@ export function eyes(body: Body, fetcher: typeof fetch = fetch): Eyes {
         store.set('daily', { ...daily(), lastDay: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}` })
         await body.think({ kind: 'daily', text: postBrief(rows, '24h'), from: 'eyes' })
       },
+    }, {
+      name: 'news',
+      due: now => now - store.get<number>('newsAt', 0) >= NEWS_EVERY_MS,
+      run: async () => { await readNews() },
+    }, {
+      name: 'digest',
+      // Daily, once there are enough headlines to say something.
+      due: now => store.get<NewsItem[]>('news', []).length >= 10 && now - (store.get<{ at: number } | null>('digest', null)?.at ?? 0) >= 24 * 3_600_000,
+      run: async () => { await writeDigest() },
     }],
-    view: () => ({ board: store.get('board', null), daily: daily(), research: store.get<Research[]>('research', []) }),
+    sense: () => {
+      const d = store.get<{ at: number; narratives: Narrative[] } | null>('digest', null)
+      if (!d?.narratives.length) return undefined
+      return `# What is going on in your market (digest from ${new Date(d.at).toDateString()}; headlines, not certainties)\n${d.narratives.map(n => `- ${n.name}: ${n.why}`).join('\n')}`
+    },
+    view: () => ({
+      board: store.get('board', null), daily: daily(), research: store.get<Research[]>('research', []),
+      stories: stories(store.get<NewsItem[]>('news', []), Date.now()).slice(0, 15),
+      digest: store.get('digest', null), newsjack: newsjack(),
+    }),
     actions: {
+      newsjack: ({ isOn, perDay }) => {
+        const next = { ...newsjack() }
+        if (typeof isOn === 'boolean') next.isOn = isOn
+        if (perDay !== undefined) { const n = Number(perDay); if (!(n >= 0 && n <= 6)) throw new Error('0 to 6 news reactions a day'); next.perDay = n }
+        return store.set('newsjack', next)
+      },
+      newsNow: async () => ({ result: await readNews() }),
+      digestNow: async () => ({ result: await writeDigest() }),
       market: async ({ token }) => {
         if (!/^0x[0-9a-fA-F]{40}$/.test(String(token))) throw new Error('paste a 0x token address')
         return research(String(token), 'person')
