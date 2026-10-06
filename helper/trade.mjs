@@ -93,6 +93,26 @@ const deadline = async () => (await pub.getBlock()).timestamp + DEADLINE_S
 
 async function bnbOf(a) { return pub.getBalance({ address: a }) }
 async function tokOf(t, a) { return pub.readContract({ address: t, abi: erc20Abi, functionName: 'balanceOf', args: [a] }) }
+
+const TRANSFER = '0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef'
+/**
+ * What `to` received of token `t` in a receipt, summed from its Transfer logs. A balance read right
+ * after the receipt can come from a node a block behind and say 0 (it did, 2026-10-06, on a $BOB buy).
+ */
+function receivedIn(receipt, t, to) {
+  const want = `0x${to.toLowerCase().slice(2).padStart(64, '0')}`
+  let sum = 0n
+  for (const l of receipt.logs) {
+    if (l.address.toLowerCase() !== t.toLowerCase() || l.topics[0] !== TRANSFER || l.topics[2]?.toLowerCase() !== want) continue
+    sum += BigInt(l.data)
+  }
+  return sum
+}
+/** Logs first; the balance difference only when the logs show nothing (a token with odd events). */
+async function gained(receipt, t, to, before) {
+  const fromLogs = receivedIn(receipt, t, to)
+  return fromLogs > 0n ? fromLogs : (await tokOf(t, to)) - before
+}
 /** What the wallet trades with: native BNB, or WBNB in fomo mode. */
 async function fundsOf(a) { return SMART ? tokOf(WBNB, a) : bnbOf(a) }
 
@@ -165,7 +185,7 @@ async function smartExec(calls, dryRun, { precheck = true } = {}) {
     } catch { /* another event */ }
   }
   if (ok !== true) fail(`the operation inside failed (${ok === null ? 'no UserOperationEvent' : 'success=false'}): ${hash}`)
-  return { hash, gasWei: receipt.gasUsed * receipt.effectiveGasPrice }
+  return { hash, receipt, gasWei: receipt.gasUsed * receipt.effectiveGasPrice }
 }
 
 async function main() {
@@ -221,7 +241,7 @@ async function main() {
         ]
         const r = await smartExec(calls, args.dryRun === true, { precheck: false })
         if (r.dryRun) return out(r)
-        return out({ hash: r.hash, tokensWei: (await tokOf(t, owner)) - before, gasWei: r.gasWei })
+        return out({ hash: r.hash, tokensWei: await gained(r.receipt, t, owner, before), gasWei: r.gasWei })
       }
       const { account, client } = wallet()
       if ((await bnbOf(account.address)) < value + parseEther('0.002')) fail('not enough BNB for the trade plus gas')
@@ -235,8 +255,7 @@ async function main() {
       const hash = await client.writeContract({ ...buyCall, gas: 500_000n })
       const receipt = await pub.waitForTransactionReceipt({ hash })
       if (receipt.status !== 'success') fail(`buy reverted: ${hash}`)
-      const after = await tokOf(t, account.address)
-      return out({ hash, tokensWei: after - before, gasWei: receipt.gasUsed * receipt.effectiveGasPrice })
+      return out({ hash, tokensWei: await gained(receipt, t, account.address, before), gasWei: receipt.gasUsed * receipt.effectiveGasPrice })
     }
     case 'sell': {
       const t = token()
@@ -253,7 +272,7 @@ async function main() {
         ]
         const r = await smartExec(calls, args.dryRun === true)
         if (r.dryRun) return out(r)
-        return out({ hash: r.hash, bnbWei: (await tokOf(WBNB, owner)) - before, gasWei: r.gasWei })
+        return out({ hash: r.hash, bnbWei: await gained(r.receipt, WBNB, owner, before), gasWei: r.gasWei })
       }
       const { account, client } = wallet()
       const held = await tokOf(t, account.address)
