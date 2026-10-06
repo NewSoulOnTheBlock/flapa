@@ -24,6 +24,8 @@ const EXIT_EVERY_MS = 2 * 60_000
 const SCAN_EVERY_MS = 20 * 60_000
 const COPY_WINDOW_MS = 2 * 3_600_000
 const BACKOFF_MAX_MS = 60 * 60_000
+/** A token whose buy failed (a tax over the slippage, a blocked transfer) sits out this long. */
+const BLOCK_MS = 24 * 3_600_000
 
 export type Helper = (cmd: string, args: Record<string, unknown>) => Promise<any>
 
@@ -67,6 +69,12 @@ export function hands(body: Body, helper: Helper): Organ {
   // and a redeploy must not mean an extra trade.
   const cycle = (): CycleConfig => ({ ...CYCLE_DEFAULT, ...store.get<Partial<CycleConfig>>('cycle', {}) })
   const cycleNextAt = () => (cycle().lastAt ?? 0) + cycle().everyHours * 3_600_000
+  /** Tokens whose cycle buy failed, by address, with the time they may be tried again. */
+  const blocked = () => {
+    const now = Date.now()
+    return Object.fromEntries(Object.entries(store.get<Record<string, number>>('blocked', {})).filter(([, until]) => until > now))
+  }
+  const block = (token: string) => store.set('blocked', { ...blocked(), [token.toLowerCase()]: Date.now() + BLOCK_MS })
   const logCycle = (l: CycleLog) => {
     store.update<CycleLog[]>('cycles', [], list => [l, ...list].slice(0, 50))
     body.bus.emit('trade.cycle', 'hands', l)
@@ -85,6 +93,8 @@ export function hands(body: Body, helper: Helper): Organ {
         return l
       }
     }
+    const out = blocked()
+    candidates = candidates.filter(x => !(x.token.toLowerCase() in out))
     const plan = planCycle({ candidates, positions: mine, limits: limits(), day: day(mode), everyHours: cycle().everyHours })
     let l: CycleLog
     if (plan.kind === 'skip') {
@@ -94,16 +104,23 @@ export function hands(body: Body, helper: Helper): Organ {
       l = { at: Date.now(), mode, did: 'sell', summary: `sell $${plan.symbol}: ${plan.why}`, result }
     } else {
       const tried: string[] = []
-      l = { at: Date.now(), mode, did: 'skip', summary: 'every candidate was refused by the limits', result: '' }
+      l = { at: Date.now(), mode, did: 'skip', summary: 'every candidate was refused by the limits or failed', result: '' }
       for (const x of plan.options) {
         const no = await refusals(x.token, plan.bnb, 'rhythm', mode).catch(e => [String(e)])
         if (no.length) { tried.push(`$${x.symbol}: ${no[0]}`); continue }
         const why = buyWhy(x)
         const result = await body.act({ organ: 'hands', kind: 'buy', summary: `buy ${plan.bnb} BNB of $${x.symbol}: ${why}`, payload: { token: x.token, bnb: plan.bnb, why }, by: 'rhythm' })
+        // A failed buy blocks its token for a day and the cycle moves on to the next option.
+        if (result.startsWith('failed:')) {
+          block(x.token)
+          tried.push(`$${x.symbol}: ${result} (blocked 24h)`)
+          continue
+        }
         l = { at: Date.now(), mode, did: 'buy', summary: `buy ${plan.bnb} BNB of $${x.symbol}`, result }
         break
       }
       if (l.did === 'skip') l.result = tried.join('; ')
+      else if (tried.length) l.result = `${l.result} (after: ${tried.join('; ')})`
     }
     logCycle(l)
     return l
