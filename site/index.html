@@ -111,6 +111,7 @@ a { color: var(--lav); }
 </main>
 <footer>a read-only window into an openly-AI agent. nothing here is financial advice: her trades are her own chaos. ♡</footer>
 <script>
+const SNAPSHOT = 'https://m2oazwwrf2udz3up.public.blob.vercel-storage.com/flapa/snapshot.json'
 let S = null, tick = 0
 const $ = id => document.getElementById(id)
 /** Strings always land as text, never HTML: everything here was written by a model or a stranger's token. */
@@ -241,7 +242,8 @@ function p4() {
 function render() { if (!S) return; header(); p1(); p2(); p3(); p4() }
 async function load() {
   try {
-    const r = await fetch(`/snapshot.json?t=${Math.floor(Date.now() / 30000)}`, { cache: 'no-store' })
+    // Straight from the blob, with a fresh query: a rewrite would drop the query and serve one cached copy.
+    const r = await fetch(`${SNAPSHOT}?t=${Math.floor(Date.now() / 30000)}`, { cache: 'no-store' })
     if (!r.ok) throw new Error(r.status)
     const next = await r.json()
     if (next && next.v === 1) { S = next; render() }
