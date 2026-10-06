@@ -66,6 +66,14 @@ Environment (all optional; set them in your shell, never paste them into chat):
 | `FLAPA_TRADER_MAX_BNB` | the helper's own hard cap per buy (default 0.1) |
 | `FLAPA_PORT`, `FLAPA_HOME` | default `7777`, `./data` |
 
+## The posting engine
+
+Her scheduled posts (every 8 hours by default; the 💌 posts tab has the switch, period and "post now") don't ask her to "post something". Code picks the subject; she writes it.
+
+- **The catalog** is `personas/<persona-id>.topics.json`: for Flapa, 399 topics in 12 sections, half trading (mechanics, competition, crypto, TA, psychology, her sassy trader self) and half kawaii life (Japanese culture, fashion, food, cute things, seasons, character flavor). Each section has an *angle* (how to approach it). It is read fresh before every post, so edits apply without a restart. A topic can carry `"months"` to stay in season.
+- **The pick** is weighted by section, never the same section twice in a row, and never a topic used in the last 40 posts. About 1 in 4 posts blends a trading topic with a kawaii one, and each post gets a *shape* (hot take, tiny lesson, confession, top-3 ranking, question, …). About 1 in 5 also nods to the dashboard's *storyline*.
+- **She writes it** in her voice, through the post tool, so the conscience screens it like any other post. The topic shows on the post in both dashboards. "🎲 roll a preview" shows what the next pick could be without posting.
+
 ## The public window
 
 `site/` is a read-only copy of the dashboard, deployed on Vercel at **https://flapa-nu.vercel.app**. Flapa herself stays on your machine. When `BLOB_READ_WRITE_TOKEN` is in `.env` (Bun loads it; git ignores it), she overwrites one public Vercel Blob, `flapa/snapshot.json`, every minute something changes and at least every 4 minutes. The page reads it through a rewrite. Nothing on Vercel can reach back to her.

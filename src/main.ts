@@ -26,7 +26,7 @@ body.grow(
   affect(body),
   memory(body),
   eyes(body),
-  voice(body),
+  voice(body, { catalogDir: join(root, 'personas') }),
   hands(body, nodeHelper(root)),
 )
 

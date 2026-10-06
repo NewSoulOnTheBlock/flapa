@@ -3,12 +3,16 @@
 import type { Body } from '../core/body'
 import type { Mode, Organ, Outward } from '../core/types'
 import { cleanReply, nextSinceId, pickNew, replyPrompt, replySystem, CHECK_EVERY_MS, type XMention } from '../lib/autoreply'
+import { existsSync, readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { authorization, credentialsFromEnv, nonce } from '../lib/oauth'
+import { engineBrief, pickTopic, validateCatalog, type Catalog, type Pick as TopicPick, type PostRecord } from '../lib/posting'
 import { MAX_WEIGHT, weightedLength } from '../lib/xtext'
 
 const API = 'https://api.x.com/2'
 
-export type Posted = { id: string; text: string; at: number; mode: Mode; url?: string; replyTo?: string }
+/** `topic` is what the posting engine picked for it, for the feed and the dashboard. */
+export type Posted = { id: string; text: string; at: number; mode: Mode; url?: string; replyTo?: string; topic?: string }
 type Reply = { mode: 'post' | 'off'; sinceId?: string; handled: string[]; lastCheckAt?: number }
 
 /** Her own posts on a clock. Armed by its first post: lastPostAt stays 0 until then, so nothing fires early. */
@@ -36,12 +40,30 @@ export function postBrief(everyHours: number, themes = DEFAULT_THEMES): string {
   ].filter(Boolean).join('\n')
 }
 
-export function voice(body: Body, fetcher: typeof fetch = fetch): Organ {
+export type VoiceOptions = { fetcher?: typeof fetch; catalogDir?: string; rng?: () => number }
+
+export function voice(body: Body, opts: VoiceOptions | typeof fetch = {}): Organ {
+  const { fetcher = fetch, catalogDir, rng = Math.random } = typeof opts === 'function' ? { fetcher: opts } : opts
   const store = body.store('voice')
   const creds = () => credentialsFromEnv(process.env)
   const reply = () => ({ mode: 'off', handled: [], ...store.get<Partial<Reply>>('reply', {}) }) as Reply
   const schedule = () => ({ ...SCHEDULE, ...store.get<Partial<Schedule>>('schedule', {}) })
   const setSchedule = (s: Partial<Schedule>) => store.set('schedule', { ...schedule(), ...s })
+  const history = () => store.get<PostRecord[]>('postHistory', [])
+
+  /** The active persona's topic catalog (personas/<id>.topics.json), read fresh so edits apply on the next post. */
+  function catalog(): { catalog?: Catalog; problems: string[]; path?: string } {
+    if (!catalogDir) return { problems: ['no catalog folder'] }
+    const path = join(catalogDir, `${body.personaId()}.topics.json`)
+    if (!existsSync(path)) return { problems: [`no ${body.personaId()}.topics.json`], path }
+    try {
+      const c = JSON.parse(readFileSync(path, 'utf8'))
+      const problems = validateCatalog(c)
+      return problems.length ? { problems, path } : { catalog: { blendChance: 0.25, storylineChance: 0.2, ...c }, problems, path }
+    } catch (err) {
+      return { problems: [`unreadable: ${String(err).slice(0, 120)}`], path }
+    }
+  }
 
   /** One scheduled post. The clock only restarts when a post actually went out (or is held for the person). */
   let posting = false
@@ -50,10 +72,25 @@ export function voice(body: Body, fetcher: typeof fetch = fetch): Organ {
     posting = true
     try {
       setSchedule({ lastTryAt: Date.now() })
-      const r = await body.think({ kind: 'post', text: postBrief(schedule().everyHours, schedule().themes), from: 'voice' })
+      const { catalog: cat } = catalog()
+      const pick: TopicPick | undefined = cat ? pickTopic(cat, history(), new Date(), rng) : undefined
+      const recent = store.get<Posted[]>('posted', []).filter(p => !p.replyTo).slice(0, 5).map(p => p.text)
+      const brief = pick
+        ? engineBrief(pick, { recent, storyline: schedule().themes, everyHours: schedule().everyHours })
+        : postBrief(schedule().everyHours, schedule().themes)
+      if (pick) body.bus.emit('topic', 'voice', { topic: pick.topic, category: pick.category, blend: pick.blend?.topic ?? null, format: pick.format })
+      const r = await body.think({ kind: 'post', text: brief, from: 'voice' })
       const sent = r.tools.find(t => t.name === 'post' && /^(done|held)/.test(t.result))
-      if (sent) setSchedule({ lastPostAt: Date.now() })
-      body.bus.emit('schedule', 'voice', { posted: !!sent, result: sent?.result.slice(0, 200) ?? r.text.slice(0, 200) })
+      if (sent) {
+        setSchedule({ lastPostAt: Date.now() })
+        if (pick) {
+          store.update<PostRecord[]>('postHistory', [], h => [...h, { at: Date.now(), category: pick.category, topic: pick.topic, blend: pick.blend?.topic, format: pick.format }].slice(-200))
+          const label = pick.blend ? `${pick.topic} × ${pick.blend.topic}` : pick.topic
+          // A post that went out carries its topic; one held for the person carries it on its approval card's summary.
+          if (/^done/.test(sent.result)) store.update<Posted[]>('posted', [], l => (l[0] ? [{ ...l[0], topic: label }, ...l.slice(1)] : l))
+        }
+      }
+      body.bus.emit('schedule', 'voice', { posted: !!sent, topic: pick?.topic ?? null, result: sent?.result.slice(0, 200) ?? r.text.slice(0, 200) })
       return sent ? sent.result : `no post went out: ${r.text.slice(0, 200)}`
     } finally {
       posting = false
@@ -179,6 +216,15 @@ export function voice(body: Body, fetcher: typeof fetch = fetch): Organ {
     view: () => ({
       connected: !!creds(), me: store.get('me', null), reply: { ...reply(), handled: reply().handled.length },
       schedule: { ...schedule(), nextAt: schedule().isOn && schedule().lastPostAt ? schedule().lastPostAt + schedule().everyHours * 3_600_000 : null },
+      engine: (() => {
+        const { catalog: cat, problems } = catalog()
+        return {
+          ok: !!cat, problems,
+          categories: cat?.categories.length ?? 0,
+          topics: cat?.categories.reduce((n, c) => n + c.topics.length, 0) ?? 0,
+          recent: history().slice(-8).reverse(),
+        }
+      })(),
       posted: store.get<Posted[]>('posted', []).slice(0, 30), mentions: store.get<XMention[]>('mentions', []).slice(0, 15),
     }),
     actions: {
@@ -197,6 +243,12 @@ export function voice(body: Body, fetcher: typeof fetch = fetch): Organ {
       },
       /** Writes and posts one now; when it goes out, the clock starts over from here. */
       postNow: async () => ({ result: await scheduledPost() }),
+      /** What the engine would pick next, without posting or remembering it. */
+      roll: () => {
+        const { catalog: cat, problems } = catalog()
+        if (!cat) throw new Error(`no topic catalog: ${problems.join('; ')}`)
+        return pickTopic(cat, history(), new Date(), rng)
+      },
       /** Takes one paper post back out of the feed (and so off the public page). Live posts live on X. */
       unpost: ({ id }) => {
         const p = store.get<Posted[]>('posted', []).find(x => x.id === id)

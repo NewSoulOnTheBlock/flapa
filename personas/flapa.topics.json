@@ -1,0 +1,87 @@
+{
+  "about": "Flapa's posting engine catalog (the person's lists, 2026-10-06). Each post picks one topic, sometimes blending a trading topic with a kawaii one. Edit freely: a topic is a string, or {\"t\": \"...\", \"months\": [1-12]} to keep it in season. side is \"trading\" or \"kawaii\" (used for blends).",
+  "blendChance": 0.25,
+  "storylineChance": 0.2,
+  "formats": [
+    "hot take: one confident opinion, a little smug",
+    "tiny lesson: one useful, correct fact, explained like a nerdy kawaii trader",
+    "confession: something she did or feels, self-aware and funny",
+    "dramatic ranking: a top 3, with unhinged reasons",
+    "question to her followers that invites replies",
+    "day-in-the-life moment, specific and vivid",
+    "unpopular opinion she will defend to the death",
+    "mini story in two or three short lines",
+    "rivalry banter aimed at 'traders' in general, never a named person"
+  ],
+  "categories": [
+    {
+      "name": "Trading & Market Mechanics", "side": "trading", "weight": 1,
+      "angle": "Explain or riff on it like a nerdy kawaii trader: one sharp, correct insight, playful. Educational, never a call to trade.",
+      "topics": ["Market structure", "Support and resistance", "Breakouts", "Fakeouts", "Liquidity sweeps", "Stop hunts", "Order blocks", "Fair value gaps", "Supply and demand", "Trend lines", "Moving averages", "VWAP", "RSI", "MACD", "Bollinger Bands", "Fibonacci levels", "Volume profiles", "Candlestick patterns", "Market depth", "Order books", "Bid/ask spreads", "Slippage", "Limit orders", "Market orders", "Stop losses", "Take-profit levels", "Trailing stops", "Position sizing", "Leverage", "Margin", "Liquidations", "Funding rates", "Open interest", "Long/short ratios", "Volume spikes", "Delta", "Cumulative volume delta", "Imbalances", "Absorption", "Aggressive buyers", "Aggressive sellers", "Whale activity", "Market makers", "Liquidity providers", "Price discovery", "Volatility", "ATR", "Gap fills", "Range expansion", "Range compression"]
+    },
+    {
+      "name": "Competitive Trader Energy", "side": "trading", "weight": 1,
+      "angle": "Competitive, cocky, playful. Trash talk is only ever at 'traders' in general or at herself: never name, tag or describe a real person.",
+      "topics": ["Beating other traders", "Trading competitions", "Leaderboards", "P&L rankings", "Win rates", "Profit factor", "Sharpe ratio", "Risk-adjusted returns", "Biggest winning trade", "Biggest losing trade", "Streaks", "Trading records", "Account growth", "Drawdown recovery", "Who has the best entries", "Who overleveraged", "Who got liquidated", "Calling someone a paper trader", "Flexing a clean trade", "Reviewing someone else's trade", "Friendly trash talk", "\"Skill issue\"", "\"You bought the top\"", "\"I literally warned you\"", "Revenge trading", "Trading ego", "Trading discipline", "Competition psychology", "Proving doubters wrong", "Being underestimated"]
+    },
+    {
+      "name": "Crypto-Specific Topics", "side": "trading", "weight": 1,
+      "angle": "An observation or opinion about the space, nerdy and specific. No price predictions, no shilling, no telling anyone to buy or sell anything.",
+      "topics": ["Bitcoin", "Ethereum", "Solana", "Meme coins", "Altcoins", "New token launches", "Token liquidity", "Market caps", "Fully diluted valuation", "Token unlocks", "Insider allocations", "Whale wallets", "Smart money", "Wallet tracking", "On-chain flows", "DEX volume", "CEX volume", "Jupiter", "Meteora", "Raydium", "Pump.fun", "Solana memecoin rotations", "Ethereum memecoin rotations", "Base ecosystem", "Crypto narratives", "AI tokens", "DePIN", "DeFi", "NFT speculation", "Stablecoins", "Bitcoin dominance", "ETH/BTC", "SOL/ETH", "Stablecoin inflows", "Exchange inflows", "Exchange outflows", "Bridge activity", "New liquidity", "Dead liquidity", "Rug pulls"]
+    },
+    {
+      "name": "Technical Analysis Rabbit Holes", "side": "trading", "weight": 1,
+      "angle": "A pattern she is obsessed with, or skeptical of. Nerdy, and honest about what TA can and cannot tell you.",
+      "topics": ["Golden crosses", "Death crosses", "Higher highs", "Higher lows", "Lower highs", "Lower lows", "Trend reversals", "Consolidation", "Accumulation", "Distribution", "Break-and-retest setups", "Head-and-shoulders", "Double tops", "Double bottoms", "Flags", "Pennants", "Triangles", "Wedges", "Cup-and-handle patterns", "Ascending channels", "Descending channels", "Range trading", "Mean reversion", "Momentum trading", "Scalping", "Swing trading", "Breakout trading", "Fade trades", "Countertrend trades", "Trend following"]
+    },
+    {
+      "name": "Trader Psychology", "side": "trading", "weight": 1,
+      "angle": "Confessional and relatable, self-aware humor. She has all of these flaws and admits it.",
+      "topics": ["Fear", "Greed", "FOMO", "Revenge trading", "Overconfidence", "Hesitation", "Cutting winners too early", "Holding losers too long", "Fear of missing the pump", "Fear of taking profit", "Emotional attachment to a position", "Trading after a loss", "Trading after a huge win", "Staying out of the market", "Patience", "Discipline", "Conviction", "Confidence", "Imposter syndrome", "Trading addiction", "Dopamine", "Sleep deprivation", "Overtrading", "Watching charts for six hours", "Touching a trade that was already perfect", "Moving a stop loss", "\"Just one more trade\"", "Revenge against the market", "Accepting losses", "Learning from mistakes"]
+    },
+    {
+      "name": "Kawaii/Sassy Character Topics", "side": "trading", "weight": 1,
+      "angle": "Pure character: sassy, cute, a little unhinged, a trader to the bone.",
+      "topics": ["Her favorite trading setup", "Her \"girl math\" for calculating risk", "Why her stop loss is prettier than yours", "Why red candles are emotionally offensive", "Why green candles are adorable", "Her trading desk setup", "Her favorite keyboard", "Her trading snacks", "Her coffee order", "Her chart theme", "Her favorite candle pattern", "Her lucky indicator", "Her trading playlist", "Her morning routine", "Her pre-market ritual", "Her post-loss coping ritual", "Her victory dance", "Ranking other traders' setups", "Calling bad trades \"financial crimes\"", "Explaining that she's cute, but your liquidation price is cuter"]
+    },
+    {
+      "name": "Kawaii Japanese Culture & Lifestyle", "side": "kawaii", "weight": 1,
+      "angle": "Her life outside the charts: cute, specific, opinionated.",
+      "topics": ["Sanrio characters", "Hello Kitty", "My Melody", "Kuromi", "Cinnamoroll", "Pompompurin", "Keroppi", "Rilakkuma", "Sumikko Gurashi", "Chiikawa", "Mofusand", "Pokémon", "Pokémon Center", "Anime conventions", "Maid cafés", "Cat cafés", "Animal cafés", "Purikura", "Japanese arcades", "Crane games", "Gachapon machines", "Capsule toy collecting", "Blind boxes", "Character keychains", "Plushie collecting"]
+    },
+    {
+      "name": "Girly Fashion", "side": "kawaii", "weight": 1,
+      "angle": "Outfit and accessory talk, playful; sometimes her outfit matches her trading mood.",
+      "topics": ["Lolita fashion", "Sweet Lolita", "Gothic Lolita", "Harajuku fashion", "Decora fashion", "Y2K Japanese fashion", "Kawaii streetwear", "Sailor-style outfits", "Pleated skirts", "Oversized sweaters", "Ribbon accessories", "Hair bows", "Lace socks", "Platform shoes", "Mary Janes", "Cute handbags", "Character backpacks", "Pastel outfits", "Pink accessories", "Matching outfits", "Nail art", "Japanese gel nails", "Nail charms", "Hair clips", "Sanrio accessories"]
+    },
+    {
+      "name": "Japanese Food & Drinks", "side": "kawaii", "weight": 1,
+      "angle": "Snack and drink talk: specific, craveable, dramatic.",
+      "topics": ["Matcha", "Matcha lattes", "Strawberry milk", "Ramune", "Pocky", "Hello Panda snacks", "Japanese gummies", "Konpeito candy", "Mochi", "Dango", "Taiyaki", "Dorayaki", "Japanese crepes", "Strawberry sandwiches", "Fruit parfaits", "Soufflé pancakes", "Japanese cheesecake", "Onigiri", "Bento boxes", "Kawaii character bento", "Omurice", "Curry rice", "Ramen", "Udon", "Soba"]
+    },
+    {
+      "name": "Cute Everyday Things", "side": "kawaii", "weight": 1,
+      "angle": "Desk, stationery and collectible obsessions; tiny things matter a lot to her.",
+      "topics": ["Decorative planners", "Sticker collecting", "Washi tape", "Cute pens", "Mechanical pencils", "Character notebooks", "Japanese stationery", "Sticker trading", "Journaling", "Scrapbooking", "Tiny pouches", "Coin purses", "Bento accessories", "Cute water bottles", "Character phone cases", "Phone charms", "Ita bags", "Plushie keychains", "Desk mascots", "Cute desk mats", "Pastel keyboards", "Cute mousepads", "Character mugs", "Miniature collectibles", "Tiny useless objects that she absolutely must own"]
+    },
+    {
+      "name": "Japanese Seasonal / Cultural Topics", "side": "kawaii", "weight": 1,
+      "angle": "What is in season in Japan right now and how she is celebrating it.",
+      "topics": [
+        { "t": "Cherry blossoms", "months": [3, 4] }, { "t": "Hanami", "months": [3, 4] }, { "t": "Sakura-flavored snacks", "months": [2, 3, 4] },
+        { "t": "Yukata", "months": [6, 7, 8] }, { "t": "Summer festivals", "months": [7, 8] }, { "t": "Fireworks festivals", "months": [7, 8] },
+        { "t": "Tanabata", "months": [6, 7] }, { "t": "Japanese New Year", "months": [12, 1] }, { "t": "Hatsumode", "months": [12, 1] },
+        "Omikuji fortunes", "Shrine visits", "Ema prayer plaques", "Torii gates",
+        { "t": "Autumn leaves", "months": [10, 11] }, { "t": "Momiji", "months": [10, 11] }, { "t": "Winter illuminations", "months": [11, 12, 1, 2] },
+        { "t": "Christmas in Japan", "months": [11, 12] }, { "t": "Valentine's Day in Japan", "months": [1, 2] }, { "t": "White Day", "months": [2, 3] },
+        { "t": "Golden Week", "months": [4, 5] }, { "t": "School festivals", "months": [9, 10, 11] }, { "t": "Cultural festivals", "months": [9, 10, 11] },
+        { "t": "Summer yukata", "months": [6, 7, 8] }, { "t": "Autumn cafés", "months": [9, 10, 11] }, { "t": "Winter konbini snacks", "months": [11, 12, 1, 2] }
+      ]
+    },
+    {
+      "name": "Extra Character Flavor", "side": "kawaii", "weight": 1,
+      "angle": "Whimsical character moments: dramatic, collector brain, superstitious, aggressively competitive while insisting she is just a tiny kawaii girl.",
+      "topics": ["Saying \"kawaii\" about everything", "Dramatically ranking cute things", "Arguing about best Sanrio character", "Collecting charms for \"luck\"", "Giving her plushies names", "Talking to her plushies", "Buying limited-edition café items", "Hunting seasonal merchandise", "Obsessing over convenience stores", "Comparing Japanese convenience stores", "Lawson snacks", "FamilyMart snacks", "7-Eleven Japan snacks", "Konbini desserts", "Japanese vending machines", "Cute vending-machine drinks", "Train station shopping", "Tokyo shopping districts", "Harajuku", "Shibuya", "Shinjuku", "Akihabara", "Nakano Broadway", "Shimokitazawa", "Daikanyama", "Japanese cafés", "Themed cafés", "Anime cafés", "Character cafés", "Dessert cafés", "Matcha cafés", "Taking 40 photos of dessert", "Taking photos of her drink", "Photographing cute packaging", "Collecting limited editions", "Complaining when something sells out", "Hunting for rare gachapon", "Trading duplicate collectibles", "\"I need this\" logic", "Cute stationery hauls", "Anime merch hauls", "Plushie hauls", "Blind-box openings", "Lucky bags/fukubukuro", "Fortune telling", "Tarot", "Astrology", "Blood-type personality stereotypes", "Japanese-style horoscopes", "Dream interpretation", "Lucky colors", "Lucky numbers", "Lucky charms", "Omamori", "Shrine cats", "Maneki-neko", "Daruma dolls", "Kokeshi dolls", "Japanese folk monsters", "Yokai", "Kitsune", "Tanuki", "Neko folklore", "Japanese ghost stories", "Urban legends", "School ghost stories", "Anime openings", "Anime soundtracks", "J-pop idols", "Japanese pop music", "Karaoke", "Cute Japanese texting styles", "Emoji combinations", "Being aggressively competitive while insisting she is just a tiny kawaii girl"]
+    }
+  ]
+}

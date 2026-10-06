@@ -320,7 +320,7 @@ function cat(mood, working) {
 }
 const meter = (n, full, emptyIcon) => h('span', { class: 'meter' }, Array.from({ length: 5 }, (_, i) => h('i', { class: i < Math.round(n * 5) ? 'full' : '' }, i < Math.round(n * 5) ? full : emptyIcon)))
 
-const THOUGHT_ICON = { 'turn.start': '💡', 'turn.text': '💭', 'tool.call': '🔧', 'tool.result': '✨', 'memory.added': '📝', mood: '💗', stance: '🌟', 'act.hold': '🙏', 'act.block': '🚫', 'act.done': '✅', 'turn.error': '😵', research: '🔍', trade: '💸', posted: '💌', 'exit.stuck': '⏳', 'act.failed': '😵' }
+const THOUGHT_ICON = { 'turn.start': '💡', 'turn.text': '💭', 'tool.call': '🔧', 'tool.result': '✨', 'memory.added': '📝', mood: '💗', stance: '🌟', 'act.hold': '🙏', 'act.block': '🚫', 'act.done': '✅', 'turn.error': '😵', research: '🔍', trade: '💸', posted: '💌', 'exit.stuck': '⏳', 'act.failed': '😵', topic: '🎲' }
 function thoughtText(s) {
   const d = s.data || {}
   switch (s.type) {
@@ -336,6 +336,7 @@ function thoughtText(s) {
     case 'trade': return `${d.paper ? 'paper' : 'LIVE'} ${d.side} $${d.symbol} · ${d.bnb.toFixed(4)} BNB`
     case 'posted': return `${d.mode} post: ${d.text}`
     case 'exit.stuck': return `couldn't ${d.why} on $${d.symbol}: ${d.result}. retrying slower`
+    case 'topic': return `next post is about: ${d.topic}${d.blend ? ` × ${d.blend}` : ''} (${String(d.format).split(':')[0]})`
     default: return s.type.startsWith('act.') ? `${d.organ}.${d.kind} ${s.type.slice(4)}: ${d.summary}` : null
   }
 }
@@ -407,12 +408,23 @@ const MIND = {
         h('span', { class: 'faint' }, !v.schedule.isOn ? '· off' : v.schedule.nextAt ? `· next ${v.schedule.nextAt > Date.now() ? `in ${Math.max(1, Math.round((v.schedule.nextAt - Date.now()) / 60000))}m` : 'any minute'}` : '· starts with the first post'),
         h('span', { class: 'spacer' }),
         h('button', { class: 'btn small', onclick: e => { e.target.textContent = 'writing… ✍'; act('voice', 'postNow').then(r => toast(String(r.value?.result ?? '').slice(0, 120))).catch(() => {}) } }, 'post now ✧')),
-      h('form', { class: 'card row', style: 'margin:0 0 8px', onsubmit: e => { e.preventDefault(); act('voice', 'schedule', { themes: $('themesIn').value }).then(() => toast('topics saved ♡')) } },
-        h('span', { class: 'dim', style: 'flex:none' }, 'post about'),
-        h('input', { class: 'field', id: 'themesIn', value: v.schedule.themes ?? '', placeholder: 'what her scheduled posts should be about…', autocomplete: 'off' }),
+      h('div', { class: 'card', style: 'margin:0 0 8px' },
+        h('div', { class: 'row between' },
+          h('b', {}, '🎲 posting engine'),
+          v.engine.ok
+            ? h('span', { class: 'faint' }, `${v.engine.topics} topics · ${v.engine.categories} sections`)
+            : h('span', { class: 'down' }, `off: ${v.engine.problems.join('; ')}`)),
+        h('div', { class: 'faint', style: 'margin:2px 0 6px' }, 'each post picks one topic (sometimes trading × kawaii), never repeating lately. edit personas/flapa.topics.json to change the list.'),
+        v.engine.recent.length ? h('div', { class: 'row wrap', style: 'gap:4px' }, v.engine.recent.map(r => h('span', { class: 'tag' }, r.blend ? `${r.topic} × ${r.blend}` : r.topic))) : null,
+        h('div', { class: 'row', style: 'margin-top:8px' },
+          h('button', { class: 'btn ghost small', onclick: () => act('voice', 'roll').then(r => toast(`next could be: ${r.value.topic}${r.value.blend ? ` × ${r.value.blend.topic}` : ''} (${r.value.format.split(':')[0]})`)).catch(() => {}) }, '🎲 roll a preview'))),
+      h('form', { class: 'card row', style: 'margin:0 0 8px', onsubmit: e => { e.preventDefault(); act('voice', 'schedule', { themes: $('themesIn').value }).then(() => toast('storyline saved ♡')) } },
+        h('span', { class: 'dim', style: 'flex:none', title: 'woven into about 1 in 5 posts, when it fits' }, 'storyline'),
+        h('input', { class: 'field', id: 'themesIn', value: v.schedule.themes ?? '', placeholder: "what's going on with her lately (mentioned now and then)", autocomplete: 'off' }),
         h('button', { class: 'btn small' }, 'save')),
       v.posted.length ? h('div', { class: 'stack' }, v.posted.map(p => h('div', { class: 'card' }, p.text,
-        h('div', { class: 'row', style: 'margin-top:4px' }, h('span', { class: `tag ${p.mode === 'live' ? 'hot' : ''}` }, p.mode === 'live' ? 'LIVE 🔥' : 'paper 🧸'),
+        h('div', { class: 'row wrap', style: 'margin-top:4px' }, h('span', { class: `tag ${p.mode === 'live' ? 'hot' : ''}` }, p.mode === 'live' ? 'LIVE 🔥' : 'paper 🧸'),
+          p.topic ? h('span', { class: 'tag her' }, `🎲 ${p.topic}`) : null,
           p.replyTo ? h('span', { class: 'tag' }, 'reply') : null, h('span', { class: 'faint' }, ago(p.at)),
           p.url ? h('a', { href: p.url, target: '_blank', rel: 'noopener', class: 'faint' }, 'open ↗') : null)))) : empty('💌', 'no posts yet'),
     ]

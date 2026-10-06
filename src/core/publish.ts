@@ -56,6 +56,7 @@ export class ThoughtLog {
       case 'research': this.push(s.at, 'research', `looked at $${clip(d.symbol, 16)}: ${clip(d.line, 220)}`); break
       case 'trade': this.push(s.at, 'trade', `${d.paper ? 'paper' : 'LIVE'} ${d.side} $${clip(d.symbol, 16)} · ${Number(d.bnb).toFixed(4)} BNB`); break
       case 'posted': this.push(s.at, 'post', `${d.mode} post: ${clip(d.text, 300)}`); break
+      case 'topic': this.push(s.at, 'wake', `picked a topic: ${clip(d.topic, 80)}${d.blend ? ` × ${clip(d.blend, 80)}` : ''}`); break
     }
   }
 
@@ -106,7 +107,7 @@ export function publicSnapshot(body: Body, thoughts: readonly PublicThought[], n
       trades: hands.trades.slice(0, 20).map((t: any) => ({ at: t.at, side: t.side, symbol: clip(t.symbol, 16), bnb: t.bnb, pnlBnb: t.pnlBnb ?? null, paper: !!t.paper, by: t.by === 'exit' ? 'exit' : 'her', why: clip(t.why, 200), tx: t.hash ? `https://bscscan.com/tx/${t.hash}` : null })),
     } : null,
     postSchedule: voice?.schedule ? { isOn: !!voice.schedule.isOn, everyHours: voice.schedule.everyHours, nextAt: voice.schedule.nextAt ?? null } : null,
-    posts: voice ? voice.posted.slice(0, 15).map((p: any) => ({ at: p.at, text: clip(p.text, 300), mode: p.mode, reply: !!p.replyTo, url: p.url ?? null })) : [],
+    posts: voice ? voice.posted.slice(0, 15).map((p: any) => ({ at: p.at, text: clip(p.text, 300), mode: p.mode, reply: !!p.replyTo, url: p.url ?? null, topic: p.topic ? clip(p.topic, 80) : null })) : [],
     thoughts: [...thoughts].reverse(),
     dial: c?.dial ?? null,
     live: c ? { voice: !!c.live.voice, hands: !!c.live.hands } : null,
