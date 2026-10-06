@@ -3,128 +3,225 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>SOMA</title>
+<title>SOMA ♡</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Fraunces:opsz,wght@9..144,600&display=swap" rel="stylesheet">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;800&family=M+PLUS+Rounded+1c:wght@400;500;700&display=swap" rel="stylesheet">
 <style>
 :root {
-  --bg: #0d0f0e; --panel: #151917; --panel-2: #1b201d; --line: #26302b; --ink: #e4ebe6; --dim: #8a978f; --faint: #56625b;
-  --pulse: #7ee0a8; --warm: #f0b866; --hot: #ef6f6c; --cool: #77b8f0; --violet: #b99cf2;
-  --mono: 'JetBrains Mono', ui-monospace, Consolas, monospace; --serif: 'Fraunces', Georgia, serif;
+  --ink: #4a3558; --soft: #8a7398; --faint: #bba9c6;
+  --pink: #ff7eb6; --pink-2: #ffd6e8; --pink-3: #fff0f6;
+  --lav: #a98bff; --lav-2: #e4dbff; --lav-3: #f6f2ff;
+  --mint: #3dd6a3; --mint-2: #c9f5e4; --mint-3: #effdf7;
+  --butter: #ffb547; --butter-2: #ffe8bf; --butter-3: #fff8ea;
+  --red: #ff5c7a; --green: #23c48e;
+  --card: rgba(255, 255, 255, .82);
+  --round: 'M PLUS Rounded 1c', 'Segoe UI', system-ui, sans-serif;
+  --bubble: 'Baloo 2', 'M PLUS Rounded 1c', system-ui, sans-serif;
 }
-@media (prefers-color-scheme: light) { :root:not([data-theme="dark"]) {
-  --bg: #f3f1ea; --panel: #fbfaf6; --panel-2: #f0eee6; --line: #dcd8cc; --ink: #1d221f; --dim: #5d6862; --faint: #9aa29d;
-  --pulse: #1f9a5b; --warm: #b8741c; --hot: #c43c39; --cool: #2a72b8; --violet: #6d4bc0;
-} }
 * { box-sizing: border-box; }
-html, body { margin: 0; background: var(--bg); color: var(--ink); font: 13px/1.5 var(--mono); }
-button, input, textarea, select { font: inherit; color: inherit; }
-header { display: flex; align-items: center; gap: 16px; padding: 14px 20px; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
-.mark { font: 600 22px var(--serif); letter-spacing: .5px; }
-.mark i { font-style: normal; color: var(--pulse); }
-.heart { width: 10px; height: 10px; border-radius: 50%; background: var(--faint); }
-.heart.alive { background: var(--pulse); animation: beat 1.6s infinite; }
-.heart.thinking { background: var(--warm); animation: beat .5s infinite; }
-@keyframes beat { 0%,100% { transform: scale(1); opacity: 1 } 15% { transform: scale(1.5) } 30% { transform: scale(1); opacity: .6 } }
-.chip { padding: 2px 8px; border: 1px solid var(--line); border-radius: 99px; color: var(--dim); font-size: 11px; }
-.chip.live { color: var(--hot); border-color: var(--hot); }
-.chip.paper { color: var(--cool); border-color: var(--cool); }
+html, body { margin: 0; height: 100%; }
+body {
+  color: var(--ink); font: 14px/1.5 var(--round);
+  background: #fff3f9;
+  background-image:
+    radial-gradient(circle at 8% 12%, #ffd6ec 0, transparent 38%),
+    radial-gradient(circle at 92% 8%, #e6ddff 0, transparent 40%),
+    radial-gradient(circle at 85% 92%, #d2f7e8 0, transparent 42%),
+    radial-gradient(circle at 10% 90%, #fff0c9 0, transparent 40%);
+  background-attachment: fixed;
+  overflow-x: hidden;
+}
+/* drifting sparkles */
+.sky { position: fixed; inset: 0; pointer-events: none; z-index: 0; overflow: hidden; }
+.sky span { position: absolute; font-size: 18px; opacity: .45; animation: drift 14s ease-in-out infinite; }
+@keyframes drift { 0%,100% { transform: translateY(0) rotate(0) } 50% { transform: translateY(-22px) rotate(12deg) } }
+@media (prefers-reduced-motion: reduce) { .sky span, .heart, .cat { animation: none !important; } }
+
+button, input, select, textarea { font: inherit; color: inherit; }
+header {
+  position: relative; z-index: 2; display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  padding: 12px 18px; margin: 12px 14px 0; border-radius: 22px; background: var(--card);
+  box-shadow: 0 6px 24px rgba(255, 126, 182, .18); border: 2px solid #fff;
+}
+.logo { font: 800 26px/1 var(--bubble); letter-spacing: 1px; background: linear-gradient(90deg, var(--pink), var(--lav), var(--mint)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.heart { color: var(--pink); font-size: 18px; animation: beat 1.4s infinite; display: inline-block; }
+.heart.thinking { color: var(--butter); animation-duration: .5s; }
+@keyframes beat { 0%,100% { transform: scale(1) } 15% { transform: scale(1.35) } 30% { transform: scale(1) } }
 .spacer { flex: 1; }
-main { display: grid; grid-template-columns: 300px minmax(0, 1fr) 380px; gap: 14px; padding: 14px; max-width: 1600px; margin: 0 auto; }
-@media (max-width: 1150px) { main { grid-template-columns: 1fr 1fr; } .center { grid-column: 1 / -1; order: -1; } }
-@media (max-width: 720px) { main { grid-template-columns: 1fr; padding: 10px 16px; } }
-.col { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
-.card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px; min-width: 0; }
-.card h2 { margin: 0 0 10px; font-size: 11px; font-weight: 600; letter-spacing: 1.5px; text-transform: uppercase; color: var(--dim); display: flex; justify-content: space-between; align-items: center; }
-.cat { white-space: pre; font-size: 15px; line-height: 1.25; color: var(--pulse); margin: 4px 0 10px; }
-.who { font: 600 20px var(--serif); }
-.tag { color: var(--dim); font-size: 12px; margin-top: 2px; }
-.bar { height: 6px; background: var(--panel-2); border-radius: 3px; overflow: hidden; margin: 3px 0 8px; position: relative; }
-.bar > b { position: absolute; top: 0; bottom: 0; background: var(--pulse); border-radius: 3px; transition: all .6s; }
-.row { display: flex; gap: 8px; align-items: center; justify-content: space-between; }
-.small { font-size: 11px; color: var(--dim); }
-.seg { display: flex; border: 1px solid var(--line); border-radius: 7px; overflow: hidden; }
-.seg button { flex: 1; background: none; border: 0; padding: 6px; cursor: pointer; color: var(--dim); }
-.seg button.on { background: var(--panel-2); color: var(--ink); }
-.seg button.on[data-v="paused"] { color: var(--hot); }
-.toggle { display: flex; justify-content: space-between; align-items: center; padding: 6px 0; border-top: 1px solid var(--line); }
-.toggle:first-of-type { border-top: 0; }
-.sw { width: 54px; padding: 3px 0; border-radius: 99px; border: 1px solid var(--cool); background: none; color: var(--cool); cursor: pointer; font-size: 11px; }
-.sw.live { border-color: var(--hot); color: var(--hot); }
-.btn { background: var(--panel-2); border: 1px solid var(--line); border-radius: 6px; padding: 5px 10px; cursor: pointer; }
-.btn:hover { border-color: var(--dim); }
-.btn.go { color: var(--pulse); } .btn.no { color: var(--hot); }
-.pending { border: 1px solid var(--warm); border-radius: 8px; padding: 9px; margin-top: 8px; }
-.pending .why { color: var(--warm); font-size: 11px; }
-.list { display: flex; flex-direction: column; gap: 6px; max-height: 420px; overflow: auto; }
-.item { padding: 7px 9px; background: var(--panel-2); border-radius: 6px; overflow-wrap: anywhere; }
-.chat { display: flex; flex-direction: column; height: min(62vh, 640px); }
-.msgs { flex: 1; overflow: auto; display: flex; flex-direction: column; gap: 10px; padding-right: 4px; }
-.msg { max-width: 85%; padding: 9px 12px; border-radius: 10px; white-space: pre-wrap; overflow-wrap: anywhere; }
-.msg.me { align-self: flex-end; background: var(--panel-2); border: 1px solid var(--line); }
-.msg.her { align-self: flex-start; border: 1px solid color-mix(in srgb, var(--pulse) 35%, transparent); }
-.msg.pending { opacity: .6; font-style: italic; }
-form.say { display: flex; gap: 8px; margin-top: 10px; }
-form.say textarea { flex: 1; resize: none; height: 44px; background: var(--panel-2); border: 1px solid var(--line); border-radius: 8px; padding: 10px; }
-.stream { max-height: 340px; overflow: auto; font-size: 12px; }
-.ev { display: grid; grid-template-columns: 62px 92px 1fr; gap: 8px; padding: 3px 0; border-bottom: 1px dashed var(--line); }
-.ev .t { color: var(--faint); } .ev .k { color: var(--violet); } .ev .d { overflow-wrap: anywhere; color: var(--dim); }
-.ev.act .k { color: var(--warm); } .ev.err .k { color: var(--hot); } .ev.turn .k { color: var(--pulse); }
-.tabs { display: flex; gap: 2px; flex-wrap: wrap; margin-bottom: 10px; }
-.tabs button { background: none; border: 0; border-bottom: 2px solid transparent; padding: 4px 8px; cursor: pointer; color: var(--dim); }
-.tabs button.on { color: var(--ink); border-color: var(--pulse); }
-input.text, textarea.text { width: 100%; background: var(--panel-2); border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px; }
-.done { text-decoration: line-through; color: var(--faint); }
-.up { color: var(--pulse); } .down { color: var(--hot); }
-.empty { color: var(--faint); font-style: italic; }
+.pill { border: 2px solid var(--lav-2); background: #fff; border-radius: 99px; padding: 4px 12px; font-size: 12.5px; font-weight: 700; color: var(--soft); cursor: pointer; transition: transform .15s, background .15s; white-space: nowrap; }
+.pill:hover { transform: translateY(-1px) scale(1.03); }
+.pill.on { background: var(--lav); border-color: var(--lav); color: #fff; }
+.pill.on.paused { background: var(--red); border-color: var(--red); }
+.pill.on.review { background: var(--butter); border-color: var(--butter); }
+.pill.live { background: var(--red); border-color: var(--red); color: #fff; }
+.pill.paper { background: var(--mint-3); border-color: var(--mint-2); color: #1c9c72; }
+.group { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.label { font-size: 11px; font-weight: 700; color: var(--faint); text-transform: uppercase; letter-spacing: 1px; }
+select.pill { appearance: none; padding-right: 26px; background: #fff url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6'><path d='M0 0l5 6 5-6z' fill='%23a98bff'/></svg>") no-repeat right 10px center; }
+
+main {
+  position: relative; z-index: 1; display: grid; gap: 14px; padding: 14px;
+  grid-template-columns: 1fr 1fr; grid-template-rows: minmax(0, 1fr) minmax(0, 1fr);
+  height: calc(100vh - 86px); min-height: 640px;
+}
+@media (max-width: 960px) { main { grid-template-columns: 1fr; grid-template-rows: none; height: auto; } .pane { min-height: 480px; max-height: 80vh; } }
+@media (max-width: 600px) { header { margin: 10px 16px 0; } main { padding: 12px 16px; } }
+
+.pane {
+  --c: var(--pink); --c2: var(--pink-2); --c3: var(--pink-3);
+  display: flex; flex-direction: column; min-height: 0; min-width: 0;
+  background: var(--card); border-radius: 28px; border: 3px solid #fff;
+  box-shadow: 0 10px 30px color-mix(in srgb, var(--c) 22%, transparent), inset 0 0 0 2px var(--c2);
+  overflow: hidden; backdrop-filter: blur(6px);
+}
+.pane.p2 { --c: var(--lav); --c2: var(--lav-2); --c3: var(--lav-3); }
+.pane.p3 { --c: var(--mint); --c2: var(--mint-2); --c3: var(--mint-3); }
+.pane.p4 { --c: var(--butter); --c2: var(--butter-2); --c3: var(--butter-3); }
+.pane > h2 {
+  margin: 0; padding: 12px 18px 10px; display: flex; align-items: center; gap: 8px;
+  font: 800 19px/1.1 var(--bubble); color: var(--ink);
+  background: linear-gradient(180deg, var(--c3), transparent); border-bottom: 2px dashed var(--c2);
+}
+.pane > h2 .n { display: grid; place-items: center; width: 26px; height: 26px; border-radius: 50%; background: var(--c); color: #fff; font-size: 14px; }
+.pane > h2 .sub { margin-left: auto; font: 500 12px var(--round); color: var(--soft); }
+.body { flex: 1; overflow: auto; padding: 12px 16px 16px; min-height: 0; scrollbar-width: thin; scrollbar-color: var(--c2) transparent; }
+
+.btn { border: 0; border-radius: 99px; padding: 6px 14px; background: var(--c); color: #fff; font-weight: 700; cursor: pointer; box-shadow: 0 3px 0 color-mix(in srgb, var(--c) 60%, #000 10%); transition: transform .1s; white-space: nowrap; }
+.btn:active { transform: translateY(2px); box-shadow: none; }
+.btn.ghost { background: #fff; color: var(--soft); box-shadow: inset 0 0 0 2px var(--c2); }
+.btn.no { background: #fff; color: var(--red); box-shadow: inset 0 0 0 2px #ffd0da; }
+.btn.small { padding: 3px 10px; font-size: 12px; }
+.field { flex: 1; min-width: 0; border: 2px solid var(--c2); border-radius: 16px; padding: 8px 12px; background: #fff; outline: none; }
+.field:focus { border-color: var(--c); }
+.row { display: flex; gap: 8px; align-items: center; }
+.between { justify-content: space-between; }
+.wrap { flex-wrap: wrap; }
+.dim { color: var(--soft); font-size: 12px; }
+.faint { color: var(--faint); font-size: 12px; }
+.empty { text-align: center; color: var(--faint); padding: 18px 8px; }
+.empty b { display: block; font-size: 28px; }
+.up { color: var(--green); font-weight: 700; } .down { color: var(--red); font-weight: 700; }
+.sec { font: 800 14px var(--bubble); margin: 14px 0 6px; display: flex; align-items: center; gap: 6px; }
+.card { background: #fff; border-radius: 18px; padding: 10px 12px; box-shadow: 0 2px 0 var(--c2); border: 2px solid var(--c3); overflow-wrap: anywhere; }
+.stack { display: flex; flex-direction: column; gap: 8px; }
+.tag { display: inline-block; border-radius: 99px; padding: 1px 8px; font-size: 11px; font-weight: 700; background: var(--c3); color: var(--soft); }
+.tag.hot { background: #ffe1e8; color: var(--red); }
+.tag.her { background: var(--pink-2); color: #d94f8f; }
+.switch { position: relative; width: 46px; height: 26px; border-radius: 99px; border: 0; background: #eee3f3; cursor: pointer; transition: background .2s; flex: none; }
+.switch::after { content: ''; position: absolute; top: 3px; left: 3px; width: 20px; height: 20px; border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.15); transition: left .2s; }
+.switch.on { background: var(--c); }
+.switch.on::after { left: 23px; }
+.seg { display: inline-flex; background: var(--c3); border-radius: 99px; padding: 3px; gap: 2px; }
+.seg button { border: 0; background: none; border-radius: 99px; padding: 3px 10px; cursor: pointer; color: var(--soft); font-weight: 700; font-size: 12px; }
+.seg button.on { background: #fff; color: var(--ink); box-shadow: 0 1px 4px rgba(0,0,0,.08); }
+.approve { border: 2px dashed var(--butter); background: #fffaf0; border-radius: 18px; padding: 10px 12px; }
+.approve .why { color: #c47a12; font-size: 12px; margin: 4px 0 8px; }
+
+/* 1. to-do */
+.todo { display: flex; align-items: center; gap: 10px; }
+.check { width: 24px; height: 24px; border-radius: 50%; border: 2px solid var(--pink-2); background: #fff; cursor: pointer; display: grid; place-items: center; font-size: 13px; color: transparent; flex: none; transition: all .2s; }
+.check.on { background: var(--pink); border-color: var(--pink); color: #fff; }
+.todo .t { flex: 1; }
+.todo.done .t { text-decoration: line-through; text-decoration-color: var(--pink); color: var(--faint); }
+.note { background: repeating-linear-gradient(transparent 0 22px, var(--pink-3) 22px 23px); border-radius: 16px; padding: 8px 12px; border: 2px solid var(--pink-3); white-space: pre-wrap; font-size: 13px; }
+
+/* 2. thoughts */
+.me-card { display: grid; grid-template-columns: auto 1fr; gap: 14px; align-items: center; background: linear-gradient(135deg, var(--lav-3), var(--pink-3)); border-radius: 22px; padding: 12px 14px; }
+.cat { font: 700 15px/1.2 ui-monospace, Consolas, monospace; white-space: pre; color: var(--lav); }
+.blush { color: var(--pink); }
+.name { font: 800 22px/1 var(--bubble); }
+.bubble-mood { display: inline-block; margin-top: 6px; background: #fff; border-radius: 16px 16px 16px 4px; padding: 4px 12px; font-weight: 700; box-shadow: 0 2px 0 var(--lav-2); }
+.meter { display: flex; gap: 2px; font-size: 15px; letter-spacing: -1px; }
+.meter i { font-style: normal; filter: grayscale(1); opacity: .25; }
+.meter i.full { filter: none; opacity: 1; }
+.tabs { display: flex; gap: 6px; margin: 12px 0 8px; flex-wrap: wrap; }
+.tabs button { border: 0; border-radius: 99px; padding: 5px 12px; background: var(--c3); color: var(--soft); font-weight: 700; cursor: pointer; }
+.tabs button.on { background: var(--c); color: #fff; }
+.tabs .badge { display: inline-grid; place-items: center; min-width: 18px; height: 18px; border-radius: 99px; background: var(--butter); color: #fff; font-size: 11px; margin-left: 4px; }
+.msgs { display: flex; flex-direction: column; gap: 8px; }
+.msg { max-width: 86%; padding: 8px 13px; border-radius: 18px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.msg.me { align-self: flex-end; background: var(--lav); color: #fff; border-bottom-right-radius: 4px; }
+.msg.her { align-self: flex-start; background: #fff; border: 2px solid var(--lav-2); border-bottom-left-radius: 4px; }
+.msg.wait { opacity: .6; font-style: italic; }
+.thought { display: grid; grid-template-columns: 26px 1fr; gap: 8px; align-items: start; }
+.thought .ic { font-size: 18px; text-align: center; }
+.thought .card { padding: 7px 11px; font-size: 13px; }
+.chatbar { display: flex; gap: 8px; padding: 10px 16px 14px; border-top: 2px dashed var(--lav-2); }
+
+/* 3. fomo */
+.lb { display: grid; grid-template-columns: 34px 1fr auto; gap: 8px; align-items: center; }
+.medal { font-size: 20px; text-align: center; }
+.rs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-top: 6px; }
+.rs div { background: var(--mint-3); border-radius: 12px; padding: 4px 8px; text-align: center; }
+.rs b { display: block; font-size: 13px; }
+
+/* 4. trades */
+.books { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.books .card { text-align: center; padding: 8px; }
+.books b { display: block; font: 800 18px var(--bubble); }
+.prog { height: 10px; border-radius: 99px; background: var(--butter-3); overflow: hidden; margin-top: 4px; box-shadow: inset 0 0 0 2px var(--butter-2); }
+.prog > i { display: block; height: 100%; background: linear-gradient(90deg, var(--butter), var(--pink)); border-radius: 99px; }
+.pos { display: grid; grid-template-columns: 1fr auto; gap: 4px 10px; align-items: center; }
+.pct { font: 800 18px var(--bubble); }
+
+#toast { position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%); z-index: 9; background: var(--ink); color: #fff; padding: 8px 16px; border-radius: 99px; font-weight: 700; opacity: 0; transition: opacity .3s; pointer-events: none; max-width: 90vw; }
+#toast.show { opacity: 1; }
 </style>
 </head>
 <body>
+<div class="sky" aria-hidden="true">
+  <span style="left:6%;top:18%">✦</span><span style="left:22%;top:72%;animation-delay:-3s">♡</span><span style="left:48%;top:8%;animation-delay:-6s">✿</span>
+  <span style="left:70%;top:60%;animation-delay:-2s">☆</span><span style="left:90%;top:30%;animation-delay:-8s">♡</span><span style="left:36%;top:44%;animation-delay:-10s">✧</span>
+</div>
+
 <header>
-  <span class="heart" id="heart"></span>
-  <span class="mark">S<i>O</i>MA</span>
-  <span class="small" id="sub">a body for an agent</span>
+  <span class="heart" id="heart">♥</span>
+  <span class="logo">SOMA</span>
+  <select class="pill" id="persona" title="who's home"></select>
+  <span class="pill" id="brain" style="cursor:default">brain</span>
   <span class="spacer"></span>
-  <select id="persona" class="chip" title="Active persona"></select>
-  <span class="chip" id="brain">brain …</span>
-  <span class="chip" id="modeVoice">voice</span>
-  <span class="chip" id="modeHands">hands</span>
+  <div class="group"><span class="label">vibe check</span><span id="dial" class="group"></span></div>
+  <div class="group"><span class="label">for real?</span><span id="modes" class="group"></span></div>
 </header>
+
 <main>
-  <div class="col">
-    <section class="card" id="presence"></section>
-    <section class="card" id="conscience"></section>
-  </div>
-  <div class="col center">
-    <section class="card chat">
-      <h2>Talk <span class="small" id="busy"></span></h2>
-      <div class="msgs" id="msgs"></div>
-      <form class="say" id="say">
-        <textarea id="text" placeholder="say something… (Enter to send, Shift+Enter for a new line)"></textarea>
-        <button class="btn go">send</button>
-      </form>
-    </section>
-    <section class="card">
-      <h2>Nervous system <span class="small">live</span></h2>
-      <div class="stream" id="stream"></div>
-    </section>
-  </div>
-  <div class="col">
-    <section class="card">
-      <div class="tabs" id="tabs"></div>
-      <div id="tab"></div>
-    </section>
-  </div>
+  <section class="pane p1">
+    <h2><span class="n">1</span> to-do list 🍓 <span class="sub" id="todoSub"></span></h2>
+    <div class="body" id="p1"></div>
+  </section>
+
+  <section class="pane p2">
+    <h2><span class="n">2</span> thoughts, moods &amp; feelings 💭 <span class="sub" id="busy"></span></h2>
+    <div class="body" id="p2"></div>
+    <form class="chatbar" id="say">
+      <input class="field" id="text" autocomplete="off" placeholder="talk to her ♡">
+      <button class="btn">send ✧</button>
+    </form>
+  </section>
+
+  <section class="pane p3">
+    <h2><span class="n">3</span> fomo stats &amp; research 📈 <span class="sub" id="fomoSub"></span></h2>
+    <div class="body" id="p3"></div>
+  </section>
+
+  <section class="pane p4">
+    <h2><span class="n">4</span> current trades 💸 <span class="sub" id="tradeSub"></span></h2>
+    <div class="body" id="p4"></div>
+  </section>
 </main>
+<div id="toast"></div>
+
 <script>
 const TOKEN = '__SOMA_TOKEN__'
-let S = null
-let tab = (() => { try { return localStorage.getItem('soma.tab') || 'agenda' } catch { return 'agenda' } })()
-let sending = null
-let tick = 0
+let S = null, sending = null, tick = 0
+let mindTab = load('soma.mindTab', 'talk')
+const events = []
 
+function load(k, d) { try { return localStorage.getItem(k) || d } catch { return d } }
+function save(k, v) { try { localStorage.setItem(k, v) } catch {} }
 const $ = id => document.getElementById(id)
-/** h('div', {class: 'x', onclick}, 'text', child): text is always text, never HTML. */
+/** h('div', {class}, 'text', child): strings always land as text, never HTML. */
 function h(tag, attrs, ...kids) {
   const el = document.createElement(tag)
   for (const [k, v] of Object.entries(attrs || {})) {
@@ -133,25 +230,87 @@ function h(tag, attrs, ...kids) {
     else if (k === 'style') el.style.cssText = v
     else el.setAttribute(k, v === true ? '' : v)
   }
-  for (const c of kids.flat()) if (c != null && c !== false) el.append(c instanceof Node ? c : String(c))
+  for (const c of kids.flat(9)) if (c != null && c !== false) el.append(c instanceof Node ? c : String(c))
   return el
 }
-const api = async (path, body) => {
+async function api(path, body) {
   const r = await fetch(`/api/${path}`, { method: body ? 'POST' : 'GET', headers: { 'x-soma-token': TOKEN, 'content-type': 'application/json' }, body: body ? JSON.stringify(body) : undefined })
   const j = await r.json()
-  if (j.error) { flash(j.error); throw new Error(j.error) }
+  if (j.error) { toast(`oops: ${j.error}`); throw new Error(j.error) }
   return j
 }
-const act = (organ, action, body = {}) => api(`${organ}/${action}`, body).then(refresh)
-function flash(msg) { push({ at: Date.now(), type: 'ui.error', from: 'skin', data: msg }) }
-const ago = ms => { const m = Math.round((Date.now() - ms) / 60000); return m < 1 ? 'now' : m < 60 ? `${m}m` : m < 2880 ? `${Math.round(m / 60)}h` : `${Math.round(m / 1440)}d` }
-const time = ms => new Date(ms).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+const act = (organ, action, body = {}) => api(`${organ}/${action}`, body).then(r => { refresh(); return r })
+let toastT
+function toast(msg) { const t = $('toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('show'), 3500) }
+const ago = ms => { const m = Math.round((Date.now() - ms) / 60000); return m < 1 ? 'just now' : m < 60 ? `${m}m ago` : m < 2880 ? `${Math.round(m / 60)}h ago` : `${Math.round(m / 1440)}d ago` }
+const usd = n => { const a = Math.abs(n || 0); const s = a >= 1e6 ? `$${(a / 1e6).toFixed(2)}M` : a >= 1e3 ? `$${(a / 1e3).toFixed(1)}k` : `$${a.toFixed(0)}`; return n < 0 ? `-${s}` : s }
+const sign = n => `${n >= 0 ? '+' : ''}${n.toFixed(4)}`
+const empty = (emoji, text) => h('div', { class: 'empty' }, h('b', {}, emoji), text)
+const sw = (on, onclick, title) => h('button', { class: `switch ${on ? 'on' : ''}`, onclick, title, 'aria-pressed': on ? 'true' : 'false' })
+/** Don't redraw a pane while the person is typing in it. */
+const typingIn = id => document.activeElement && document.activeElement !== document.body && $(id).contains(document.activeElement) && document.activeElement.tagName === 'INPUT'
 
-// ---- the cat (from PACS idle-buddy) ----
+// ---------- header ----------
+function header() {
+  $('heart').className = `heart ${S.busy ? 'thinking' : ''}`
+  $('brain').textContent = S.brain === 'cli' ? '🧠 claude -p' : S.brain === 'api' ? '🧠 api' : `🧠 ${S.brain}`
+  const c = S.organs.conscience.view
+  $('dial').replaceChildren(...[['auto', '🌸 auto'], ['review', '👀 review'], ['paused', '💤 paused']].map(([d, label]) =>
+    h('button', { class: `pill ${c.dial === d ? `on ${d}` : ''}`, title: d === 'auto' ? 'rules + reviewer decide; flagged things wait for you' : d === 'review' ? 'everything waits for you' : 'nothing leaves the body',
+      onclick: () => act('conscience', 'dial', { dial: d }) }, label)))
+  $('modes').replaceChildren(...[['voice', '💌 posts'], ['hands', '💸 trades']].map(([o, label]) =>
+    h('button', { class: `pill ${c.live[o] ? 'live' : 'paper'}`, title: 'paper = pretend, LIVE = real',
+      onclick: () => {
+        const goLive = !c.live[o]
+        if (goLive && !confirm(o === 'voice' ? 'Go LIVE on X? Her posts will really publish.' : 'Go LIVE trading? Real BNB gets spent, within your limits.')) return
+        act('conscience', 'live', { organ: o, isLive: goLive })
+      } }, `${label}: ${c.live[o] ? 'LIVE 🔥' : 'paper 🧸'}`)))
+  const idv = S.organs.identity.view, sel = $('persona')
+  if (document.activeElement !== sel) sel.replaceChildren(...idv.personas.map(p => h('option', { value: p.id, selected: idv.active?.id === p.id }, `✿ ${p.name}`)))
+}
+
+function approvals(organ) {
+  const c = S.organs.conscience.view
+  return c.pending.filter(p => p.organ === organ).map(p => h('div', { class: 'approve' },
+    h('div', { class: 'row between' }, h('b', {}, `🙏 waiting for you · ${p.kind}`), h('span', { class: 'faint' }, ago(p.at))),
+    h('div', {}, p.summary),
+    h('div', { class: 'why' }, `why it's held: ${p.reasons.join(' · ')}`),
+    h('div', { class: 'row', style: 'justify-content:flex-end' },
+      h('button', { class: 'btn no small', onclick: () => act('conscience', 'reject', { id: p.id }) }, 'nope ✕'),
+      h('button', { class: 'btn small', style: '--c: var(--mint)', onclick: () => act('conscience', 'approve', { id: p.id }) }, `ok! ${c.live[organ] ? '(LIVE)' : '(paper)'}`))))
+}
+
+// ---------- 1. to-do ----------
+function p1() {
+  const a = S.organs.agenda.view
+  const open = a.todos.filter(t => !t.isDone).length
+  $('todoSub').textContent = `${open} open · ${a.todos.length - open} done`
+  if (typingIn('p1')) return
+  $('p1').replaceChildren(
+    h('form', { class: 'row', onsubmit: e => { e.preventDefault(); const v = $('todoIn').value.trim(); if (v) act('agenda', 'add', { text: v }); $('todoIn').value = '' } },
+      h('input', { class: 'field', id: 'todoIn', placeholder: 'a goal for her ✿', autocomplete: 'off' }), h('button', { class: 'btn' }, 'add ♡')),
+    h('div', { class: 'stack', style: 'margin-top:10px' }, a.todos.length ? [...a.todos].sort((x, y) => x.isDone - y.isDone).map(t =>
+      h('div', { class: `card todo ${t.isDone ? 'done' : ''}` },
+        h('button', { class: `check ${t.isDone ? 'on' : ''}`, onclick: () => act('agenda', 'toggle', { id: t.id }), 'aria-label': 'toggle' }, '♥'),
+        h('span', { class: 't' }, t.text), t.by === 'agent' ? h('span', { class: 'tag her' }, 'hers 🎀') : null,
+        h('button', { class: 'btn ghost small', onclick: () => act('agenda', 'remove', { id: t.id }), 'aria-label': 'remove' }, '✕')))
+      : empty('🌱', 'nothing on the list yet!')),
+    h('div', { class: 'sec' }, '💗 heartbeat', h('span', { class: 'faint' }, `${a.heart.beats} beats`)),
+    h('div', { class: 'card row wrap' },
+      sw(a.heart.isOn, () => act('agenda', 'heart', { isOn: !a.heart.isOn })),
+      h('span', {}, a.heart.isOn ? 'she works the list every' : 'off · would beat every'),
+      h('input', { class: 'field', type: 'number', min: 5, value: a.heart.everyMin, style: 'flex:none;width:72px;padding:4px 8px', onchange: e => act('agenda', 'heart', { everyMin: Number(e.target.value) }) }),
+      h('span', {}, 'min'), h('span', { class: 'spacer' }),
+      h('button', { class: 'btn small', onclick: () => { act('agenda', 'beat'); toast('ba-dum! ♥') } }, 'beat now')),
+    a.journal.length ? [h('div', { class: 'sec' }, '📓 beat notes'), h('div', { class: 'stack' }, a.journal.map(j => h('div', { class: 'note' }, h('div', { class: 'faint' }, `#${j.n} · ${ago(j.at)}`), j.text)))] : null,
+  )
+}
+
+// ---------- 2. thoughts, moods & feelings ----------
 const FACE = { euphoric: '^w^', hyped: '*o*', restless: 'o_o', tilted: '>_<', content: '^_^', focused: 'o.o', meh: '-_-', salty: '>.>', cozy: 'u_u', sleepy: '-.-', devastated: 'T_T' }
 function cat(mood, working) {
   const t = tick % 32, tail = ['~', '-', '~', '_'][Math.floor(tick / 2) % 4], ears = '  /\\_/\\'
-  if (working) { const e = tick % 4 < 2 ? 'o.O' : 'O.o'; return `${ears} ${['.  ', '.. ', '...', ' ..'][tick % 4]}\n ( ${e} )\n ${tick % 2 ? ' _<_^_>_ ' : ' _>_^_<_ '}` }
+  if (working) return `${ears} ${['♪  ', '♪♪ ', '♪♪♪', ' ♪♪'][tick % 4]}\n ( ${tick % 4 < 2 ? 'o.O' : 'O.o'} )\n ${tick % 2 ? ' _<_^_>_ ' : ' _>_^_<_ '}`
   const b = FACE[mood] || 'o.o'
   let f = ` ( ${b} )`
   if (t === 9 || t === 21 || t === 23) f = ' ( -.- )'
@@ -159,200 +318,183 @@ function cat(mood, working) {
   else if (t >= 16 && t <= 18) f = ` (  ${b})`
   return `${ears}\n${f}\n${Math.floor(tick / 4) % 2 ? '  >   <' : '  > ^ <'}  ${tail}`
 }
+const meter = (n, full, emptyIcon) => h('span', { class: 'meter' }, Array.from({ length: 5 }, (_, i) => h('i', { class: i < Math.round(n * 5) ? 'full' : '' }, i < Math.round(n * 5) ? full : emptyIcon)))
 
-function presence() {
-  const id = S.organs.identity?.view?.active, mood = S.organs.affect?.view
-  const el = $('presence')
-  el.replaceChildren(
-    h('div', { class: 'cat', id: 'cat' }, cat(mood?.label, !!S.busy)),
-    h('div', { class: 'who' }, id ? id.name : 'no persona'),
-    h('div', { class: 'tag' }, id?.tagline || ''),
-    mood ? [
-      h('div', { class: 'row', style: 'margin-top:12px' }, h('span', {}, `${mood.emoji} ${mood.label}`), h('span', { class: 'small' }, S.busy ? `thinking: ${S.busy.kind}` : 'resting')),
-      h('div', { class: 'small' }, 'valence'), h('div', { class: 'bar' }, h('b', { style: `left:${mood.valence < 0 ? 50 + mood.valence * 50 : 50}%;width:${Math.abs(mood.valence) * 50}%;background:${mood.valence < 0 ? 'var(--hot)' : 'var(--pulse)'}` })),
-      h('div', { class: 'small' }, 'energy'), h('div', { class: 'bar' }, h('b', { style: `left:0;width:${mood.energy * 100}%;background:var(--warm)` })),
-      h('div', { class: 'list', style: 'max-height:120px' }, mood.events.map(e => h('div', { class: 'small' }, `${ago(e.at)} · ${e.what}`))),
-    ] : null,
-  )
-}
-
-function conscience() {
-  const c = S.organs.conscience?.view
-  if (!c) return
-  $('conscience').replaceChildren(
-    h('h2', {}, 'Conscience', h('span', { class: 'small' }, `${c.pending.length} waiting`)),
-    h('div', { class: 'seg' }, ['auto', 'review', 'paused'].map(d => h('button', {
-      class: c.dial === d ? 'on' : '', 'data-v': d,
-      onclick: () => act('conscience', 'dial', { dial: d, why: d === 'paused' ? prompt('Why pause? (optional)') || '' : '' }),
-    }, d))),
-    h('div', { class: 'small', style: 'margin:6px 0 10px' }, c.dial === 'auto' ? 'Rules + a reviewer decide; anything flagged waits for you.' : c.dial === 'review' ? 'Everything waits for you (stop-losses excepted).' : `Nothing leaves the body. ${c.pausedWhy || ''}`),
-    ['voice', 'hands'].map(o => h('div', { class: 'toggle' },
-      h('span', {}, o, h('span', { class: 'small' }, o === 'voice' ? ' · X posts' : ' · BNB trades')),
-      h('button', { class: `sw ${c.live[o] ? 'live' : ''}`, onclick: () => {
-        const goLive = !c.live[o]
-        if (goLive && !confirm(o === 'voice' ? 'Go LIVE on X? Posts will really publish.' : 'Go LIVE trading? Real BNB will be spent within your limits.')) return
-        act('conscience', 'live', { organ: o, isLive: goLive })
-      } }, c.live[o] ? 'LIVE' : 'paper'))),
-    c.pending.map(p => h('div', { class: 'pending' },
-      h('div', {}, `${p.organ} · ${p.kind}`), h('div', { style: 'margin:4px 0' }, p.summary),
-      h('div', { class: 'why' }, p.reasons.join(' · ')),
-      h('div', { class: 'row', style: 'margin-top:8px;justify-content:flex-end' },
-        h('button', { class: 'btn no', onclick: () => act('conscience', 'reject', { id: p.id }) }, 'reject'),
-        h('button', { class: 'btn go', onclick: () => act('conscience', 'approve', { id: p.id }) }, `approve (${c.live[p.organ] ? 'LIVE' : 'paper'})`)))),
-    h('details', { style: 'margin-top:10px' }, h('summary', { class: 'small' }, 'allow list'),
-      h('div', { class: 'small', style: 'margin-top:6px' }, 'Domains and addresses she may share (her own site and token).'),
-      h('input', { class: 'text', id: 'allowD', placeholder: 'flapa.xyz, …', value: c.allow.domains.join(', ') }),
-      h('input', { class: 'text', id: 'allowA', placeholder: '0x… her own token', value: c.allow.addresses.join(', '), style: 'margin-top:6px' }),
-      h('button', { class: 'btn', style: 'margin-top:6px', onclick: () => act('conscience', 'allow', { domains: $('allowD').value, addresses: $('allowA').value }) }, 'save')),
-  )
-}
-
-function chat() {
-  const box = $('msgs'), atEnd = box.scrollHeight - box.scrollTop - box.clientHeight < 40
-  const msgs = S.chat.map(m => h('div', { class: `msg ${m.role === 'user' ? 'me' : 'her'}` }, typeof m.content === 'string' ? m.content : ''))
-  if (sending) msgs.push(h('div', { class: 'msg me' }, sending), h('div', { class: 'msg her pending' }, 'thinking…'))
-  if (!msgs.length) msgs.push(h('div', { class: 'empty' }, 'Say hi. She is awake whether or not you talk to her.'))
-  box.replaceChildren(...msgs)
-  if (atEnd || sending) box.scrollTop = box.scrollHeight
-}
-
-const TABS = {
-  agenda: () => {
-    const a = S.organs.agenda.view
-    return [
-      h('form', { class: 'row', onsubmit: e => { e.preventDefault(); const v = $('todo').value.trim(); if (v) act('agenda', 'add', { text: v }); $('todo').value = '' } },
-        h('input', { class: 'text', id: 'todo', placeholder: 'a goal for her…' }), h('button', { class: 'btn' }, 'add')),
-      h('div', { class: 'list', style: 'margin-top:8px' }, a.todos.length ? a.todos.map(t => h('div', { class: 'item row' },
-        h('label', { style: 'cursor:pointer' }, h('input', { type: 'checkbox', checked: t.isDone, onchange: () => act('agenda', 'toggle', { id: t.id }) }), ' ',
-          h('span', { class: t.isDone ? 'done' : '' }, t.text), t.by === 'agent' ? h('span', { class: 'small' }, ' · hers') : null),
-        h('button', { class: 'btn', onclick: () => act('agenda', 'remove', { id: t.id }) }, '×'))) : h('div', { class: 'empty' }, 'No goals yet.')),
-      h('h2', { style: 'margin-top:14px' }, 'Heartbeat', h('span', { class: 'small' }, `${a.heart.beats} beats`)),
-      h('div', { class: 'row' },
-        h('button', { class: `sw ${a.heart.isOn ? 'live' : ''}`, onclick: () => act('agenda', 'heart', { isOn: !a.heart.isOn }) }, a.heart.isOn ? 'on' : 'off'),
-        h('span', { class: 'small' }, 'every'), h('input', { class: 'text', type: 'number', min: 5, value: a.heart.everyMin, style: 'width:70px', onchange: e => act('agenda', 'heart', { everyMin: Number(e.target.value) }) }), h('span', { class: 'small' }, 'min'),
-        h('button', { class: 'btn', onclick: () => act('agenda', 'beat') }, 'beat now')),
-      h('div', { class: 'list', style: 'margin-top:8px' }, a.journal.map(j => h('div', { class: 'item' }, h('div', { class: 'small' }, `#${j.n} · ${ago(j.at)}`), j.text))),
-    ]
-  },
-  hands: () => {
-    const v = S.organs.hands.view, l = v.limits
-    return [
-      h('div', { class: 'row' }, h('span', {}, `today: ${v.day.spentBnb.toFixed(3)}/${l.maxDailyBnb} BNB`),
-        h('span', { class: v.day.realizedBnb >= 0 ? 'up' : 'down' }, `${v.day.realizedBnb >= 0 ? '+' : ''}${v.day.realizedBnb.toFixed(4)} BNB`)),
-      h('div', { class: 'toggle' }, h('span', {}, 'copy-scan fomo top traders'), h('button', { class: `sw ${v.scan ? 'live' : ''}`, onclick: () => act('hands', 'scan', { isOn: !v.scan }) }, v.scan ? 'on' : 'off')),
-      h('h2', { style: 'margin-top:10px' }, 'Positions'),
-      h('div', { class: 'list' }, v.positions.length ? v.positions.map(p => { const c = (p.lastPrice / p.entryPrice - 1) * 100; return h('div', { class: 'item' },
-        h('div', { class: 'row' }, h('b', {}, `$${p.symbol}`), h('span', { class: c >= 0 ? 'up' : 'down' }, `${c >= 0 ? '+' : ''}${c.toFixed(1)}%`)),
-        h('div', { class: 'small' }, `${p.paper ? 'paper' : 'LIVE'} · cost ${p.costBnb.toFixed(4)} BNB · ${ago(p.openedAt)}${p.tookProfit ? ' · trailing' : ''}`),
-        h('div', { class: 'row', style: 'justify-content:flex-end;margin-top:4px' }, h('button', { class: 'btn no', onclick: () => confirm(`Sell all $${p.symbol}?`) && act('hands', 'sell', { token: p.token, pct: 100 }) }, 'sell'))) }) : h('div', { class: 'empty' }, 'Flat.')),
-      h('h2', { style: 'margin-top:10px' }, 'Trades'),
-      h('div', { class: 'list' }, v.trades.map(t => h('div', { class: 'item' },
-        h('div', { class: 'row' }, h('span', {}, `${t.side} $${t.symbol} · ${t.bnb.toFixed(4)} BNB`), t.pnlBnb != null ? h('span', { class: t.pnlBnb >= 0 ? 'up' : 'down' }, `${t.pnlBnb >= 0 ? '+' : ''}${t.pnlBnb.toFixed(4)}`) : null),
-        h('div', { class: 'small' }, `${t.paper ? 'paper' : 'LIVE'} · ${t.by} · ${ago(t.at)} · ${t.why}`)))),
-      h('details', {}, h('summary', { class: 'small' }, 'limits'), Object.entries(l).map(([k, val]) => h('div', { class: 'row', style: 'margin-top:4px' },
-        h('span', { class: 'small' }, k), h('input', { class: 'text', style: 'width:110px', value: val, onchange: e => act('hands', 'limits', { [k]: Number(e.target.value) }) })))),
-    ]
-  },
-  voice: () => {
-    const v = S.organs.voice.view
-    return [
-      h('div', { class: 'small' }, v.connected ? `X connected${v.me ? ` as @${v.me.username}` : ''}` : 'X not connected (set the four X_* env vars). Paper posts still work.'),
-      h('div', { class: 'toggle' }, h('span', {}, 'auto-reply to mentions'), h('button', { class: `sw ${v.reply.mode === 'post' ? 'live' : ''}`, onclick: () => act('voice', 'autoreply', { isOn: v.reply.mode !== 'post' }) }, v.reply.mode === 'post' ? 'on' : 'off')),
-      h('h2', { style: 'margin-top:10px' }, 'Her feed'),
-      h('div', { class: 'list' }, v.posted.length ? v.posted.map(p => h('div', { class: 'item' }, p.text, h('div', { class: 'small' }, `${p.mode}${p.replyTo ? ' · reply' : ''} · ${ago(p.at)}`, p.url ? [' · ', h('a', { href: p.url, target: '_blank', rel: 'noopener' }, 'open')] : null))) : h('div', { class: 'empty' }, 'Nothing posted yet.')),
-      v.mentions.length ? [h('h2', { style: 'margin-top:10px' }, 'Mentions'), h('div', { class: 'list' }, v.mentions.map(m => h('div', { class: 'item' }, h('b', {}, `@${m.author} `), m.text)))] : null,
-    ]
-  },
-  eyes: () => {
-    const v = S.organs.eyes.view
-    return [
-      h('div', { class: 'row' }, h('span', { class: 'small' }, v.board ? `fomo ${v.board.window} · ${ago(v.board.at)}` : 'fomo leaderboard'), h('button', { class: 'btn', onclick: () => act('eyes', 'refresh', { window: '24h' }) }, 'refresh')),
-      h('div', { class: 'list', style: 'margin-top:8px' }, v.board ? v.board.rows.map(r => h('div', { class: 'item row' },
-        h('span', {}, `${r.rank}. ${r.handle}${r.x ? ` @${r.x}` : ''}`), h('span', { class: r.pnlUsd >= 0 ? 'up' : 'down' }, `$${Math.round(r.pnlUsd).toLocaleString()}`))) : h('div', { class: 'empty' }, 'Not looked yet.')),
-      h('div', { class: 'toggle', style: 'margin-top:10px' }, h('span', {}, `daily top-3 post at ${v.daily.hour}:00`), h('button', { class: `sw ${v.daily.isOn ? 'live' : ''}`, onclick: () => act('eyes', 'daily', { isOn: !v.daily.isOn }) }, v.daily.isOn ? 'on' : 'off')),
-    ]
-  },
-  beliefs: () => {
-    const l = S.organs.beliefs.view.ledger
-    return h('div', { class: 'list' }, l.length ? l.map(o => h('div', { class: 'item' },
-      h('div', { class: 'row' }, h('b', {}, o.topic), h('span', { class: 'small' }, `${Math.round(o.confidence * 100)}%`)), o.stance,
-      h('div', { class: 'small' }, `${o.reason}${o.history.length ? ` · was: "${o.history.at(-1).stance}"` : ''}`))) : h('div', { class: 'empty' }, 'No stances yet. Ask her what she thinks.'))
-  },
-  memory: () => {
-    const v = S.organs.memory.view
-    return [h('div', { class: 'small' }, `${v.count} memories`),
-      h('div', { class: 'list', style: 'margin-top:8px' }, v.recent.map(m => h('div', { class: 'item' }, m.text,
-        h('div', { class: 'row small' }, h('span', {}, `${m.kind} · ${m.about.join(', ')}`), h('button', { class: 'btn', onclick: () => act('memory', 'forget', { id: m.id }) }, 'forget')))))]
-  },
-  audit: () => h('div', { class: 'list' }, S.organs.conscience.view.log.map(a => h('div', { class: 'item' },
-    h('div', { class: 'row' }, h('span', {}, `${a.organ}.${a.kind}`), h('span', { class: a.verdict === 'done' ? 'up' : a.verdict === 'block' || a.verdict === 'failed' ? 'down' : 'small' }, `${a.verdict}${a.mode ? ` (${a.mode})` : ''}`)),
-    h('div', { class: 'small' }, `${ago(a.at)} · ${a.summary}`), a.reasons.length ? h('div', { class: 'small' }, a.reasons.join(' · ')) : null))),
-  forge: () => [
-    h('div', { class: 'small' }, 'Describe a new persona in your own words. She is drafted, saved under data/personas, and made active.'),
-    h('textarea', { class: 'text', id: 'forgeNotes', style: 'height:160px;margin-top:8px', placeholder: 'who are they, how do they talk, what do they care about…' }),
-    h('button', { class: 'btn go', style: 'margin-top:8px', onclick: e => { e.target.textContent = 'forging…'; act('identity', 'forge', { notes: $('forgeNotes').value }).finally(() => { e.target.textContent = 'forge' }) } }, 'forge'),
-  ],
-}
-
-function tabs() {
-  $('tabs').replaceChildren(...Object.keys(TABS).filter(k => k === 'audit' || k === 'forge' || S.organs[k]).map(k =>
-    h('button', { class: tab === k ? 'on' : '', onclick: () => { tab = k; try { localStorage.setItem('soma.tab', k) } catch {} ; render() } }, k)))
-  if (document.activeElement && $('tab').contains(document.activeElement)) return // don't redraw under the cursor
-  $('tab').replaceChildren(...[TABS[tab]?.() ?? []].flat())
-}
-
-function header() {
-  $('heart').className = `heart ${S.busy ? 'thinking' : 'alive'}`
-  $('brain').textContent = `brain: ${S.brain}`
-  $('busy').textContent = S.busy ? `thinking about a ${S.busy.kind}…` : ''
-  const live = S.organs.conscience?.view?.live || {}
-  for (const [id, o] of [['modeVoice', 'voice'], ['modeHands', 'hands']]) { $(id).textContent = `${o}: ${live[o] ? 'LIVE' : 'paper'}`; $(id).className = `chip ${live[o] ? 'live' : 'paper'}` }
-  const idv = S.organs.identity?.view, sel = $('persona')
-  if (idv && document.activeElement !== sel) sel.replaceChildren(...idv.personas.map(p => h('option', { value: p.id, selected: idv.active?.id === p.id }, p.name)))
-}
-
-function render() { if (!S) return; header(); presence(); conscience(); chat(); tabs() }
-let pending = null
-function refresh() { clearTimeout(pending); pending = setTimeout(async () => { try { S = await api('state'); render() } catch {} }, 120) }
-
-// ---- the nervous system ----
-function describe(s) {
+const THOUGHT_ICON = { 'turn.start': '💡', 'turn.text': '💭', 'tool.call': '🔧', 'tool.result': '✨', 'memory.added': '📝', mood: '💗', stance: '🌟', 'act.hold': '🙏', 'act.block': '🚫', 'act.done': '✅', 'turn.error': '😵', research: '🔍', trade: '💸', posted: '💌' }
+function thoughtText(s) {
   const d = s.data || {}
   switch (s.type) {
-    case 'turn.start': return `${d.kind}${d.from ? ` from ${d.from}` : ''}: ${String(d.text).slice(0, 140)}`
+    case 'turn.start': return `${d.kind === 'chat' ? 'you said' : `woke up for a ${d.kind}`}: ${String(d.text).slice(0, 160)}`
     case 'turn.text': return d.text
-    case 'turn.done': return `${d.kind} done${d.tools?.length ? ` · used ${d.tools.join(', ')}` : ''}`
-    case 'tool.call': return `${d.name} ${JSON.stringify(d.input).slice(0, 160)}`
+    case 'tool.call': return `using ${d.name}…`
     case 'tool.result': return `${d.name} → ${d.result}`
-    case 'mood': return `${d.emoji} ${d.label}: ${d.what}`
-    case 'memory.added': return d.texts.join(' · ')
-    case 'trade': return `${d.paper ? 'paper' : 'LIVE'} ${d.side} $${d.symbol} ${d.bnb.toFixed(4)} BNB`
-    case 'posted': return `${d.mode}: ${d.text}`
-    default: return s.type.startsWith('act.') ? `${d.organ}.${d.kind}: ${d.summary}${d.reasons?.length ? ` (${d.reasons.join('; ')})` : ''}` : typeof d === 'string' ? d : JSON.stringify(d).slice(0, 200)
+    case 'memory.added': return `remembered: ${d.texts.join(' · ')}`
+    case 'mood': return `${d.emoji} feeling ${d.label}: ${d.what}`
+    case 'stance': return `${d.change} a stance on ${d.topic}: ${d.stance}`
+    case 'turn.error': return `stumbled: ${d.error}`
+    case 'research': return `looked at $${d.symbol}: ${d.line}`
+    case 'trade': return `${d.paper ? 'paper' : 'LIVE'} ${d.side} $${d.symbol} · ${d.bnb.toFixed(4)} BNB`
+    case 'posted': return `${d.mode} post: ${d.text}`
+    default: return s.type.startsWith('act.') ? `${d.organ}.${d.kind} ${s.type.slice(4)}: ${d.summary}` : null
   }
 }
-function push(s) {
-  const cls = s.type.startsWith('act.') ? 'act' : s.type.includes('error') ? 'err' : s.type.startsWith('turn') ? 'turn' : ''
-  const box = $('stream')
-  box.prepend(h('div', { class: `ev ${cls}` }, h('span', { class: 't' }, time(s.at)), h('span', { class: 'k' }, s.type), h('span', { class: 'd' }, describe(s))))
-  while (box.children.length > 250) box.lastChild.remove()
-}
-function listen() {
-  const es = new EventSource(`/api/events?token=${TOKEN}`)
-  es.onmessage = e => { const s = JSON.parse(e.data); push(s); refresh() }
-  es.onerror = () => { es.close(); setTimeout(listen, 3000) }
+
+function p2() {
+  const mood = S.organs.affect.view, idv = S.organs.identity.view.active
+  $('busy').textContent = S.busy ? `thinking about a ${S.busy.kind}… ✍` : 'resting ♡'
+  if (typingIn('p2')) return
+  const pendingPosts = S.organs.conscience.view.pending.filter(p => p.organ === 'voice').length
+  const tabs = [['talk', '💬 talk'], ['thoughts', '💭 thoughts'], ['feelings', '💗 feelings'], ['beliefs', '🌟 beliefs'], ['posts', '💌 posts']]
+  const box = $('p2'), atEnd = box.scrollHeight - box.scrollTop - box.clientHeight < 60
+  box.replaceChildren(
+    h('div', { class: 'me-card' },
+      h('div', { class: 'cat', id: 'cat' }, cat(mood.label, !!S.busy)),
+      h('div', {},
+        h('div', { class: 'name' }, idv ? idv.name : 'nobody home'),
+        h('div', { class: 'dim' }, idv?.tagline || ''),
+        h('div', { class: 'bubble-mood' }, `${mood.emoji} ${mood.label}`),
+        h('div', { class: 'row wrap', style: 'margin-top:6px;gap:14px' },
+          h('span', { class: 'row' }, h('span', { class: 'faint' }, 'happy'), meter((mood.valence + 1) / 2, '💖', '🤍')),
+          h('span', { class: 'row' }, h('span', { class: 'faint' }, 'energy'), meter(mood.energy, '⚡', '·'))))),
+    h('div', { class: 'tabs' }, tabs.map(([k, label]) => h('button', { class: mindTab === k ? 'on' : '', onclick: () => { mindTab = k; save('soma.mindTab', k); p2() } }, label, k === 'posts' && pendingPosts ? h('span', { class: 'badge' }, pendingPosts) : null))),
+    MIND[mindTab](),
+  )
+  if (mindTab === 'talk' && (atEnd || sending)) box.scrollTop = box.scrollHeight
 }
 
+const MIND = {
+  talk: () => {
+    const msgs = S.chat.map(m => h('div', { class: `msg ${m.role === 'user' ? 'me' : 'her'}` }, typeof m.content === 'string' ? m.content : ''))
+    if (sending) msgs.push(h('div', { class: 'msg me' }, sending), h('div', { class: 'msg her wait' }, 'thinking… ✍'))
+    return msgs.length ? h('div', { class: 'msgs' }, msgs) : empty('👋', "say hi! she's awake even when you're not talking")
+  },
+  thoughts: () => {
+    const list = events.filter(s => THOUGHT_ICON[s.type]).slice(-60).reverse()
+    return list.length ? h('div', { class: 'stack' }, list.map(s => {
+      const text = thoughtText(s)
+      return text ? h('div', { class: 'thought' }, h('span', { class: 'ic' }, THOUGHT_ICON[s.type]), h('div', { class: 'card' }, text, h('div', { class: 'faint' }, ago(s.at)))) : null
+    })) : empty('🫧', 'her head is quiet right now')
+  },
+  feelings: () => {
+    const m = S.organs.affect.view
+    return h('div', { class: 'stack' },
+      h('div', { class: 'card dim' }, `valence ${m.valence.toFixed(2)} · energy ${m.energy.toFixed(2)} · moods drift back to normal over a few hours`),
+      m.events.length ? m.events.map(e => h('div', { class: 'card row between' }, h('span', {}, e.what),
+        h('span', { class: e.valence >= 0 ? 'up' : 'down' }, `${e.valence >= 0 ? '↑' : '↓'} ${ago(e.at)}`))) : empty('😌', 'nothing has moved her mood lately'))
+  },
+  beliefs: () => {
+    const l = S.organs.beliefs.view.ledger, mem = S.organs.memory.view
+    return [
+      l.length ? h('div', { class: 'stack' }, l.map(o => h('div', { class: 'card' },
+        h('div', { class: 'row between' }, h('b', {}, `🌟 ${o.topic}`), h('span', { class: 'tag' }, `${Math.round(o.confidence * 100)}% sure`)),
+        h('div', {}, o.stance), h('div', { class: 'faint' }, `because ${o.reason}${o.history.length ? ` · used to think "${o.history.at(-1).stance}"` : ''}`)))) : empty('🌟', 'no stances yet. ask what she thinks!'),
+      h('div', { class: 'sec' }, `📝 memories`, h('span', { class: 'faint' }, `${mem.count} kept`)),
+      h('div', { class: 'stack' }, mem.recent.slice(0, 12).map(m => h('div', { class: 'card row between' }, h('span', {}, m.text),
+        h('button', { class: 'btn ghost small', onclick: () => act('memory', 'forget', { id: m.id }) }, 'forget')))),
+    ]
+  },
+  posts: () => {
+    const v = S.organs.voice.view
+    return [
+      ...approvals('voice'),
+      h('div', { class: 'card row wrap', style: 'margin:8px 0' }, sw(v.reply.mode === 'post', () => act('voice', 'autoreply', { isOn: v.reply.mode !== 'post' })),
+        h('span', {}, 'reply to mentions by herself'), h('span', { class: 'faint' }, v.connected ? `· X connected${v.me ? ` as @${v.me.username}` : ''}` : '· X not connected (paper posts still work)')),
+      v.posted.length ? h('div', { class: 'stack' }, v.posted.map(p => h('div', { class: 'card' }, p.text,
+        h('div', { class: 'row', style: 'margin-top:4px' }, h('span', { class: `tag ${p.mode === 'live' ? 'hot' : ''}` }, p.mode === 'live' ? 'LIVE 🔥' : 'paper 🧸'),
+          p.replyTo ? h('span', { class: 'tag' }, 'reply') : null, h('span', { class: 'faint' }, ago(p.at)),
+          p.url ? h('a', { href: p.url, target: '_blank', rel: 'noopener', class: 'faint' }, 'open ↗') : null)))) : empty('💌', 'no posts yet'),
+    ]
+  },
+}
+
+// ---------- 3. fomo stats & research ----------
+let fomoWin = load('soma.fomoWin', '24h')
+function p3() {
+  const v = S.organs.eyes.view
+  $('fomoSub').textContent = v.board ? `board ${v.board.window} · ${ago(v.board.at)}` : ''
+  if (typingIn('p3')) return
+  const medals = ['🥇', '🥈', '🥉']
+  $('p3').replaceChildren(
+    h('div', { class: 'row between wrap' },
+      h('span', { class: 'seg' }, ['24h', '7d', '30d', 'all'].map(w => h('button', { class: fomoWin === w ? 'on' : '', onclick: () => { fomoWin = w; save('soma.fomoWin', w); p3() } }, w))),
+      h('button', { class: 'btn small', onclick: e => { e.target.textContent = 'peeking… 👀'; act('eyes', 'refresh', { window: fomoWin }).catch(() => {}).finally(() => p3()) } }, 'refresh ↻')),
+    h('div', { class: 'sec' }, '🏆 fomo leaderboard'),
+    v.board?.rows?.length ? h('div', { class: 'stack' }, v.board.rows.map((r, i) => h('div', { class: 'card lb' },
+      h('span', { class: 'medal' }, medals[i] || `#${r.rank}`),
+      h('div', {}, h('b', {}, r.handle), r.x ? h('span', { class: 'faint' }, ` @${r.x}`) : null,
+        h('div', { class: 'faint' }, `${r.trades} trades${r.top ? ` · best: $${r.top.symbol} (${usd(r.top.pnlUsd)})` : ''}`)),
+      h('span', { class: r.pnlUsd >= 0 ? 'up' : 'down' }, usd(r.pnlUsd))))) : empty('🏆', 'no board yet. tap refresh!'),
+    h('div', { class: 'card row wrap', style: 'margin-top:10px' }, sw(v.daily.isOn, () => act('eyes', 'daily', { isOn: !v.daily.isOn })),
+      h('span', {}, `post the top 3 every day at ${v.daily.hour}:00`), v.daily.lastDay ? h('span', { class: 'faint' }, `· last ${v.daily.lastDay}`) : null),
+    h('div', { class: 'sec' }, '🔍 research'),
+    h('form', { class: 'row', onsubmit: e => { e.preventDefault(); const t = $('lookIn').value.trim(); if (!t) return; act('eyes', 'market', { token: t }).then(() => { $('lookIn').value = '' }).catch(() => {}) } },
+      h('input', { class: 'field', id: 'lookIn', placeholder: 'paste a BNB Chain token 0x…', autocomplete: 'off' }), h('button', { class: 'btn' }, 'look 👀')),
+    h('div', { class: 'stack', style: 'margin-top:8px' }, (v.research || []).length ? v.research.map(r => h('div', { class: 'card' },
+      h('div', { class: 'row between' }, h('b', {}, `$${r.symbol}`),
+        h('span', { class: 'row' }, h('span', { class: `tag ${r.by === 'agent' ? 'her' : ''}` }, r.by === 'agent' ? 'she looked 🎀' : 'you looked'), h('span', { class: 'faint' }, ago(r.at)))),
+      r.priceUsd != null ? h('div', { class: 'rs' },
+        h('div', {}, h('span', { class: 'faint' }, 'mcap'), h('b', {}, usd(r.marketCapUsd))),
+        h('div', {}, h('span', { class: 'faint' }, 'liquidity'), h('b', {}, usd(r.liquidityUsd))),
+        h('div', {}, h('span', { class: 'faint' }, '24h'), h('b', { class: r.change24hPct >= 0 ? 'up' : 'down' }, `${r.change24hPct >= 0 ? '+' : ''}${r.change24hPct}%`))) : null,
+      h('div', { class: 'faint', style: 'margin-top:6px' }, r.line),
+      h('div', { class: 'faint' }, r.token))) : empty('🔍', 'nothing researched yet')),
+  )
+}
+
+// ---------- 4. current trades ----------
+function p4() {
+  const v = S.organs.hands.view, l = v.limits, live = S.organs.conscience.view.live.hands
+  $('tradeSub').textContent = live ? 'LIVE 🔥' : 'paper 🧸'
+  if (typingIn('p4')) return
+  $('p4').replaceChildren(
+    h('div', { class: 'books' },
+      h('div', { class: 'card' }, h('span', { class: 'faint' }, 'spent today'), h('b', {}, `${v.day.spentBnb.toFixed(3)}`),
+        h('div', { class: 'prog' }, h('i', { style: `width:${Math.min(100, (v.day.spentBnb / l.maxDailyBnb) * 100)}%` })), h('span', { class: 'faint' }, `of ${l.maxDailyBnb} BNB`)),
+      h('div', { class: 'card' }, h('span', { class: 'faint' }, 'realized'), h('b', { class: v.day.realizedBnb >= 0 ? 'up' : 'down' }, sign(v.day.realizedBnb)), h('span', { class: 'faint' }, `stop at -${l.maxDailyLossBnb}`)),
+      h('div', { class: 'card' }, h('span', { class: 'faint' }, 'open'), h('b', {}, `${v.positions.length}/${l.maxOpen}`), h('span', { class: 'faint' }, 'positions'))),
+    ...approvals('hands'),
+    h('div', { class: 'card row wrap', style: 'margin-top:10px' }, sw(v.scan, () => act('hands', 'scan', { isOn: !v.scan })),
+      h('span', {}, 'copy-scan fomo top traders'), h('span', { class: 'faint' }, '· she judges each signal herself')),
+    h('div', { class: 'sec' }, '🛍️ holding'),
+    v.positions.length ? h('div', { class: 'stack' }, v.positions.map(p => {
+      const c = (p.lastPrice / p.entryPrice - 1) * 100
+      return h('div', { class: 'card pos' },
+        h('div', {}, h('b', {}, `$${p.symbol} `), h('span', { class: `tag ${p.paper ? '' : 'hot'}` }, p.paper ? 'paper 🧸' : 'LIVE 🔥'), p.tookProfit ? h('span', { class: 'tag' }, ' half taken · trailing') : null),
+        h('span', { class: `pct ${c >= 0 ? 'up' : 'down'}` }, `${c >= 0 ? '+' : ''}${c.toFixed(1)}% ${c >= 0 ? '🚀' : '🥲'}`),
+        h('span', { class: 'faint' }, `cost ${p.costBnb.toFixed(4)} BNB · opened ${ago(p.openedAt)}`),
+        h('button', { class: 'btn no small', onclick: () => confirm(`Sell all $${p.symbol}?`) && act('hands', 'sell', { token: p.token, pct: 100 }) }, 'sell all'))
+    })) : empty('🧺', 'no bags right now'),
+    h('div', { class: 'sec' }, '🧾 trade diary'),
+    v.trades.length ? h('div', { class: 'stack' }, v.trades.map(t => h('div', { class: 'card' },
+      h('div', { class: 'row between' }, h('span', {}, `${t.side === 'buy' ? '🛒 bought' : '💰 sold'} $${t.symbol} · ${t.bnb.toFixed(4)} BNB`),
+        t.pnlBnb != null ? h('span', { class: t.pnlBnb >= 0 ? 'up' : 'down' }, sign(t.pnlBnb)) : null),
+      h('div', { class: 'faint' }, `${t.paper ? 'paper' : 'LIVE'} · ${t.by === 'exit' ? 'auto exit' : t.by} · ${ago(t.at)}${t.why ? ` · ${t.why}` : ''}`)))) : empty('🧾', 'no trades yet'),
+    h('details', { style: 'margin-top:12px' }, h('summary', { class: 'dim', style: 'cursor:pointer' }, '⚙️ limits (enforced in code)'),
+      h('div', { class: 'stack', style: 'margin-top:8px' }, Object.entries(l).map(([k, val]) => h('div', { class: 'row between' },
+        h('span', { class: 'dim' }, k), h('input', { class: 'field', style: 'flex:none;width:110px;padding:4px 8px', value: val, onchange: e => act('hands', 'limits', { [k]: Number(e.target.value) }) }))))),
+  )
+}
+
+// ---------- plumbing ----------
+function render() { if (!S) return; header(); p1(); p2(); p3(); p4() }
+let pend
+function refresh() { clearTimeout(pend); pend = setTimeout(async () => { try { S = await api('state'); render() } catch {} }, 150) }
+function listen() {
+  const es = new EventSource(`/api/events?token=${TOKEN}`)
+  es.onmessage = e => { events.push(JSON.parse(e.data)); if (events.length > 300) events.shift(); refresh() }
+  es.onerror = () => { es.close(); setTimeout(listen, 3000) }
+}
 $('say').addEventListener('submit', async e => {
   e.preventDefault()
   const text = $('text').value.trim()
   if (!text || sending) return
-  sending = text; $('text').value = ''; render()
-  try { await api('chat', { text }) } finally { sending = null; refresh() }
+  sending = text; $('text').value = ''
+  if (mindTab !== 'talk') { mindTab = 'talk'; save('soma.mindTab', 'talk') }
+  render()
+  try { await api('chat', { text }) } catch {} finally { sending = null; refresh() }
 })
-$('text').addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); $('say').requestSubmit() } })
 $('persona').addEventListener('change', e => act('identity', 'activate', { id: e.target.value }))
-setInterval(() => { tick++; const c = $('cat'); if (c && S) c.textContent = cat(S.organs.affect?.view?.label, !!S.busy) }, 300)
+setInterval(() => { tick++; const c = $('cat'); if (c && S) c.textContent = cat(S.organs.affect.view.label, !!S.busy) }, 300)
 setInterval(refresh, 15000)
 refresh(); listen()
 </script>

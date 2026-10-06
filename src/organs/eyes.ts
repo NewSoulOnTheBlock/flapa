@@ -5,6 +5,11 @@ import type { Organ } from '../core/types'
 import { FOMO_MCP_URL, isDue, parseToolReply, postBrief, rpcBody, toRows, DAILY_DEFAULT, type DailyConfig, type FomoRow, type FomoWindow } from '../lib/fomo'
 import { dexUrl, marketLine, pickPool, type Market } from '../lib/market'
 
+export type Research = {
+  at: number; by: 'agent' | 'person'; token: string; symbol: string; line: string
+  priceUsd?: number; liquidityUsd?: number; change24hPct?: number; marketCapUsd?: number
+}
+
 export type Eyes = Organ & {
   market(token: string): Promise<Market | null>
   fomo(tool: string, args: Record<string, unknown>): Promise<any>
@@ -42,6 +47,17 @@ export function eyes(body: Body, fetcher: typeof fetch = fetch): Eyes {
     return rows
   }
 
+  /** Every lookup, hers or the person's, kept for the research pane. */
+  async function research(token: string, by: 'agent' | 'person'): Promise<string> {
+    const m = await market(token)
+    const note: Research = m
+      ? { at: Date.now(), by, token: m.token, symbol: m.symbol, line: marketLine(m), priceUsd: m.priceUsd, liquidityUsd: m.liquidityUsd, change24hPct: m.change24hPct, marketCapUsd: m.marketCapUsd }
+      : { at: Date.now(), by, token, symbol: '?', line: 'no PancakeSwap v2 WBNB pool for that token' }
+    store.update<Research[]>('research', [], l => [note, ...l.filter(r => r.token.toLowerCase() !== note.token.toLowerCase())].slice(0, 20))
+    body.bus.emit('research', 'eyes', note)
+    return note.line
+  }
+
   const daily = () => ({ ...DAILY_DEFAULT, ...store.get<Partial<DailyConfig>>('daily', {}) })
 
   return {
@@ -56,8 +72,7 @@ export function eyes(body: Body, fetcher: typeof fetch = fetch): Eyes {
         input_schema: { type: 'object', properties: { token: { type: 'string', description: '0x contract address' } }, required: ['token'] },
         run: async ({ token }) => {
           if (!/^0x[0-9a-fA-F]{40}$/.test(String(token))) return 'error: token must be a 0x address'
-          const m = await market(String(token))
-          return m ? marketLine(m) : 'no PancakeSwap v2 WBNB pool for that token'
+          return research(String(token), 'agent')
         },
       },
       {
@@ -80,8 +95,12 @@ export function eyes(body: Body, fetcher: typeof fetch = fetch): Eyes {
         if (rows.length) await body.think({ kind: 'daily', text: postBrief(rows, '24h'), from: 'eyes' })
       },
     }],
-    view: () => ({ board: store.get('board', null), daily: daily() }),
+    view: () => ({ board: store.get('board', null), daily: daily(), research: store.get<Research[]>('research', []) }),
     actions: {
+      market: async ({ token }) => {
+        if (!/^0x[0-9a-fA-F]{40}$/.test(String(token))) throw new Error('paste a 0x token address')
+        return research(String(token), 'person')
+      },
       refresh: async ({ window }) => board((window as FomoWindow) || '24h'),
       daily: ({ isOn, hour }) => store.set('daily', {
         ...daily(),
