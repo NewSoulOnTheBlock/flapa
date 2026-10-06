@@ -3,6 +3,7 @@ import { join, resolve } from 'node:path'
 import { Body } from './core/body'
 import { pickBrain } from './core/brain'
 import { startPublishing } from './core/publish'
+import { mem0FromEnv } from './lib/mem0'
 import { applySeed } from './core/seed'
 import { serve } from './core/server'
 import { affect } from './organs/affect'
@@ -28,7 +29,7 @@ body.grow(
   beliefs(body),
   agenda(body),
   affect(body),
-  memory(body),
+  memory(body, { mem0: mem0FromEnv(process.env) }),
   eyes(body),
   voice(body, { catalogDir: join(root, 'personas') }),
   hands(body, nodeHelper(root)),

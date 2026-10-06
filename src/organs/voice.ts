@@ -2,11 +2,13 @@
 // depended on Claude Code's browser extension and stay behind). Paper mode keeps posts in a local feed.
 import type { Body } from '../core/body'
 import type { Mode, Organ, Outward } from '../core/types'
-import { cleanReply, newerId, nextSinceId, pickNew, replyPrompt, replySystem, CHECK_EVERY_MS, type XMention } from '../lib/autoreply'
+import { cleanReply, newerId, nextSinceId, pickNew, replySystem, CHECK_EVERY_MS, type XMention } from '../lib/autoreply'
 import { checkCrisis, statementPrompt } from '../lib/crisis'
+import { notePerson, opportunityQuery, pickOpportunities, planMention, replyBrief, strength, YELLOW_FOLLOWERS, type Candidate as ReplyCandidate, type Person } from '../lib/social'
+import type { MemoryOrgan } from './memory'
 import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { authorization, credentialsFromEnv, nonce } from '../lib/oauth'
+import { authorization, credentialsFromEnv, nonce, pct } from '../lib/oauth'
 import { bestHours, learn, learningNote, statFromTweet, weightNudges, type Learning, type PostStat } from '../lib/analytics'
 import { engineBrief, nudged, pickTopic, validateCatalog, type Catalog, type Pick as TopicPick, type PostRecord } from '../lib/posting'
 import { MAX_WEIGHT, weightedLength } from '../lib/xtext'
@@ -129,9 +131,17 @@ export function voice(body: Body, opts: VoiceOptions | typeof fetch = {}): Organ
 
   async function readMentions(since?: string): Promise<XMention[]> {
     const { id } = await me()
-    const r = await x('GET', `/users/${id}/mentions?max_results=20&tweet.fields=created_at&expansions=author_id&user.fields=username${since ? `&since_id=${since}` : ''}`)
-    const users = new Map<string, string>((r.includes?.users ?? []).map((u: any) => [u.id, u.username]))
-    const list: XMention[] = (r.data ?? []).map((t: any) => ({ id: t.id, author: users.get(t.author_id) ?? t.author_id, text: t.text, at: Date.parse(t.created_at) || Date.now() }))
+    // One read brings the authors (with follower counts) and the post each mention answers, for context.
+    const r = await x('GET', `/users/${id}/mentions?max_results=20&tweet.fields=created_at,referenced_tweets&expansions=author_id,referenced_tweets.id&user.fields=username,public_metrics${since ? `&since_id=${since}` : ''}`)
+    const users = new Map<string, any>((r.includes?.users ?? []).map((u: any) => [u.id, u]))
+    const parents = new Map<string, string>((r.includes?.tweets ?? []).map((t: any) => [t.id, t.text]))
+    const list: XMention[] = (r.data ?? []).map((t: any) => {
+      const u = users.get(t.author_id)
+      const parent = (t.referenced_tweets ?? []).find((x: any) => x.type === 'replied_to' || x.type === 'quoted')
+      return { id: t.id, author: u?.username ?? t.author_id, text: t.text, at: Date.parse(t.created_at) || Date.now(), followers: Number(u?.public_metrics?.followers_count) || 0, context: parent ? parents.get(parent.id) : undefined }
+    })
+    const fresh = list.filter(m => !store.get<XMention[]>('mentions', []).some(o => o.id === m.id))
+    store.update<Record<string, Person>>('people', {}, p => fresh.reduce((acc, m) => notePerson(acc, { handle: m.author, at: m.at ?? Date.now(), text: m.text, kind: planMention(m.text, m.followers).kind, followers: m.followers }), p))
     const seen = new Set(list.map(m => m.id))
     store.set('mentions', [...list, ...store.get<XMention[]>('mentions', []).filter(m => !seen.has(m.id))].slice(0, 50))
     if (list[0]) store.set('watchSince', list.reduce((a, m) => (newerId(m.id, a) ? m.id : a), store.get<string>('watchSince', list[0].id)))
@@ -154,6 +164,53 @@ export function voice(body: Body, opts: VoiceOptions | typeof fetch = {}): Organ
   }
 
   const learning = (): Learning | null => learn(store.get<PostStat[]>('stats', []))
+
+  const mem = () => (body.has('memory') ? body.organ<MemoryOrgan>('memory') : null)
+  const remembered = async (handle: string, text: string) => { try { return (await mem()?.aboutPerson(handle, text)) ?? [] } catch { return [] } }
+
+  /** Writes and sends one reply (or holds it): through the same gate as every post. Returns the gate's answer. */
+  async function answer(o: { replyTo: string; author: string; text: string; context?: string; kind: Parameters<typeof replyBrief>[0]['kind']; yellow?: string }): Promise<string | null> {
+    const brief = replyBrief({ author: o.author, text: o.text, context: o.context, remembered: await remembered(o.author, o.text), kind: o.kind })
+    const text = cleanReply(await body.brain.quick(replySystem(persona()), brief), o.author)
+    if (!text || tooLong(text)) return null
+    const result = await body.act({
+      organ: 'voice', kind: 'reply', summary: `reply to @${o.author}: ${text}`, text, context: o.text, payload: { text, replyTo: o.replyTo }, by: 'rhythm',
+      ...(o.yellow ? { tier: 'yellow' as const, tierWhy: o.yellow } : {}),
+    })
+    if (/^done/.test(result)) {
+      store.update<Record<string, Person>>('people', {}, p => notePerson(p, { handle: o.author, at: Date.now(), text, replied: true }))
+      await mem()?.notePerson(o.author, o.text, text)
+    }
+    return result
+  }
+
+  type Outbound = { isOn: boolean; watch: string[]; perDay: number; lastAt: number }
+  const OUTBOUND: Outbound = { isOn: false, watch: [], perDay: 6, lastAt: 0 }
+  const outbound = (): Outbound => ({ ...OUTBOUND, ...store.get<Partial<Outbound>>('outbound', {}) })
+  type OutLog = { at: number; id: string; author: string; score: number; parts: Record<string, number>; result: string }
+
+  /** One outbound pass: search her watch list (or niche), score the posts, answer the best one. */
+  async function seekReplies(): Promise<string> {
+    const cfg = outbound()
+    store.set('outbound', { ...cfg, lastAt: Date.now() })
+    const log = store.get<OutLog[]>('outboundLog', [])
+    const today = log.filter(l => Date.now() - l.at < 86_400_000 && /^(done|held)/.test(l.result)).length
+    if (today >= cfg.perDay) return `daily cap reached (${cfg.perDay})`
+    const q = pct(opportunityQuery(cfg.watch))
+    const r = await x('GET', `/tweets/search/recent?query=${q}&max_results=20&tweet.fields=created_at,public_metrics,author_id&expansions=author_id&user.fields=username,public_metrics`)
+    const users = new Map<string, any>((r.includes?.users ?? []).map((u: any) => [u.id, u]))
+    const cands: ReplyCandidate[] = (r.data ?? []).map((t: any) => {
+      const u = users.get(t.author_id), m = t.public_metrics ?? {}
+      return { id: t.id, author: u?.username ?? t.author_id, authorFollowers: Number(u?.public_metrics?.followers_count) || 0, text: t.text, at: Date.parse(t.created_at) || 0, likes: m.like_count ?? 0, replies: m.reply_count ?? 0, reposts: m.retweet_count ?? 0 }
+    })
+    const { username } = await me()
+    const best = pickOpportunities(cands, Date.now(), new Set(cfg.watch.map(w => w.replace(/^@/, '').toLowerCase())), { self: username, already: new Set(log.map(l => l.id)) })[0]
+    if (!best) return `nothing worth a reply among ${cands.length} posts`
+    const big = best.c.authorFollowers >= YELLOW_FOLLOWERS ? `@${best.c.author} has ${best.c.authorFollowers.toLocaleString('en-US')} followers` : undefined
+    const result = (await answer({ replyTo: best.c.id, author: best.c.author, text: best.c.text, kind: 'outbound', yellow: big })) ?? 'no reply written'
+    store.update<OutLog[]>('outboundLog', [], l => [{ at: Date.now(), id: best.c.id, author: best.c.author, score: best.score, parts: best.parts, result: result.slice(0, 200) }, ...l].slice(0, 100))
+    return result
+  }
 
   /** Reads her own recent posts' numbers and her follower count. Tags come from what the engine recorded. */
   async function measure(): Promise<string> {
@@ -249,6 +306,10 @@ export function voice(body: Body, opts: VoiceOptions | typeof fetch = {}): Organ
       due: now => !!creds() && now - store.get<number>('metricsAt', 0) >= METRICS_EVERY_MS,
       run: async () => { await measure() },
     }, {
+      name: 'outbound-replies',
+      due: now => !!creds() && outbound().isOn && now - outbound().lastAt >= 2 * 3_600_000,
+      run: async () => { await seekReplies() },
+    }, {
       // With auto-reply off, mentions are still read (from the newest one seen) so a pile-on is never missed.
       name: 'watch',
       due: (now, last) => !!creds() && reply().mode !== 'post' && now - last >= CHECK_EVERY_MS,
@@ -271,9 +332,10 @@ export function voice(body: Body, opts: VoiceOptions | typeof fetch = {}): Organ
         for (const m of todo) {
           handled.add(m.id) // Marked before answering: a crash mid-reply must never answer twice.
           mark()
-          const text = cleanReply(await body.brain.quick(replySystem(persona()), replyPrompt(m)), m.author)
-          if (!text || tooLong(text)) continue
-          await body.act({ organ: 'voice', kind: 'reply', summary: `reply to @${m.author}: ${text}`, text, context: m.text, payload: { text, replyTo: m.id }, by: 'rhythm' })
+          const plan = planMention(m.text, m.followers)
+          store.update<{ id: string; author: string; kind: string; reply: string; why: string; at: number }[]>('triage', [], l => [{ id: m.id, author: m.author, kind: plan.kind, reply: plan.reply, why: plan.why, at: Date.now() }, ...l].slice(0, 60))
+          if (plan.reply === 'skip') continue
+          await answer({ replyTo: m.id, author: m.author, text: m.text, context: m.context, kind: plan.kind, yellow: plan.reply === 'yellow' ? plan.why : undefined })
         }
         mark()
       },
@@ -292,6 +354,11 @@ export function voice(body: Body, opts: VoiceOptions | typeof fetch = {}): Organ
       })(),
       posted: store.get<Posted[]>('posted', []).slice(0, 30), mentions: store.get<XMention[]>('mentions', []).slice(0, 15),
       crisis: store.get('crisis', null),
+      people: Object.values(store.get<Record<string, Person>>('people', {}))
+        .map(p => ({ ...p, strength: Math.round(strength(p) * 100) / 100 }))
+        .sort((a, b) => b.strength - a.strength || b.lastAt - a.lastAt).slice(0, 20),
+      triage: store.get('triage', []).slice(0, 10),
+      outbound: { ...outbound(), log: store.get<OutLog[]>('outboundLog', []).slice(0, 8) },
       analytics: (() => {
         const l = learning()
         return { growth: growth(), measuredAt: store.get<number>('metricsAt', 0), learning: l, bestHours: bestHours(l), note: learningNote(l) }
@@ -299,6 +366,19 @@ export function voice(body: Body, opts: VoiceOptions | typeof fetch = {}): Organ
     }),
     actions: {
       autoreply: ({ isOn }) => store.set('reply', { ...reply(), mode: isOn ? 'post' : 'off' }),
+      /** Outbound replies: on/off, the accounts she watches, and a daily cap. */
+      outbound: ({ isOn, watch, perDay }) => {
+        const next = { ...outbound() }
+        if (typeof isOn === 'boolean') next.isOn = isOn
+        if (watch !== undefined) next.watch = String(watch).split(/[\s,]+/).map(h => h.replace(/^@/, '')).filter(h => /^\w{1,15}$/.test(h)).slice(0, 15)
+        if (perDay !== undefined) {
+          const n = Number(perDay)
+          if (!(n >= 1 && n <= 24)) throw new Error('1 to 24 outbound replies a day')
+          next.perDay = n
+        }
+        return store.set('outbound', next)
+      },
+      seekNow: async () => ({ result: await seekReplies() }),
       /** The person has handled it: the crisis banner goes away (the dial is theirs to set back). */
       clearCrisis: () => store.set('crisis', { ...(store.get<object | null>('crisis', null) ?? {}), active: false }),
       /** Reads her posts' numbers now instead of waiting for the six-hour clock. */

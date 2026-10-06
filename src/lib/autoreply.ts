@@ -1,5 +1,5 @@
 // Auto-reply logic, carried over from PACS x-bridge: which mentions are new and how a reply is written.
-export type XMention = { id: string; author: string; text: string; at?: number }
+export type XMention = { id: string; author: string; text: string; at?: number; followers?: number; context?: string }
 
 export const CHECK_EVERY_MS = 10 * 60_000
 /** At most this many replies per check: the rest wait for the next one. */
