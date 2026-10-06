@@ -243,6 +243,7 @@ const act = (organ, action, body = {}) => api(`${organ}/${action}`, body).then(r
 let toastT
 function toast(msg) { const t = $('toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('show'), 3500) }
 const ago = ms => { const m = Math.round((Date.now() - ms) / 60000); return m < 1 ? 'just now' : m < 60 ? `${m}m ago` : m < 2880 ? `${Math.round(m / 60)}h ago` : `${Math.round(m / 1440)}d ago` }
+const until = ms => { const m = Math.round((ms - Date.now()) / 60000); return m <= 0 ? 'any moment' : m < 60 ? `in ${m}m` : `in ${(m / 60).toFixed(1)}h` }
 const usd = n => { const a = Math.abs(n || 0); const s = a >= 1e6 ? `$${(a / 1e6).toFixed(2)}M` : a >= 1e3 ? `$${(a / 1e3).toFixed(1)}k` : `$${a.toFixed(0)}`; return n < 0 ? `-${s}` : s }
 const sign = n => `${n >= 0 ? '+' : ''}${n.toFixed(4)}`
 const empty = (emoji, text) => h('div', { class: 'empty' }, h('b', {}, emoji), text)
@@ -482,10 +483,19 @@ function p4() {
       h('div', { class: 'card' }, h('span', { class: 'faint' }, 'open'), h('b', {}, `${open}/${l.maxOpen}`), h('span', { class: 'faint' }, 'positions'))),
     od.spentBnb || od.realizedBnb ? h('div', { class: 'faint', style: 'margin-top:4px' }, `${other} today: spent ${od.spentBnb.toFixed(3)} · realized ${sign(od.realizedBnb)}`) : null,
     v.stuck.length ? h('div', { class: 'approve', style: 'margin-top:8px' }, h('b', {}, '⏳ an exit keeps failing'),
-      h('div', { class: 'why' }, `${v.stuck.map(s => s.key.split(':')[0]).join(', ')} · retrying with backoff, next ${ago(Math.min(...v.stuck.map(s => s.retryAt)))}. See the thoughts feed.`)) : null,
+      h('div', { class: 'why' }, `${v.stuck.map(s => s.key.split(':')[0]).join(', ')} · retrying with backoff, next ${until(Math.min(...v.stuck.map(s => s.retryAt)))}. See the thoughts feed.`)) : null,
     ...approvals('hands'),
     h('div', { class: 'card row wrap', style: 'margin-top:10px' }, sw(v.scan, () => act('hands', 'scan', { isOn: !v.scan })),
       h('span', {}, 'copy-scan fomo top traders'), h('span', { class: 'faint' }, '· she judges each signal herself')),
+    v.cycle ? h('div', { class: 'card', style: 'margin-top:8px' },
+      h('div', { class: 'row wrap' }, sw(v.cycle.isOn, () => act('hands', 'cycle', { isOn: !v.cycle.isOn })),
+        h('span', {}, '⏰ trade every'),
+        h('input', { class: 'field', style: 'flex:none;width:56px;padding:4px 8px', value: v.cycle.everyHours, onchange: e => act('hands', 'cycle', { everyHours: Number(e.target.value) }) }),
+        h('span', {}, 'h'),
+        h('span', { class: 'faint' }, v.cycle.isOn ? `· next ${until(v.cycle.nextAt)}` : '· off'),
+        h('button', { class: 'btn small', onclick: () => act('hands', 'cycleNow', {}) }, 'run one now')),
+      v.cycle.log.length ? h('div', { class: 'stack', style: 'margin-top:6px' }, v.cycle.log.slice(0, 4).map(c => h('div', { class: 'faint' },
+        `${c.did === 'buy' ? '🛒' : c.did === 'sell' ? '🔁' : '💤'} ${ago(c.at)} · ${c.mode} · ${c.summary}${c.did === 'skip' && c.result && c.result !== 'no trade' ? ` (${c.result.slice(0, 140)})` : ''}`))) : null) : null,
     h('div', { class: 'sec' }, '🛍️ holding'),
     v.positions.length ? h('div', { class: 'stack' }, v.positions.map(p => {
       const c = (p.lastPrice / p.entryPrice - 1) * 100

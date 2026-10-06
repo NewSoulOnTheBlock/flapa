@@ -4,6 +4,7 @@ import type { Body } from '../core/body'
 import type { Organ } from '../core/types'
 import { FOMO_MCP_URL, isDue, parseToolReply, postBrief, rpcBody, toRows, DAILY_DEFAULT, type DailyConfig, type FomoRow, type FomoWindow } from '../lib/fomo'
 import { dexUrl, marketLine, pickPool, type Market } from '../lib/market'
+import { parseGeckoPools, type Candidate } from '../lib/strategy'
 
 const DAILY_RETRY_MS = 15 * 60_000
 
@@ -15,7 +16,12 @@ export type Research = {
 export type Eyes = Organ & {
   market(token: string): Promise<Market | null>
   fomo(tool: string, args: Record<string, unknown>): Promise<any>
+  /** Active PancakeSwap v2 WBNB pools on BNB Chain, for the trade cycle. */
+  candidates(): Promise<Candidate[]>
 }
+
+const GECKO = 'https://api.geckoterminal.com/api/v2/networks/bsc'
+const GECKO_LISTS = [`${GECKO}/trending_pools?page=1`, `${GECKO}/dexes/pancakeswap_v2/pools?page=1&sort=h24_volume_usd_desc`, `${GECKO}/dexes/pancakeswap_v2/pools?page=2&sort=h24_volume_usd_desc`]
 
 export function eyes(body: Body, fetcher: typeof fetch = fetch): Eyes {
   const store = body.store('eyes')
@@ -37,6 +43,22 @@ export function eyes(body: Body, fetcher: typeof fetch = fetch): Eyes {
     const r = await fetcher(dexUrl(token))
     if (!r.ok) throw new Error(`DexScreener answered ${r.status}`)
     return pickPool(await r.json(), token, Date.now())
+  }
+
+  async function candidates(): Promise<Candidate[]> {
+    const merged = new Map<string, Candidate>()
+    let answered = 0
+    for (const url of GECKO_LISTS) {
+      const r = await fetcher(url, { headers: { accept: 'application/json' } }).catch(() => null)
+      if (!r?.ok) continue
+      answered++
+      for (const c of parseGeckoPools(await r.json(), Date.now())) {
+        const held = merged.get(c.token)
+        if (!held || c.liquidityUsd > held.liquidityUsd) merged.set(c.token, c)
+      }
+    }
+    if (!answered) throw new Error('GeckoTerminal did not answer')
+    return [...merged.values()]
   }
 
   async function board(window: FomoWindow, limit = 10): Promise<FomoRow[]> {
@@ -67,6 +89,7 @@ export function eyes(body: Body, fetcher: typeof fetch = fetch): Eyes {
     role: 'Market sight: DexScreener pools on BNB Chain and the fomo.family leaderboard. Never acts.',
     market,
     fomo,
+    candidates,
     tools: [
       {
         name: 'market',

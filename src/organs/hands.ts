@@ -13,7 +13,10 @@ import {
   type Position, type TradeDay, type TradeLimits, type TradeRecord,
 } from '../lib/limits'
 import { marketLine } from '../lib/market'
+import { buyWhy, CYCLE_DEFAULT, planCycle, type CycleConfig } from '../lib/strategy'
 import type { Eyes } from './eyes'
+
+export type CycleLog = { at: number; mode: Mode; did: 'buy' | 'sell' | 'skip'; summary: string; result: string }
 
 const POOL_FEE = 0.0025
 const EXIT_EVERY_MS = 2 * 60_000
@@ -59,6 +62,51 @@ export function hands(body: Body, helper: Helper): Organ {
   const switchMode = (): Mode => ((body.has('conscience') && (body.organ('conscience').view?.() as any)?.live?.hands) ? 'live' : 'paper')
   /** Exits that keep failing back off, so one stuck bag does not flood the log every two minutes. */
   const stuck = new Map<string, { n: number; until: number }>()
+  // The trade cycle keeps its own clock in the store: the body's rhythm clock resets on every restart,
+  // and a redeploy must not mean an extra trade.
+  const cycle = (): CycleConfig => ({ ...CYCLE_DEFAULT, ...store.get<Partial<CycleConfig>>('cycle', {}) })
+  const cycleNextAt = () => (cycle().lastAt ?? 0) + cycle().everyHours * 3_600_000
+  const logCycle = (l: CycleLog) => {
+    store.update<CycleLog[]>('cycles', [], list => [l, ...list].slice(0, 50))
+    body.bus.emit('trade.cycle', 'hands', l)
+  }
+
+  /** One cycle: plan, then act. A buy walks the ranked options until one clears the limits. */
+  async function runCycle(): Promise<CycleLog> {
+    store.set('cycle', { ...cycle(), lastAt: Date.now() })
+    const mode = switchMode()
+    const mine = positions(mode)
+    let candidates: Awaited<ReturnType<Eyes['candidates']>> = []
+    try { candidates = await eyes().candidates() } catch (e) {
+      if (!mine.length || mine.length < limits().maxOpen) {
+        const l: CycleLog = { at: Date.now(), mode, did: 'skip', summary: 'no market data', result: String(e) }
+        logCycle(l)
+        return l
+      }
+    }
+    const plan = planCycle({ candidates, positions: mine, limits: limits(), day: day(mode), everyHours: cycle().everyHours })
+    let l: CycleLog
+    if (plan.kind === 'skip') {
+      l = { at: Date.now(), mode, did: 'skip', summary: plan.why, result: 'no trade' }
+    } else if (plan.kind === 'sell') {
+      const result = await body.act({ organ: 'hands', kind: 'sell', summary: `${plan.why}: $${plan.symbol}`, payload: { token: plan.token, paper: plan.paper, pct: plan.pct, why: plan.why }, by: 'rhythm' })
+      l = { at: Date.now(), mode, did: 'sell', summary: `sell $${plan.symbol}: ${plan.why}`, result }
+    } else {
+      const tried: string[] = []
+      l = { at: Date.now(), mode, did: 'skip', summary: 'every candidate was refused by the limits', result: '' }
+      for (const x of plan.options) {
+        const no = await refusals(x.token, plan.bnb, 'rhythm', mode).catch(e => [String(e)])
+        if (no.length) { tried.push(`$${x.symbol}: ${no[0]}`); continue }
+        const why = buyWhy(x)
+        const result = await body.act({ organ: 'hands', kind: 'buy', summary: `buy ${plan.bnb} BNB of $${x.symbol}: ${why}`, payload: { token: x.token, bnb: plan.bnb, why }, by: 'rhythm' })
+        l = { at: Date.now(), mode, did: 'buy', summary: `buy ${plan.bnb} BNB of $${x.symbol}`, result }
+        break
+      }
+      if (l.did === 'skip') l.result = tried.join('; ')
+    }
+    logCycle(l)
+    return l
+  }
 
   const record = (t: TradeRecord) => {
     store.update<TradeRecord[]>('trades', [], l => [t, ...l].slice(0, 300))
@@ -245,6 +293,11 @@ export function hands(body: Body, helper: Helper): Organ {
         },
       },
       {
+        name: 'trade-cycle',
+        due: now => cycle().isOn && now >= cycleNextAt(),
+        run: async () => { await runCycle() },
+      },
+      {
         name: 'copy-scan',
         due: (now, last) => scanOn() && now - last >= SCAN_EVERY_MS,
         run: async () => {
@@ -284,6 +337,7 @@ export function hands(body: Body, helper: Helper): Organ {
       limits: limits(), mode: switchMode(), day: { paper: day('paper'), live: day('live') },
       positions: allPositions(), trades: trades().slice(0, 30), scan: scanOn(), paperTaxPct: paperTax(),
       stuck: [...stuck.entries()].map(([k, s]) => ({ key: k, retryAt: s.until })),
+      cycle: { ...cycle(), nextAt: cycleNextAt(), log: store.get<CycleLog[]>('cycles', []).slice(0, 12) },
     }),
     actions: {
       limits: (patch: Record<string, unknown>) => {
@@ -298,6 +352,17 @@ export function hands(body: Body, helper: Helper): Organ {
         return store.set('limits', next)
       },
       scan: ({ isOn }) => store.set('scan', !!isOn),
+      cycle: ({ isOn, everyHours }) => {
+        const next = { ...cycle() }
+        if (isOn !== undefined) next.isOn = !!isOn
+        if (everyHours !== undefined) {
+          const h = Number(everyHours)
+          if (!(h >= 1 && h <= 24)) throw new Error('the trade cycle runs every 1 to 24 hours')
+          next.everyHours = h
+        }
+        return store.set('cycle', next)
+      },
+      cycleNow: () => runCycle(),
       paperTax: ({ pct }) => {
         const n = Number(pct)
         if (!(n >= 0 && n <= 30)) throw new Error('paper tax is 0 to 30%')
