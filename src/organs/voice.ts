@@ -350,7 +350,8 @@ export function voice(body: Body, opts: VoiceOptions | typeof fetch = {}): Organ
           const all = options.length ? `${parts[0]}\n${options.map(o => `◻ ${o}`).join('\n')}` : parts.join('\n\n')
           const label = options.length ? 'poll' : parts.length > 1 ? `thread (${parts.length})` : 'post'
           // A reaction to breaking news always waits for the person: facts move fast and can be wrong.
-          const news = turn.stimulus.kind === 'news' ? { tier: 'yellow' as const, tierWhy: 'reacting to breaking news' } : {}
+          const news = turn.stimulus.kind === 'news' ? { tier: 'yellow' as const, tierWhy: 'reacting to breaking news' }
+            : turn.stimulus.from === 'scout' ? { tier: 'yellow' as const, tierWhy: 'talks about a wallet she copied' } : {}
           return body.act({ organ: 'voice', kind: 'post', summary: `${label}: ${all}`, text: all, payload: { text: parts[0], ...(options.length ? { poll: options } : {}), ...(parts.length > 1 ? { thread: parts } : {}) }, by, ...news })
         },
       },

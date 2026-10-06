@@ -14,6 +14,7 @@ import {
 } from '../lib/limits'
 import { marketLine } from '../lib/market'
 import { buyWhy, CYCLE_DEFAULT, planCycle, type CycleConfig } from '../lib/strategy'
+import { copyExit, type CopyMeta } from '../lib/wallets/copy'
 import type { Eyes } from './eyes'
 
 export type CycleLog = { at: number; mode: Mode; did: 'buy' | 'sell' | 'skip'; summary: string; result: string }
@@ -168,9 +169,11 @@ export function hands(body: Body, helper: Helper): Organ {
     const price = bnb / got
     const paper = isPaper(mode)
     const held = allPositions().find(p => same(p, token, paper))
+    // A copy trade carries its plan: who she copied, their entry, and the liquidity she bought into.
+    const copy = o.payload.copy ? { ...(o.payload.copy as CopyMeta), entryLiquidityUsd: m.liquidityUsd, stage: 0 } : undefined
     const next: Position = held
       ? { ...held, amountWei: (BigInt(held.amountWei) + amountWei).toString(), costBnb: held.costBnb + bnb, entryPrice: (held.costBnb + bnb) / (fromWei(held.amountWei, held.decimals) + got), lastPrice: m.priceBnb }
-      : { token: m.token, symbol: m.symbol, amountWei: amountWei.toString(), decimals, costBnb: bnb, entryPrice: price, peakPrice: price, lastPrice: m.priceBnb, openedAt: Date.now(), paper }
+      : { token: m.token, symbol: m.symbol, amountWei: amountWei.toString(), decimals, costBnb: bnb, entryPrice: price, peakPrice: price, lastPrice: m.priceBnb, openedAt: Date.now(), paper, ...(copy ? { copy } : {}) }
     setPosition(next, token, paper)
     setDay(mode, { ...day(mode), spentBnb: day(mode).spentBnb + bnb })
     record({ at: Date.now(), side: 'buy', token: m.token, symbol: m.symbol, bnb, why: String(o.payload.why ?? ''), by: o.by === 'person' ? 'person' : 'agent', paper, hash })
@@ -201,7 +204,11 @@ export function hands(body: Body, helper: Helper): Organ {
     const costShare = p.costBnb * (pct / 100)
     const pnl = out - costShare
     const left = BigInt(p.amountWei) - amount
-    setPosition(left > 0n ? { ...p, amountWei: left.toString(), costBnb: p.costBnb - costShare, tookProfit: p.tookProfit || o.payload.tookProfit === true } : null, p.token, p.paper)
+    const stage = Number(o.payload.copyStage) || 0
+    setPosition(left > 0n ? {
+      ...p, amountWei: left.toString(), costBnb: p.costBnb - costShare, tookProfit: p.tookProfit || o.payload.tookProfit === true,
+      ...(p.copy ? { copy: { ...p.copy, stage: Math.max(p.copy.stage, stage), ...(o.payload.leaderExit ? { leaderSoldPct: 0 } : {}) } } : {}),
+    } : null, p.token, p.paper)
     setDay(mode, { ...day(mode), realizedBnb: day(mode).realizedBnb + pnl })
     record({ at: Date.now(), side: 'sell', token: p.token, symbol: p.symbol, bnb: out, pnlBnb: pnl, why: String(o.payload.why ?? ''), by: o.by === 'exit' ? 'exit' : o.by === 'person' ? 'person' : 'agent', paper: p.paper, hash })
     if (body.has('affect')) {
@@ -279,11 +286,19 @@ export function hands(body: Body, helper: Helper): Organ {
             if (!now) continue
             const seen = { ...now, lastPrice: m.priceBnb, peakPrice: Math.max(now.peakPrice, m.priceBnb) }
             setPosition(seen, p.token, p.paper)
-            const exit = exitFor(seen, m.priceBnb, limits())
+            // Copy trades follow their own plan first (leader exit, liquidity, thesis, ladder, time stop);
+            // the generic stop loss stays underneath as the backstop.
+            const generic = exitFor(seen, m.priceBnb, limits())
+            const copyPlan = seen.copy ? copyExit(seen, seen.copy, m, Date.now()) : null
+            const exit = seen.copy ? copyPlan ?? (generic?.why.startsWith('stop loss') ? generic : null) : generic
             if (!exit) continue
             const out = await body.act({
               organ: 'hands', kind: 'sell', summary: `${exit.why}: $${p.symbol}${p.paper ? ' (paper)' : ' (LIVE)'}`,
-              payload: { token: p.token, paper: p.paper, pct: exit.pct, why: exit.why, tookProfit: exit.why.startsWith('take profit') }, by: 'exit',
+              payload: {
+                token: p.token, paper: p.paper, pct: exit.pct, why: exit.why, tookProfit: exit.why.startsWith('take profit'),
+                ...(copyPlan && 'stage' in copyPlan && copyPlan.stage ? { copyStage: copyPlan.stage } : {}),
+                ...(copyPlan?.why.startsWith('the wallet she copied') ? { leaderExit: true } : {}),
+              }, by: 'exit',
             })
             if (out.startsWith('done')) { stuck.delete(key); continue }
             const n = (s?.n ?? 0) + 1
@@ -363,6 +378,12 @@ export function hands(body: Body, helper: Helper): Organ {
         return store.set('cycle', next)
       },
       cycleNow: () => runCycle(),
+      /** The scout saw a copied wallet sell: the exits rhythm follows it out on its next check. */
+      markLeaderSold: ({ token, pct }) => {
+        const share = Math.max(0, Math.min(100, Number(pct) || 0))
+        store.set('positions', allPositions().map(p => (p.copy && p.token.toLowerCase() === String(token).toLowerCase() ? { ...p, copy: { ...p.copy, leaderSoldPct: Math.max(p.copy.leaderSoldPct ?? 0, share) } } : p)))
+        return { ok: true }
+      },
       paperTax: ({ pct }) => {
         const n = Number(pct)
         if (!(n >= 0 && n <= 30)) throw new Error('paper tax is 0 to 30%')

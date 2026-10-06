@@ -520,6 +520,30 @@ function p3() {
       h('span', { class: r.pnlUsd >= 0 ? 'up' : 'down' }, usd(r.pnlUsd))))) : empty('🏆', 'no board yet. tap refresh!'),
     h('div', { class: 'card row wrap', style: 'margin-top:10px' }, sw(v.daily.isOn, () => act('eyes', 'daily', { isOn: !v.daily.isOn })),
       h('span', {}, `post the top 3 every day at ${v.daily.hour}:00`), v.daily.lastDay ? h('span', { class: 'faint' }, `· last ${v.daily.lastDay}`) : null),
+    (() => {
+      const sc = S.organs.scout?.view
+      if (!sc) return null
+      const TIER = { known: '🔴 known insider-like', active: '🟢 active alpha', emerging: '🟠 emerging', watch: '🟡 watchlist', dormant: '⚫ dormant' }
+      const groups = Object.entries(sc.radar).filter(([, l]) => l.length)
+      return h('div', {},
+        h('div', { class: 'sec' }, '🕵️ wallet radar'),
+        h('div', { class: 'card row wrap' }, sw(sc.config.copyOn, () => act('scout', 'config', { copyOn: !sc.config.copyOn })),
+          h('span', {}, 'copy the radar\'s best buys'),
+          h('span', { class: 'faint' }, `· up to`),
+          h('input', { class: 'field', style: 'flex:none;width:52px;padding:4px 8px', value: sc.config.maxCopiesPerDay, onchange: e => act('scout', 'config', { maxCopiesPerDay: Number(e.target.value) }) }),
+          h('span', { class: 'faint' }, `/day · watching ${sc.config.watchCount} wallets every ${sc.config.watchEveryMin} min${sc.rpc ? '' : ' (no RPC: pool scans only)'}`)),
+        h('div', { class: 'faint', style: 'margin:6px 0' }, `warehouse: ${sc.counts.trades.toLocaleString()} trades · ${sc.counts.wallets.toLocaleString()} wallets · ${sc.counts.tokens} tokens${sc.summary ? ` · ${sc.summary.wallets} profiled, ${sc.summary.clusters} clusters` : ''}`),
+        groups.length ? h('div', { class: 'stack' }, groups.flatMap(([tier, list]) => [
+          h('div', { class: 'dim', style: 'margin-top:4px' }, TIER[tier] ?? tier),
+          ...list.slice(0, 3).map(p => h('details', { class: 'card' },
+            h('summary', { style: 'cursor:pointer' }, h('b', {}, p.short), h('span', { class: 'faint' }, ` · score ${p.score}${p.labels.length ? ` · ${p.labels.join(', ')}` : ''}${p.isLeader ? ` · leads cluster #${p.cluster}` : ''}`)),
+            h('div', { class: 'stack', style: 'margin-top:4px' }, p.reasons.map(r => h('div', { class: 'faint' }, `• ${r}`)))))])) : h('div', { class: 'faint' }, 'no radar wallets yet: profiles need a few days of trades (3+ tokens per wallet).'),
+        sc.signals.length ? h('div', { class: 'stack', style: 'margin-top:8px' }, sc.signals.slice(0, 5).map(s => h('div', { class: 'faint' },
+          `${s.copied ? '🛒 copied' : s.skip ? '💤' : '👀'} ${s.wallet} → $${s.symbol ?? '?'} · signal ${s.score}${s.skip ? ` · ${s.skip}` : ''}${s.outcome?.r1h != null ? ` · 1h ${s.outcome.r1h >= 0 ? '+' : ''}${(s.outcome.r1h * 100).toFixed(0)}%` : ''} · ${ago(s.at)}`))) : null,
+        h('div', { class: 'row', style: 'margin-top:6px' },
+          h('button', { class: 'btn ghost small', onclick: () => act('scout', 'collectNow', {}).then(r => toast(String(r.value?.result ?? '').slice(0, 140))) }, 'collect now'),
+          h('button', { class: 'btn ghost small', onclick: () => act('scout', 'scoreNow', {}).then(r => toast(String(r.value?.result ?? '').slice(0, 140))) }, 'rescore')))
+    })(),
     h('div', { class: 'sec' }, '📰 what is happening'),
     v.digest?.narratives?.length ? h('div', { class: 'card stack' },
       h('span', { class: 'faint' }, `today's narratives · ${ago(v.digest.at)}`),
@@ -581,7 +605,8 @@ function p4() {
     v.positions.length ? h('div', { class: 'stack' }, v.positions.map(p => {
       const c = (p.lastPrice / p.entryPrice - 1) * 100
       return h('div', { class: 'card pos' },
-        h('div', {}, h('b', {}, `$${p.symbol} `), h('span', { class: `tag ${p.paper ? '' : 'hot'}` }, p.paper ? 'paper 🧸' : 'LIVE 🔥'), p.tookProfit ? h('span', { class: 'tag' }, ' half taken · trailing') : null),
+        h('div', {}, h('b', {}, `$${p.symbol} `), h('span', { class: `tag ${p.paper ? '' : 'hot'}` }, p.paper ? 'paper 🧸' : 'LIVE 🔥'), p.tookProfit ? h('span', { class: 'tag' }, ' half taken · trailing') : null,
+          p.copy ? h('span', { class: 'tag her', title: `copied ${p.copy.wallets.map(w => w.slice(0, 6) + '…' + w.slice(-4)).join(', ')} · signal ${p.copy.score}` }, ` 🕵️ copy · ladder ${p.copy.stage}/2${p.copy.leaderSoldPct ? ' · leader selling' : ''}`) : null),
         h('span', { class: `pct ${c >= 0 ? 'up' : 'down'}` }, `${c >= 0 ? '+' : ''}${c.toFixed(1)}% ${c >= 0 ? '🚀' : '🥲'}`),
         h('span', { class: 'faint' }, `cost ${p.costBnb.toFixed(4)} BNB · opened ${ago(p.openedAt)}`),
         h('button', { class: 'btn no small', onclick: () => confirm(`Sell all $${p.symbol} (${p.paper ? 'paper' : 'LIVE'})?`) && act('hands', 'sell', { token: p.token, pct: 100, paper: p.paper }) }, 'sell all'))

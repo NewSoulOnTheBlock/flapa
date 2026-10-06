@@ -59,7 +59,56 @@ her own agent loop, her own clock, her own dashboard.
   follows the position, so a live bag keeps its stop loss even after the switch goes back to paper.
 - **fomo mode:** her wallet is a fomo.family smart account (EIP-7702). Swaps go out as user operations through the
   EntryPoint, paid by a separate gas wallet, so her trades count on fomo. Only `helper/trade.mjs` ever reads the keys.
-- **Copy-scan** (off by default) reads what fomo's top traders bought and lets her judge each signal.
+- **Copy-scan** (off by default) reads what fomo's top traders bought and lets her judge each signal, when fomo's data feed is up. Wallet copy trading (below) does not depend on it.
+
+### Wallet intelligence and copy trading (the scout organ)
+
+She finds wallets with a repeatable edge, copies their best buys, and manages each copy trade by its own plan.
+"Insider-like" here means *behavior* (in early, ahead of attention, again and again), never a claim that anyone
+has non-public information.
+
+**Phase 1: identify.** Every 10 minutes she pulls new launches, trending and top PancakeSwap v2 pools from
+GeckoTerminal, then every trade in a rotating slice of them (wallet, side, size, price, block) and their 5-minute and
+hourly candles, into a SQLite warehouse (`data/wallets.db`, nothing deleted, so faded wallets still count). Every hour
+she rebuilds each wallet with 3+ tokens:
+
+| | |
+|---|---|
+| **Performance** | realized PnL, ROI, win rate, largest win and loss, max drawdown, Sharpe-like ratio, hold times |
+| **What happened after it bought** | forward returns at 5m, 15m, 30m, 1h, 6h, 24h, 7d, and **excess return** over the day's typical entry |
+| **Timing** | minutes after launch, early entries (first 30 min), **lead time** before the first big volume spike, entry skill (near the low) and exit skill (near the high) |
+| **Behavior** | conviction (size vs its usual, and whether big bets do better), entry pattern (one-shot, scale-in, confirm-then-size, snipe-dump), discovery (tokens it found before they doubled) |
+| **Specialization** | best market-cap band and token-age band, best time of day |
+| **Alpha decay** | last 7 days vs 30 days vs all time, so current form beats lifetime fame |
+| **Evidence** | under 10 tokens insufficient, 10-30 emerging, 30-100 interesting, 100+ meaningful |
+| **Graph** | wallets that keep entering the same tokens within 10 minutes are linked; who moves first, how often the other follows and with what median delay; clusters, leaders, influence |
+
+Labels are several, never one: insider-like, smart money, early money, sniper, gambler, exit liquidity, bot. Bots
+are ranked against nobody. Eight dimensions become percentiles, and the **insider-like score** weights them
+(early 25, forward 20, excess 15, consistency 15, current alpha 10, conviction 5, discovery 5, influence 5). Once 30
+copy signals have known outcomes, the weights lean toward the components that actually predicted returns. Every score
+comes with its reasons ("87th percentile early-entry timing", "leads wallet cluster #3", "improving over the last 7
+days"). The **radar**: 🔴 known, 🟢 active alpha, 🟠 emerging, 🟡 watchlist, ⚫ dormant.
+
+**Phase 2: copy.** Every 3 minutes she watches the top radar wallets' token transfers live (Alchemy), and also catches
+their buys in the pools she scans. Each buy becomes a scored signal: the wallet's score and tier, conviction,
+confluence (other radar wallets in the same token), specialization fit and cluster leadership; skipped when stale (30+
+min), already held, or already up 30%+ since the wallet bought. Signals of 65+ are copied (default 6 a day), sized
+0.5x to 2x the trade cycle's size by the signal, through the same limits, conscience and paper/LIVE switch as every
+trade. Every signal's 1-hour outcome is recorded for the learning above.
+
+**Phase 3: control.** A copied position carries its plan, checked every 2 minutes before the normal exits: the copied
+wallet sells → she sells the same share; liquidity drops 40% → out; price falls 15% under the wallet's entry →
+out; profit ladder (a third at +40%, another at +100%, then a 25% trailing stop); time stop (twice the wallet's
+usual hold, 2 to 48 hours, if it is not up 5%). The normal stop loss stays underneath as the backstop.
+
+**Her voice.** Her radar is in her thoughts, and a strong copy (signal 80+, at most twice a day) wakes her to talk about
+it in character ("uhhh guys… i've been watching this wallet for like three weeks"). Those posts never name the full
+address or tell anyone to buy, and always wait for your approval.
+
+Deferred: funding-source tracing, social-media timing per token (volume spikes stand in for "attention"),
+narrative/influencer labels, and a full machine-learning model (the outcome log is its future training set).
+`bun scripts/scout-preview.ts` runs the whole scout on live data in a throwaway body, with no trading.
 
 ### Safety (the conscience organ)
 
@@ -85,7 +134,7 @@ Local memories migrate once. Without a key, a local extractor and word-and-entit
 ```sh
 bun install
 bun start            # → http://127.0.0.1:7777
-bun test             # 112 tests
+bun test             # 129 tests
 ```
 
 Put keys in `.env` (git ignores it; Bun loads it). Never paste them into chat. Every outward organ starts on
@@ -117,7 +166,7 @@ If Render reports out-of-memory, move to the Standard plan: every thought starts
 | `BLOB_READ_WRITE_TOKEN` | the public window's snapshot (Vercel Blob) |
 | `FLAPA_TRADER_KEY` | her trading wallet (only the helper reads it) |
 | `FLAPA_WALLET_MODE`, `FLAPA_GAS_KEY` | `fomo` for her fomo.family smart account, and the gas wallet that pays for it |
-| `BSC_RPC_URL` | BNB Chain RPC |
+| `BSC_RPC_URL` | BNB Chain RPC (trades, and the scout's live watch of radar wallets) |
 | `FLAPA_TRADER_MAX_BNB` | the helper's own hard cap per buy (default 0.1) |
 | `FLAPA_PORT`, `FLAPA_HOME` | default `7777`, `./data` |
 | `FLAPA_SEED` | one-time state import on a fresh host |
@@ -155,9 +204,10 @@ other websites can't drive her.
 
 ```
 src/core     body (organs, queue, clock), brain (API or CLI), store, server, publish, seed
-src/organs   identity · conscience · beliefs · agenda · affect · memory · eyes · voice · hands
+src/organs   identity · conscience · beliefs · agenda · affect · memory · eyes · voice · hands · scout
 src/lib      the pure logic behind them (one tested file each): analytics, calendar, crisis, lore, mem0,
-             news, posting, rules, social, strategy, triggers, limits, market, …
+             news, posting, rules, social, strategy, triggers, limits, market, wallets/ (warehouse, metrics,
+             graph, score, copy), …
 personas     flapa.json (who she is) · flapa.topics.json (what she posts about)
 helper       trade.mjs, the only process that touches keys
 web · site   the local dashboard · the public window

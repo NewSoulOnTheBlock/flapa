@@ -1,4 +1,5 @@
 // The rules every trade passes, carried over from PACS trader: limits, sizing, exits, the day's books.
+import type { CopyMeta } from './wallets/copy'
 export type TradeLimits = {
   maxPerTradeBnb: number; maxDailyBnb: number; maxDailyLossBnb: number; maxOpen: number
   minLiquidityUsd: number; takeProfitPct: number; stopLossPct: number; slippagePct: number; cooldownMin: number
@@ -14,6 +15,8 @@ export type Position = {
   openedAt: number
   /** A paper position: dry-run fills at the pool's price, no chain involved. */
   paper: boolean
+  /** A copy trade: who she copied and the plan for getting out (src/lib/wallets/copy.ts). */
+  copy?: CopyMeta
 }
 export type TradeRecord = {
   at: number; side: 'buy' | 'sell'; token: string; symbol: string; bnb: number

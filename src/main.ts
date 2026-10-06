@@ -12,6 +12,7 @@ import { beliefs } from './organs/beliefs'
 import { conscience } from './organs/conscience'
 import { eyes } from './organs/eyes'
 import { hands, nodeHelper } from './organs/hands'
+import { scout } from './organs/scout'
 import { identity } from './organs/identity'
 import { memory } from './organs/memory'
 import { voice } from './organs/voice'
@@ -33,6 +34,7 @@ body.grow(
   eyes(body),
   voice(body, { catalogDir: join(root, 'personas') }),
   hands(body, nodeHelper(root)),
+  scout(body),
 )
 
 body.bus.listen(s => {
