@@ -105,6 +105,7 @@ export function publicSnapshot(body: Body, thoughts: readonly PublicThought[], n
       positions: hands.positions.map((p: any) => ({ symbol: clip(p.symbol, 16), token: p.token, paper: !!p.paper, costBnb: p.costBnb, entryPrice: p.entryPrice, lastPrice: p.lastPrice, tookProfit: !!p.tookProfit, openedAt: p.openedAt })),
       trades: hands.trades.slice(0, 20).map((t: any) => ({ at: t.at, side: t.side, symbol: clip(t.symbol, 16), bnb: t.bnb, pnlBnb: t.pnlBnb ?? null, paper: !!t.paper, by: t.by === 'exit' ? 'exit' : 'her', why: clip(t.why, 200), tx: t.hash ? `https://bscscan.com/tx/${t.hash}` : null })),
     } : null,
+    postSchedule: voice?.schedule ? { isOn: !!voice.schedule.isOn, everyHours: voice.schedule.everyHours, nextAt: voice.schedule.nextAt ?? null } : null,
     posts: voice ? voice.posted.slice(0, 15).map((p: any) => ({ at: p.at, text: clip(p.text, 300), mode: p.mode, reply: !!p.replyTo, url: p.url ?? null })) : [],
     thoughts: [...thoughts].reverse(),
     dial: c?.dial ?? null,

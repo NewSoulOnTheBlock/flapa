@@ -188,7 +188,7 @@ function p2() {
     S.thoughts.length ? h('div', { class: 'stack' }, S.thoughts.map(t => h('div', { class: 'thought' }, h('span', { class: 'ic' }, ICON[t.kind] || '✨'), h('div', { class: 'card' }, t.text, h('div', { class: 'faint' }, ago(t.at))))))
       : empty('🫧', 'her head is quiet right now'),
     S.beliefs.length ? [h('div', { class: 'sec' }, '🌟 beliefs'), h('div', { class: 'stack' }, S.beliefs.map(o => h('div', { class: 'card' }, h('div', { class: 'row between' }, h('b', {}, o.topic), h('span', { class: 'tag' }, `${Math.round(o.confidence * 100)}% sure`)), o.stance)))] : null,
-    S.posts.length ? [h('div', { class: 'sec' }, '💌 posts'), h('div', { class: 'stack' }, S.posts.map(p => h('div', { class: 'card' }, p.text,
+    S.posts.length ? [h('div', { class: 'sec' }, '💌 posts', S.postSchedule?.isOn ? h('span', { class: 'faint' }, `every ${S.postSchedule.everyHours}h${S.postSchedule.nextAt && S.postSchedule.nextAt > Date.now() ? ` · next in ${Math.max(1, Math.round((S.postSchedule.nextAt - Date.now()) / 3600000))}h` : ''}`) : null), h('div', { class: 'stack' }, S.posts.map(p => h('div', { class: 'card' }, p.text,
       h('div', { class: 'row', style: 'margin-top:4px' }, h('span', { class: `tag ${p.mode === 'live' ? 'hot' : ''}` }, p.mode === 'live' ? 'on X 🔥' : 'paper 🧸'), p.reply ? h('span', { class: 'tag' }, 'reply') : null,
         h('span', { class: 'faint' }, ago(p.at)), safeUrl(p.url) ? h('a', { href: safeUrl(p.url), target: '_blank', rel: 'noopener noreferrer', class: 'faint' }, 'open ↗') : null))))] : null,
   ])

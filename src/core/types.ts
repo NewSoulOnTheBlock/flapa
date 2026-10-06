@@ -9,7 +9,7 @@ export type Tool = {
 }
 
 /** What wakes the mind: the person, a heartbeat, a market signal, the daily post… */
-export type StimulusKind = 'chat' | 'beat' | 'signal' | 'daily' | 'system'
+export type StimulusKind = 'chat' | 'beat' | 'signal' | 'daily' | 'post' | 'system'
 export type Stimulus = { kind: StimulusKind; text: string; from?: string }
 
 export type Turn = { id: string; stimulus: Stimulus; startedAt: number; personaId: string }

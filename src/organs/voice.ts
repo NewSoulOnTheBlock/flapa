@@ -11,10 +11,49 @@ const API = 'https://api.x.com/2'
 export type Posted = { id: string; text: string; at: number; mode: Mode; url?: string; replyTo?: string }
 type Reply = { mode: 'post' | 'off'; sinceId?: string; handled: string[]; lastCheckAt?: number }
 
+/** Her own posts on a clock. Armed by its first post: lastPostAt stays 0 until then, so nothing fires early. */
+export type Schedule = { isOn: boolean; everyHours: number; lastPostAt: number; lastTryAt: number }
+const SCHEDULE: Schedule = { isOn: false, everyHours: 8, lastPostAt: 0, lastTryAt: 0 }
+/** When she tried and nothing went out (the brain stumbled), she tries again this much later, not every tick. */
+const RETRY_MS = 30 * 60_000
+
+export function scheduleDue(s: Schedule, now: number): boolean {
+  return s.isOn && s.lastPostAt > 0 && now - s.lastPostAt >= s.everyHours * 3_600_000 && now - s.lastTryAt >= RETRY_MS
+}
+
+export function postBrief(everyHours: number): string {
+  return [
+    `Time for your regular post (every ${everyHours} hours). Write ONE post for X, in your own voice, and publish it with`,
+    'your post tool. Make it about something real from your day: a trade or a chart you looked at, the fomo board,',
+    'your mood, a goal on your agenda, a stance you hold. Check your portfolio or a market first if it helps.',
+    "Don't repeat your recent posts (the feed tool shows them). Under 260 characters. No buy calls, no price",
+    'predictions, no links. If your conscience holds it, that is fine: it waits for the person.',
+  ].join('\n')
+}
+
 export function voice(body: Body, fetcher: typeof fetch = fetch): Organ {
   const store = body.store('voice')
   const creds = () => credentialsFromEnv(process.env)
   const reply = () => ({ mode: 'off', handled: [], ...store.get<Partial<Reply>>('reply', {}) }) as Reply
+  const schedule = () => ({ ...SCHEDULE, ...store.get<Partial<Schedule>>('schedule', {}) })
+  const setSchedule = (s: Partial<Schedule>) => store.set('schedule', { ...schedule(), ...s })
+
+  /** One scheduled post. The clock only restarts when a post actually went out (or is held for the person). */
+  let posting = false
+  async function scheduledPost(): Promise<string> {
+    if (posting) return 'already writing one'
+    posting = true
+    try {
+      setSchedule({ lastTryAt: Date.now() })
+      const r = await body.think({ kind: 'post', text: postBrief(schedule().everyHours), from: 'voice' })
+      const sent = r.tools.find(t => t.name === 'post' && /^(done|held)/.test(t.result))
+      if (sent) setSchedule({ lastPostAt: Date.now() })
+      body.bus.emit('schedule', 'voice', { posted: !!sent, result: sent?.result.slice(0, 200) ?? r.text.slice(0, 200) })
+      return sent ? sent.result : `no post went out: ${r.text.slice(0, 200)}`
+    } finally {
+      posting = false
+    }
+  }
 
   async function x(method: 'GET' | 'POST', path: string, json?: unknown): Promise<any> {
     const c = creds()
@@ -108,6 +147,10 @@ export function voice(body: Body, fetcher: typeof fetch = fetch): Organ {
       return entry.url ?? `${o.kind} kept in the paper feed`
     },
     rhythms: [{
+      name: 'scheduled-post',
+      due: now => scheduleDue(schedule(), now),
+      run: scheduledPost,
+    }, {
       name: 'autoreply',
       due: (now, last) => reply().mode === 'post' && !!creds() && now - last >= CHECK_EVERY_MS,
       run: async () => {
@@ -130,10 +173,24 @@ export function voice(body: Body, fetcher: typeof fetch = fetch): Organ {
     }],
     view: () => ({
       connected: !!creds(), me: store.get('me', null), reply: { ...reply(), handled: reply().handled.length },
+      schedule: { ...schedule(), nextAt: schedule().isOn && schedule().lastPostAt ? schedule().lastPostAt + schedule().everyHours * 3_600_000 : null },
       posted: store.get<Posted[]>('posted', []).slice(0, 30), mentions: store.get<XMention[]>('mentions', []).slice(0, 15),
     }),
     actions: {
       autoreply: ({ isOn }) => store.set('reply', { ...reply(), mode: isOn ? 'post' : 'off' }),
+      /** Turns the clock on or off, or changes its period. Turning it on arms nothing: the first post does. */
+      schedule: ({ isOn, everyHours }) => {
+        const s: Partial<Schedule> = {}
+        if (typeof isOn === 'boolean') s.isOn = isOn
+        if (everyHours !== undefined) {
+          const h = Number(everyHours)
+          if (!(h >= 1 && h <= 168)) throw new Error('every 1 to 168 hours')
+          s.everyHours = h
+        }
+        return setSchedule(s)
+      },
+      /** Writes and posts one now; when it goes out, the clock starts over from here. */
+      postNow: async () => ({ result: await scheduledPost() }),
     },
   } as Organ & { liveReady: () => string | undefined }
 }
