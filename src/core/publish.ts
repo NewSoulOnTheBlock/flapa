@@ -57,6 +57,11 @@ export class ThoughtLog {
       case 'trade': this.push(s.at, 'trade', `${d.paper ? 'paper' : 'LIVE'} ${d.side} $${clip(d.symbol, 16)} · ${Number(d.bnb).toFixed(4)} BNB`); break
       case 'posted': this.push(s.at, 'post', `${d.mode} post: ${clip(d.text, 300)}`); break
       case 'topic': this.push(s.at, 'wake', `picked a topic: ${clip(d.topic, 80)}${d.blend ? ` × ${clip(d.blend, 80)}` : ''}`); break
+      case 'trigger': this.push(s.at, 'trigger', clip(d.text, 200)); break
+      case 'newsjack': this.push(s.at, 'news', `breaking: ${clip(d.title, 160)}`); break
+      case 'story': this.push(s.at, 'story', `new chapter: ${clip((d.chapters ?? []).join('; '), 200)}`); break
+      case 'lore': this.push(s.at, 'lore', `lore grew: ${clip((d.added ?? []).join('; '), 200)}`); break
+      case 'scout.signal': if (d.copy) this.push(s.at, 'copy', `copied radar wallet ${clip(d.wallet, 14)} into $${clip(d.symbol, 16)} (signal ${d.score})`); break
     }
   }
 
@@ -77,6 +82,9 @@ export function publicSnapshot(body: Body, thoughts: readonly PublicThought[], n
   const hands = view(body, 'hands')
   const voice = view(body, 'voice')
   const c = view(body, 'conscience')
+  const scout = view(body, 'scout')
+  const lore = id ? view(body, 'identity')?.lore : null
+  const short = (w: unknown) => { const s = String(w ?? ''); return /^0x[0-9a-f]{40}$/i.test(s) ? `${s.slice(0, 6)}…${s.slice(-4)}` : clip(s, 14) }
   return redact({
     v: 1,
     at: now,
@@ -103,11 +111,42 @@ export function publicSnapshot(body: Body, thoughts: readonly PublicThought[], n
       mode: hands.mode,
       day: hands.day,
       limits: { maxPerTradeBnb: hands.limits.maxPerTradeBnb, maxDailyBnb: hands.limits.maxDailyBnb, maxOpen: hands.limits.maxOpen, maxDailyLossBnb: hands.limits.maxDailyLossBnb },
-      positions: hands.positions.map((p: any) => ({ symbol: clip(p.symbol, 16), token: p.token, paper: !!p.paper, costBnb: p.costBnb, entryPrice: p.entryPrice, lastPrice: p.lastPrice, tookProfit: !!p.tookProfit, openedAt: p.openedAt })),
+      positions: hands.positions.map((p: any) => ({
+        symbol: clip(p.symbol, 16), token: p.token, paper: !!p.paper, costBnb: p.costBnb, entryPrice: p.entryPrice, lastPrice: p.lastPrice, tookProfit: !!p.tookProfit, openedAt: p.openedAt,
+        copy: p.copy ? { wallets: (p.copy.wallets ?? []).slice(0, 4).map(short), score: p.copy.score, stage: p.copy.stage, leaderSelling: (p.copy.leaderSoldPct ?? 0) > 0 } : null,
+      })),
       trades: hands.trades.slice(0, 20).map((t: any) => ({ at: t.at, side: t.side, symbol: clip(t.symbol, 16), bnb: t.bnb, pnlBnb: t.pnlBnb ?? null, paper: !!t.paper, by: t.by === 'exit' ? 'exit' : 'her', why: clip(t.why, 200), tx: t.hash ? `https://bscscan.com/tx/${t.hash}` : null })),
+      cycle: hands.cycle ? { isOn: !!hands.cycle.isOn, everyHours: hands.cycle.everyHours, nextAt: hands.cycle.nextAt ?? null, log: (hands.cycle.log ?? []).slice(0, 4).map((l: any) => ({ at: l.at, did: l.did, summary: clip(l.summary, 160) })) } : null,
     } : null,
-    postSchedule: voice?.schedule ? { isOn: !!voice.schedule.isOn, everyHours: voice.schedule.everyHours, nextAt: voice.schedule.nextAt ?? null } : null,
-    posts: voice ? voice.posted.slice(0, 15).map((p: any) => ({ at: p.at, text: clip(p.text, 300), mode: p.mode, reply: !!p.replyTo, url: p.url ?? null, topic: p.topic ? clip(p.topic, 80) : null })) : [],
+    postSchedule: voice?.schedule ? {
+      isOn: !!voice.schedule.isOn, everyHours: voice.schedule.everyHours, nextAt: voice.schedule.nextAt ?? null,
+      mode: voice.schedule.mode ?? 'every', perDay: voice.schedule.perDay ?? null, calendar: (voice.schedule.calendar ?? []).slice(0, 4),
+    } : null,
+    posts: voice ? voice.posted.slice(0, 15).map((p: any) => ({ at: p.at, text: clip(p.text, 300), mode: p.mode, reply: !!p.replyTo, url: p.url ?? null, topic: p.topic ? clip(p.topic, 80) : null, kind: p.kind ?? null, objective: p.objective ?? null, score: p.score ?? null })) : [],
+    // Her own numbers: follower growth, her usual post, her best hours, her best posts and why.
+    numbers: voice?.analytics ? {
+      followers: voice.analytics.growth?.followers ?? null, week: voice.analytics.growth?.week ?? null,
+      usualViews: voice.analytics.learning ? Math.round(voice.analytics.learning.baseline.impressions) : null,
+      bestHours: voice.analytics.bestHours ?? [],
+      winners: (voice.analytics.learning?.winners ?? []).slice(0, 2).map((w: any) => ({ ratio: w.ratio, text: clip(w.text, 120), why: (w.why ?? []).slice(0, 3).map((x: unknown) => clip(x, 60)) })),
+    } : null,
+    story: lore ? {
+      chapters: (lore.chapters ?? []).slice(-8).map((c: any) => ({ at: c.at, title: clip(c.title, 140) })), bornAt: view(body, 'identity')?.bornAt ?? null,
+      catchphrases: (lore.catchphrases ?? []).slice(0, 6).map((x: unknown) => clip(x, 80)),
+    } : null,
+    news: eyes ? {
+      digest: eyes.digest ? { at: eyes.digest.at, narratives: (eyes.digest.narratives ?? []).slice(0, 3).map((n: any) => ({ name: clip(n.name, 80), why: clip(n.why, 200), sources: (n.sources ?? []).slice(0, 4).map((s: unknown) => clip(s, 30)) })) } : null,
+      stories: (eyes.stories ?? []).slice(0, 6).map((s: any) => ({ at: s.at, title: clip(s.title, 200), link: s.link ?? null, sources: (s.sources ?? []).slice(0, 4).map((x: unknown) => clip(x, 30)), confidence: s.confidence })),
+    } : null,
+    // The wallet radar: short addresses only, and the reasons behind each score.
+    radar: scout ? {
+      counts: scout.counts, summary: scout.summary ? { wallets: scout.summary.wallets, clusters: scout.summary.clusters } : null,
+      copyOn: !!scout.config?.copyOn,
+      tiers: Object.fromEntries(Object.entries(scout.radar ?? {}).map(([t, list]: [string, any]) => [t, (list as any[]).slice(0, 4).map(p => ({
+        wallet: short(p.wallet), score: p.score, labels: (p.labels ?? []).slice(0, 3), reasons: (p.reasons ?? []).slice(0, 4).map((r: unknown) => clip(r, 120)), leader: !!p.isLeader, cluster: p.cluster ?? null,
+      }))])),
+      signals: (scout.signals ?? []).slice(0, 6).map((s: any) => ({ at: s.at, wallet: short(s.wallet), symbol: clip(s.symbol, 16), score: s.score, copied: !!s.copied, skip: s.skip ? clip(s.skip, 80) : null, r1h: s.outcome?.r1h ?? null })),
+    } : null,
     thoughts: [...thoughts].reverse(),
     dial: c?.dial ?? null,
     live: c ? { voice: !!c.live.voice, hands: !!c.live.hands } : null,

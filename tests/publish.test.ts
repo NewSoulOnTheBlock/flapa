@@ -71,3 +71,19 @@ test('publishes only when something changed', async () => {
     w.stop()
   }
 })
+
+test('the radar goes public with short wallet addresses only, and its reasons', async () => {
+  const { scout } = await import('../src/organs/scout')
+  const { eyes } = await import('../src/organs/eyes')
+  const { publicSnapshot } = await import('../src/core/publish')
+  const { tempBody, fakeMarket } = await import('./helpers')
+  const body = tempBody()
+  const f = fakeMarket({ bnb: 1 })
+  body.grow(eyes(body, f), scout(body, { dbPath: ':memory:', fetcher: f, rpcUrl: '', pause: async () => {} }))
+  const W = '0x' + 'ab'.repeat(20)
+  ;(body.organ('scout') as any).warehouse.saveProfiles([{ wallet: W, score: 88, tier: 'known', cls: 'insider-like', profile: { wallet: W, tier: 'known', score: 88, labels: ['insider-like'], reasons: ['94th percentile early-entry timing'], isLeader: false } }])
+  const snap = JSON.stringify(publicSnapshot(body, []))
+  expect(snap).not.toContain(W)
+  expect(snap).toContain('0xabab…abab')
+  expect(snap).toContain('94th percentile early-entry timing')
+})

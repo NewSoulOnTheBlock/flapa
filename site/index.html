@@ -106,7 +106,7 @@ a { color: var(--lav); }
 <main>
   <section class="pane p1"><h2><span class="n">1</span> to-do list 🍓 <span class="sub" id="s1"></span></h2><div class="body" id="p1"></div></section>
   <section class="pane p2"><h2><span class="n">2</span> thoughts, moods &amp; feelings 💭 <span class="sub" id="s2"></span></h2><div class="body" id="p2"></div></section>
-  <section class="pane p3"><h2><span class="n">3</span> fomo stats &amp; research 📈 <span class="sub" id="s3"></span></h2><div class="body" id="p3"></div></section>
+  <section class="pane p3"><h2><span class="n">3</span> radar, news &amp; research 🕵️ <span class="sub" id="s3"></span></h2><div class="body" id="p3"></div></section>
   <section class="pane p4"><h2><span class="n">4</span> current trades 💸 <span class="sub" id="s4"></span></h2><div class="body" id="p4"></div></section>
 </main>
 <footer>a read-only window into an openly-AI agent. nothing here is financial advice: her trades are her own chaos. ♡</footer>
@@ -171,7 +171,8 @@ function p1() {
   ])
 }
 
-const ICON = { wake: '💡', thought: '💭', tool: '🔧', mood: '💗', stance: '🌟', research: '🔍', trade: '💸', post: '💌' }
+const ICON = { wake: '💡', thought: '💭', tool: '🔧', mood: '💗', stance: '🌟', research: '🔍', trade: '💸', post: '💌', trigger: '⚡', news: '📰', story: '📖', lore: '✨', copy: '🕵️' }
+const until = ms => { const m = Math.round((ms - Date.now()) / 60000); return m <= 0 ? 'any moment' : m < 60 ? `in ${m}m` : `in ${(m / 60).toFixed(1)}h` }
 function p2() {
   const m = S.mood
   $('s2').textContent = S.busy ? 'thinking… ✍' : 'resting ♡'
@@ -188,18 +189,47 @@ function p2() {
     S.thoughts.length ? h('div', { class: 'stack' }, S.thoughts.map(t => h('div', { class: 'thought' }, h('span', { class: 'ic' }, ICON[t.kind] || '✨'), h('div', { class: 'card' }, t.text, h('div', { class: 'faint' }, ago(t.at))))))
       : empty('🫧', 'her head is quiet right now'),
     S.beliefs.length ? [h('div', { class: 'sec' }, '🌟 beliefs'), h('div', { class: 'stack' }, S.beliefs.map(o => h('div', { class: 'card' }, h('div', { class: 'row between' }, h('b', {}, o.topic), h('span', { class: 'tag' }, `${Math.round(o.confidence * 100)}% sure`)), o.stance)))] : null,
-    S.posts.length ? [h('div', { class: 'sec' }, '💌 posts', S.postSchedule?.isOn ? h('span', { class: 'faint' }, `every ${S.postSchedule.everyHours}h${S.postSchedule.nextAt && S.postSchedule.nextAt > Date.now() ? ` · next in ${Math.max(1, Math.round((S.postSchedule.nextAt - Date.now()) / 3600000))}h` : ''}`) : null), h('div', { class: 'stack' }, S.posts.map(p => h('div', { class: 'card' }, p.text,
+    S.numbers?.followers != null ? [h('div', { class: 'sec' }, '📈 her numbers'), h('div', { class: 'card stack' },
+      h('div', {}, h('b', {}, `${S.numbers.followers} followers`), S.numbers.week ? h('span', { class: S.numbers.week > 0 ? 'up' : 'down' }, ` ${S.numbers.week > 0 ? '+' : ''}${S.numbers.week} this week`) : null,
+        S.numbers.usualViews != null ? h('span', { class: 'faint' }, ` · usual post ${S.numbers.usualViews} views`) : null),
+      S.numbers.bestHours?.length ? h('div', { class: 'faint' }, `best hours: ${S.numbers.bestHours.join(', ')}`) : null,
+      ...(S.numbers.winners ?? []).map(w => h('div', { class: 'faint' }, `🏆 ${w.ratio}× her usual: "${w.text}" · ${w.why.join(', ')}`)))] : null,
+    S.story?.chapters?.length ? [h('div', { class: 'sec' }, '📖 her story'), h('div', { class: 'stack' }, S.story.chapters.slice().reverse().map(c => h('div', { class: 'card' },
+      S.story.bornAt ? h('b', {}, `Day ${Math.max(1, Math.floor((c.at - S.story.bornAt) / 86400000) + 1)} · `) : null, c.title))),
+      S.story.catchphrases?.length ? h('div', { class: 'faint', style: 'margin-top:4px' }, `catchphrases: ${S.story.catchphrases.join(' · ')}`) : null] : null,
+    S.posts.length ? [h('div', { class: 'sec' }, '💌 posts', S.postSchedule?.isOn ? h('span', { class: 'faint' }, S.postSchedule.mode === 'slots'
+      ? `${S.postSchedule.perDay} a day at her best hours${S.postSchedule.nextAt ? ` · next ${until(S.postSchedule.nextAt)}` : ''}`
+      : `every ${S.postSchedule.everyHours}h${S.postSchedule.nextAt && S.postSchedule.nextAt > Date.now() ? ` · next ${until(S.postSchedule.nextAt)}` : ''}`) : null), h('div', { class: 'stack' }, S.posts.map(p => h('div', { class: 'card' }, p.text,
       h('div', { class: 'row', style: 'margin-top:4px' }, h('span', { class: `tag ${p.mode === 'live' ? 'hot' : ''}` }, p.mode === 'live' ? 'on X 🔥' : 'paper 🧸'), p.reply ? h('span', { class: 'tag' }, 'reply') : null, p.topic ? h('span', { class: 'tag her' }, `🎲 ${p.topic}`) : null,
+        p.kind && p.kind !== 'post' ? h('span', { class: 'tag' }, p.kind === 'poll' ? '📊 poll' : '🧵 thread') : null,
+        p.objective ? h('span', { class: 'tag' }, `🎯 ${p.objective}`) : null, p.score != null ? h('span', { class: 'tag' }, `✨ ${p.score}/100`) : null,
         h('span', { class: 'faint' }, ago(p.at)), safeUrl(p.url) ? h('a', { href: safeUrl(p.url), target: '_blank', rel: 'noopener noreferrer', class: 'faint' }, 'open ↗') : null))))] : null,
   ])
 }
 
 function p3() {
   const f = S.fomo
-  $('s3').textContent = f?.board ? `board ${f.board.window} · ${ago(f.board.at)}` : ''
+  $('s3').textContent = ''
   const medals = ['🥇', '🥈', '🥉']
+  const R = S.radar, N = S.news
+  const TIER = { known: '🔴 known insider-like', active: '🟢 active alpha', emerging: '🟠 emerging', watch: '🟡 watchlist', dormant: '⚫ dormant' }
+  if (R) $('s3').textContent = `${R.counts.wallets.toLocaleString()} wallets watched · ${R.counts.trades.toLocaleString()} trades`
   keep('p3', () => [
-    h('div', { class: 'sec', style: 'margin-top:0' }, '🏆 fomo leaderboard'),
+    R ? [h('div', { class: 'sec', style: 'margin-top:0' }, '🕵️ wallet radar', h('span', { class: 'faint' }, R.copyOn ? 'copying the best buys' : 'watching only')),
+      h('div', { class: 'faint', style: 'margin-bottom:6px' }, 'insider-like means behavior (in early, ahead of attention, again and again), not proof of inside information.'),
+      Object.entries(R.tiers).some(([, l]) => l.length)
+        ? h('div', { class: 'stack' }, Object.entries(R.tiers).filter(([, l]) => l.length).flatMap(([t, l]) => [h('div', { class: 'dim' }, TIER[t] ?? t),
+            ...l.map(p => h('div', { class: 'card' }, h('div', { class: 'row between wrap' }, h('b', {}, p.wallet), h('span', { class: 'tag' }, `score ${p.score}`)),
+              p.labels.length || p.leader ? h('div', { class: 'faint' }, [...p.labels, p.leader ? `leads cluster #${p.cluster}` : null].filter(Boolean).join(' · ')) : null,
+              ...p.reasons.map(r => h('div', { class: 'faint' }, `• ${r}`))))]))
+        : empty('🔭', 'the radar fills in over a few days: wallets need a few tokens of history first'),
+      R.signals.length ? [h('div', { class: 'sec' }, '👀 copy signals'), h('div', { class: 'stack' }, R.signals.map(x => h('div', { class: 'card' },
+        `${x.copied ? '🛒 copied' : x.skip ? '💤 passed' : '👀 seen'} · ${x.wallet} → ${x.symbol} · signal ${x.score}`,
+        h('div', { class: 'faint' }, [x.skip, x.r1h != null ? `1h later ${x.r1h >= 0 ? '+' : ''}${(x.r1h * 100).toFixed(0)}%` : null, ago(x.at)].filter(Boolean).join(' · ')))))] : null] : null,
+    N?.digest?.narratives?.length ? [h('div', { class: 'sec' }, "📰 today's narratives"), h('div', { class: 'stack' }, N.digest.narratives.map(n => h('div', { class: 'card' }, h('b', {}, n.name), h('div', { class: 'faint' }, `${n.why} (${n.sources.join(', ')})`))))] : null,
+    N?.stories?.length ? [h('div', { class: 'sec' }, '🗞️ headlines'), h('div', { class: 'stack' }, N.stories.map(x => h('div', { class: 'card' }, x.title,
+      h('div', { class: 'faint' }, `${x.sources.join(', ')} · ${x.confidence} · ${ago(x.at)}`))))] : null,
+    h('div', { class: 'sec' }, '🏆 fomo leaderboard'),
     f?.board?.rows?.length ? h('div', { class: 'stack' }, f.board.rows.map((r, i) => h('div', { class: 'card lb' },
       h('span', { class: 'medal' }, medals[i] || `#${r.rank}`),
       h('div', {}, h('b', {}, r.handle), r.x ? h('span', { class: 'faint' }, ` @${r.x}`) : null, h('div', { class: 'faint' }, `${r.trades} trades${r.top ? ` · best: $${r.top.symbol} (${usd(r.top.pnlUsd)})` : ''}`)),
@@ -226,9 +256,12 @@ function p4() {
       h('div', { class: 'card' }, h('span', { class: 'faint' }, 'spent today'), h('b', {}, d.spentBnb.toFixed(3)), h('div', { class: 'prog' }, h('i', { style: `width:${Math.min(100, (d.spentBnb / l.maxDailyBnb) * 100)}%` })), h('span', { class: 'faint' }, `of ${l.maxDailyBnb} BNB`)),
       h('div', { class: 'card' }, h('span', { class: 'faint' }, 'realized'), h('b', { class: d.realizedBnb >= 0 ? 'up' : 'down' }, sign(d.realizedBnb)), h('span', { class: 'faint' }, `stop at -${l.maxDailyLossBnb}`)),
       h('div', { class: 'card' }, h('span', { class: 'faint' }, 'open'), h('b', {}, `${open}/${l.maxOpen}`), h('span', { class: 'faint' }, 'positions'))),
+    t.cycle ? h('div', { class: 'card', style: 'margin-top:8px' }, h('div', {}, `⏰ trade cycle: every ${t.cycle.everyHours}h${t.cycle.isOn && t.cycle.nextAt ? ` · next ${until(t.cycle.nextAt)}` : t.cycle.isOn ? '' : ' · off'}`),
+      ...(t.cycle.log ?? []).slice(0, 3).map(l => h('div', { class: 'faint' }, `${l.did === 'buy' ? '🛒' : l.did === 'sell' ? '🔁' : '💤'} ${l.summary} · ${ago(l.at)}`))) : null,
     h('div', { class: 'sec' }, '🛍️ holding'),
     t.positions.length ? h('div', { class: 'stack' }, t.positions.map(p => { const c = (p.lastPrice / p.entryPrice - 1) * 100; return h('div', { class: 'card pos' },
-      h('div', {}, h('b', {}, `$${p.symbol} `), h('span', { class: `tag ${p.paper ? '' : 'hot'}` }, p.paper ? 'paper 🧸' : 'LIVE 🔥'), p.tookProfit ? h('span', { class: 'tag' }, ' half taken') : null),
+      h('div', {}, h('b', {}, `$${p.symbol} `), h('span', { class: `tag ${p.paper ? '' : 'hot'}` }, p.paper ? 'paper 🧸' : 'LIVE 🔥'), p.tookProfit ? h('span', { class: 'tag' }, ' half taken') : null,
+        p.copy ? h('span', { class: 'tag her' }, ` 🕵️ copied ${p.copy.wallets[0]}${p.copy.wallets.length > 1 ? ` +${p.copy.wallets.length - 1}` : ''} · ladder ${p.copy.stage}/2${p.copy.leaderSelling ? ' · it is selling' : ''}`) : null),
       h('span', { class: `pct ${c >= 0 ? 'up' : 'down'}` }, `${c >= 0 ? '+' : ''}${c.toFixed(1)}% ${c >= 0 ? '🚀' : '🥲'}`),
       h('span', { class: 'faint' }, `cost ${p.costBnb.toFixed(4)} BNB · opened ${ago(p.openedAt)}`)) })) : empty('🧺', 'no bags right now'),
     h('div', { class: 'sec' }, '🧾 trade diary'),
