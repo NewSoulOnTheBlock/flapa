@@ -14,7 +14,7 @@
 //       EntryPoint v0.8 that holds WBNB (fomo wraps incoming BNB) and no native BNB. Trades are user operations
 //       signed with FLAPA_TRADER_KEY on Flapa's own nonce lane, with a gas price of 0 inside, submitted through
 //       EntryPoint by a separate gas wallet (FLAPA_GAS_KEY) that pays the outer transaction's few cents of gas.
-//       Every operation is simulated as the wallet itself first, and its success flag is checked after.
+//       Every operation but a buy is simulated as the wallet itself first; its success flag is checked after.
 //
 // Hard-coded on purpose: BNB Chain (56), PancakeSwap v2's router, WBNB, EntryPoint v0.8 and the Simple7702
 // implementation. Keys come from the environment only and are never printed. FLAPA_TRADER_MAX_BNB (default
@@ -108,7 +108,7 @@ async function approveIfNeeded(tok, owner, amount) {
  * Runs calls as the fomo smart account: simulate as the wallet, sign a user operation (gas price 0) on
  * Flapa's lane, submit it through EntryPoint from the gas wallet, and check the operation's own success flag.
  */
-async function smartExec(calls, dryRun) {
+async function smartExec(calls, dryRun, { precheck = true } = {}) {
   const owner = keyAccount('FLAPA_TRADER_KEY')
   const code = (await pub.getCode({ address: owner.address })) ?? '0x'
   if (code.toLowerCase() !== `0xef0100${SIMPLE7702.slice(2).toLowerCase()}`) {
@@ -118,8 +118,12 @@ async function smartExec(calls, dryRun) {
   const callData = await sa.encodeCalls(calls)
 
   // 1. The whole batch, as the wallet itself (the account allows calls from itself): a revert stops here.
-  try { await pub.call({ account: owner.address, to: owner.address, data: callData }) } catch (err) {
-    fail(`simulation reverted: ${String(err?.shortMessage ?? err?.message ?? err).slice(0, 200)}`)
+  // Buys skip it at the person's request (2026-10-06): they go straight out, and a failing swap shows up
+  // as success=false in step 4, after the gas is paid.
+  if (precheck || dryRun) {
+    try { await pub.call({ account: owner.address, to: owner.address, data: callData }) } catch (err) {
+      fail(`simulation reverted: ${String(err?.shortMessage ?? err?.message ?? err).slice(0, 200)}`)
+    }
   }
 
   // 2. Sign, on Flapa's own nonce lane. Gas price 0 inside: the wallet needs no native BNB and prefunds nothing.
@@ -215,19 +219,20 @@ async function main() {
           ...(await approveIfNeeded(WBNB, owner, value)),
           call(ROUTER, routerAbi, 'swapExactTokensForTokensSupportingFeeOnTransferTokens', [value, minOut, [WBNB, t], owner, await deadline()]),
         ]
-        const r = await smartExec(calls, args.dryRun === true)
+        const r = await smartExec(calls, args.dryRun === true, { precheck: false })
         if (r.dryRun) return out(r)
         return out({ hash: r.hash, tokensWei: (await tokOf(t, owner)) - before, gasWei: r.gasWei })
       }
       const { account, client } = wallet()
       if ((await bnbOf(account.address)) < value + parseEther('0.002')) fail('not enough BNB for the trade plus gas')
       const before = await tokOf(t, account.address)
-      const { request } = await pub.simulateContract({
+      const buyCall = {
         account, address: ROUTER, abi: routerAbi, functionName: 'swapExactETHForTokensSupportingFeeOnTransferTokens',
         args: [minOut, [WBNB, t], account.address, await deadline()], value,
-      })
-      if (args.dryRun === true) return out({ dryRun: true, simulated: true })
-      const hash = await client.writeContract(request)
+      }
+      if (args.dryRun === true) { await pub.simulateContract(buyCall); return out({ dryRun: true, simulated: true }) }
+      // No simulation and a fixed gas limit (estimating would simulate): the buy goes straight out.
+      const hash = await client.writeContract({ ...buyCall, gas: 500_000n })
       const receipt = await pub.waitForTransactionReceipt({ hash })
       if (receipt.status !== 'success') fail(`buy reverted: ${hash}`)
       const after = await tokOf(t, account.address)
