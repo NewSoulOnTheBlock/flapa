@@ -1,6 +1,7 @@
 // The reply engine and people memory, pure. Incoming mentions get a kind and a plan; outgoing reply
 // opportunities get a score; every account she talks to gets a small relationship record.
 import { isHostile } from './crisis'
+import { REPLY_CRAFT } from './shitpost'
 
 export type MentionKind = 'spam' | 'troll' | 'critic' | 'question' | 'fan' | 'opportunity' | 'chat'
 export type MentionPlan = { kind: MentionKind; reply: 'skip' | 'green' | 'yellow'; why: string }
@@ -111,6 +112,7 @@ export function replyBrief(o: { author: string; text: string; context?: string; 
     o.kind === 'outbound'
       ? 'Write ONE reply that earns attention: funny, sharp or genuinely useful, in your voice. Add something, never just agree.'
       : 'Write ONE reply in your voice that fits the conversation so far. Short and warm unless they asked something real.',
+    REPLY_CRAFT,
     'Under 200 characters. No links, no hashtags, no buy or sell calls, no price talk. Reply with the text only.',
   ].filter(Boolean).join('\n')
 }

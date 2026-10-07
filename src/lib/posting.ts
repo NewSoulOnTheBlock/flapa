@@ -1,6 +1,7 @@
 // The posting engine, pure: picks what her next post is about from a topic catalog, then writes the brief.
 // Code chooses (so posts vary for real); she writes (so they sound like her). Her conscience still screens
 // every word.
+import { SHITPOST_CRAFT } from './shitpost'
 
 export type Topic = string | { t: string; months: number[] }
 export type Category = { name: string; side: 'trading' | 'kawaii'; weight: number; angle: string; topics: Topic[] }
@@ -113,7 +114,7 @@ export function nudged(catalog: Catalog, nudges: Readonly<Record<string, number>
   return { ...catalog, categories: catalog.categories.map(c => ({ ...c, weight: (c.weight ?? 1) * (nudges[c.name] ?? 1) })) }
 }
 
-export function engineBrief(p: Pick, opts: { recent: readonly string[]; storyline?: string; everyHours: number; learned?: string }): string {
+export function engineBrief(p: Pick, opts: { recent: readonly string[]; storyline?: string; everyHours: number; learned?: string; happening?: string }): string {
   const subject = p.blend
     ? `Connect these two in ONE post: "${p.topic}" (${p.category}) and "${p.blend.topic}" (${p.blend.category}). The funnier or more unexpected the link, the better.`
     : `Post about: "${p.topic}" (${p.category}).`
@@ -126,9 +127,12 @@ export function engineBrief(p: Pick, opts: { recent: readonly string[]; storylin
     `How to approach it: ${p.angle}`,
     `Shape: ${p.format}.`,
     objective ? objective.brief : '',
+    opts.happening ?? '',
     p.storyline && opts.storyline?.trim() ? `If it fits naturally, nod to what is going on with you lately: ${opts.storyline.trim()}.` : '',
     opts.recent.length ? `Your last posts (do not repeat their ideas, openings or jokes):\n${opts.recent.slice(0, 5).map(t => `- ${t}`).join('\n')}` : '',
     opts.learned ?? '',
+    '',
+    SHITPOST_CRAFT,
     '',
     'Before you post: privately draft three versions and score each 1-10 on hook, novelty, emotion, shareability and',
     'reply potential. Post only the best one. After posting, end your answer with one line exactly like: SCORE 8/7/9/8/6',

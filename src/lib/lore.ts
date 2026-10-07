@@ -32,8 +32,10 @@ export function lorePrompt(lore: Lore, recentPosts: readonly string[]): string {
     `Your lore so far: catchphrases ${JSON.stringify(lore.catchphrases)}, running jokes ${JSON.stringify(lore.jokes)}, recurring characters ${JSON.stringify(lore.characters)}.`,
     '',
     'Did anything in these posts become (or deserve to become) a catchphrase, a running joke, or a recurring character',
-    '(an object, a rival archetype, a pet, a place)? Propose at most two NEW items that grew out of what you actually',
-    'posted. Nothing about real named people. Answer with only JSON: {"catchphrases": [], "jokes": [], "characters": []}',
+    '(an object, a rival archetype, a pet, a place, an imaginary financial advisor or lawyer)? Propose at most two NEW',
+    'items that grew out of what you actually posted. A running joke should be able to evolve (the advisor resigns, the',
+    'new advisor bought the top), not just repeat. Nothing about real named people.',
+    'Answer with only JSON: {"catchphrases": [], "jokes": [], "characters": []}',
   ].join('\n')
 }
 

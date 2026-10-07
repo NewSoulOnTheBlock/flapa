@@ -15,6 +15,8 @@ import { bestHours, learn, learningNote, statFromTweet, weightNudges, type Learn
 import { engineBrief, nudged, parseScore, pickTopic, validateCatalog, type Catalog, type Pick as TopicPick, type PostRecord } from '../lib/posting'
 import { nextSlots, slotDue, slotHours } from '../lib/calendar'
 import { MAX_WEIGHT, weightedLength } from '../lib/xtext'
+import { happening } from '../lib/shitpost'
+import type { Position, TradeRecord } from '../lib/limits'
 
 const API = 'https://api.x.com/2'
 
@@ -95,6 +97,12 @@ export function voice(body: Body, opts: VoiceOptions | typeof fetch = {}): Organ
     }
   }
 
+  /** Her live bags and last trades, read from the hands' store, so a post can start from what is really going on. */
+  function nowHappening(): string {
+    const hands = body.store('hands')
+    return happening(hands.get<Position[]>('positions', []), hands.get<TradeRecord[]>('trades', []), Date.now())
+  }
+
   /** One scheduled post. The clock only restarts when a post actually went out (or is held for the person). */
   let posting = false
   async function scheduledPost(): Promise<string> {
@@ -107,7 +115,7 @@ export function voice(body: Body, opts: VoiceOptions | typeof fetch = {}): Organ
       const pick: TopicPick | undefined = cat ? pickTopic(nudged(cat, weightNudges(learned)), history(), new Date(), rng) : undefined
       const recent = store.get<Posted[]>('posted', []).filter(p => !p.replyTo).slice(0, 5).map(p => p.text)
       const brief = pick
-        ? engineBrief(pick, { recent, storyline: schedule().themes, everyHours: schedule().everyHours, learned: [learningNote(learned), slumping() ? SLUMP_NOTE : ''].filter(Boolean).join('\n') })
+        ? engineBrief(pick, { recent, happening: nowHappening(), storyline: schedule().themes, everyHours: schedule().everyHours, learned: [learningNote(learned), slumping() ? SLUMP_NOTE : ''].filter(Boolean).join('\n') })
         : postBrief(schedule().everyHours, schedule().themes)
       if (pick) body.bus.emit('topic', 'voice', { topic: pick.topic, category: pick.category, blend: pick.blend?.topic ?? null, format: pick.format })
       const r = await body.think({ kind: 'post', text: brief, from: 'voice' })
