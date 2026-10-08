@@ -12,7 +12,7 @@ import { voice } from '../src/organs/voice'
 import { FakeBrain, fakeMarket, tempBody, TOKEN } from './helpers'
 
 const call = (name: string, input: unknown) => ({ id: `c_${name}_${Math.random()}`, name, input })
-const personas = join(import.meta.dir, '..', 'personas')
+const personas = join(import.meta.dir, '..', 'examples', 'personas')
 
 describe('cortex', () => {
   test('runs tools, feeds results back, keeps chat words, extracts memories', async () => {

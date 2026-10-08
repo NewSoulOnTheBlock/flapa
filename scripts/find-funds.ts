@@ -28,6 +28,5 @@ const bscTokens: [string, string, number][] = [
   ['WBNB', '0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c', 18],
   ['USDT (BSC)', '0x55d398326f99059fF775485246999027B3197955', 18],
   ['USDC (BSC)', '0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d', 18],
-  ['$Flapa', '0xFe59B933944B4d267A14c59020C0eB19a97d7777', 18],
 ]
 for (const [name, token, dec] of bscTokens) console.log(`BNB Chain ${name.padEnd(16)} ${eth(await rpc('https://bsc-rpc.publicnode.com', 'eth_call', [balanceOf(token), 'latest']), dec)}`)

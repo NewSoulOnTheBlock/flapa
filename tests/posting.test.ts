@@ -8,7 +8,7 @@ import { identity } from '../src/organs/identity'
 import { voice } from '../src/organs/voice'
 import { FakeBrain, fakeMarket, tempBody } from './helpers'
 
-const personas = join(import.meta.dir, '..', 'personas')
+const personas = join(import.meta.dir, '..', 'examples', 'personas')
 const flapa = JSON.parse(readFileSync(join(personas, 'flapa.topics.json'), 'utf8')) as Catalog
 
 /** A seeded generator, so picks are repeatable. */

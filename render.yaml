@@ -1,4 +1,4 @@
-# Render Blueprint: Flapa as an always-on web service with a small disk for her state. It is a web service (not a
+# Render Blueprint: P.A.C.S as an always-on web service with a small disk for its state. It is a web service (not a
 # worker) so the public live window has an address: a read-only WebSocket at /public/ws on Render's PORT. The
 # private dashboard still listens on 127.0.0.1 inside the container and is never exposed.
 # Secrets are marked sync: false; Render asks for each one when the Blueprint is created.

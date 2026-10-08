@@ -115,7 +115,7 @@ export function eyes(body: Body, fetcher: typeof fetch = fetch, opts: { api?: Fo
     const got: NewsItem[] = []
     for (const f of FEEDS) {
       try {
-        const r = await fetcher(f.url, { headers: { 'user-agent': 'Mozilla/5.0 (compatible; FlapaBot/1.0)' } })
+        const r = await fetcher(f.url, { headers: { 'user-agent': 'Mozilla/5.0 (compatible; PACSBot/1.0)' } })
         if (r.ok) got.push(...parseRss(await r.text(), f.source))
       } catch {}
     }

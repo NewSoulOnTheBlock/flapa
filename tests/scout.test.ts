@@ -26,7 +26,7 @@ const fakeApi = (over: Partial<FomoApi> = {}): FomoApi => ({
 function grown(api: FomoApi) {
   const body = tempBody()
   const f = fakeMarket({ bnb: 1, liq: 80_000 })
-  body.grow(identity(body, join(import.meta.dir, '..', 'personas')), conscience(body), eyes(body, f, { api }), hands(body, async () => { throw new Error('no live helper in tests') }), scout(body, { dbPath: ':memory:', api, stream: false, pause: async () => {} }))
+  body.grow(identity(body, join(import.meta.dir, '..', 'examples', 'personas')), conscience(body), eyes(body, f, { api }), hands(body, async () => { throw new Error('no live helper in tests') }), scout(body, { dbPath: ':memory:', api, stream: false, pause: async () => {} }))
   const s = body.organ('scout') as ScoutOrgan
   s.warehouse.saveProfiles([{
     wallet: '@onepeterrr', score: 92, tier: 'known', cls: 'insider-like',

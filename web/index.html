@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>FLAPA ♡</title>
+<title>P.A.C.S ♡</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;800&family=M+PLUS+Rounded+1c:wght@400;500;700&display=swap" rel="stylesheet">
@@ -120,6 +120,12 @@ main {
 
 /* 1. to-do */
 .todo { display: flex; align-items: center; gap: 10px; }
+.forge { position: fixed; inset: 0; z-index: 50; display: grid; place-items: center; padding: 16px; background: color-mix(in srgb, var(--lav-3) 70%, transparent); backdrop-filter: blur(6px); }
+.forge[hidden] { display: none; }
+.forge .box { width: min(640px, 100%); max-height: calc(100vh - 32px); overflow: auto; background: #fff; border-radius: 26px; padding: 22px; box-shadow: 0 18px 50px rgba(120, 80, 160, .25); }
+.forge label { display: block; font-weight: 700; margin: 12px 0 4px; }
+.forge label small { font-weight: 400; color: var(--faint); }
+.forge textarea { width: 100%; box-sizing: border-box; min-height: 54px; resize: vertical; border: 2px solid var(--pink-2); border-radius: 14px; padding: 8px 12px; outline: none; }
 .check { width: 24px; height: 24px; border-radius: 50%; border: 2px solid var(--pink-2); background: #fff; cursor: pointer; display: grid; place-items: center; font-size: 13px; color: transparent; flex: none; transition: all .2s; }
 .check.on { background: var(--pink); border-color: var(--pink); color: #fff; }
 .todo .t { flex: 1; }
@@ -177,8 +183,9 @@ main {
 
 <header>
   <span class="heart" id="heart">♥</span>
-  <span class="logo">FLAPA</span>
+  <span class="logo" title="personal agentic core system">P.A.C.S</span>
   <select class="pill" id="persona" title="who's home"></select>
+  <button class="pill" id="forgeBtn" title="forge a new persona">✚ forge</button>
   <span class="pill" id="brain" style="cursor:default">brain</span>
   <span class="spacer"></span>
   <div class="group"><span class="label">vibe check</span><span id="dial" class="group"></span></div>
@@ -195,7 +202,7 @@ main {
     <h2><span class="n">2</span> thoughts, moods &amp; feelings 💭 <span class="sub" id="busy"></span></h2>
     <div class="body" id="p2"></div>
     <form class="chatbar" id="say">
-      <input class="field" id="text" autocomplete="off" placeholder="talk to her ♡">
+      <input class="field" id="text" autocomplete="off" placeholder="talk to them ♡">
       <button class="btn">send ✧</button>
     </form>
   </section>
@@ -211,11 +218,12 @@ main {
   </section>
 </main>
 <div id="toast"></div>
+<div id="forge" class="forge" hidden></div>
 
 <script>
-const TOKEN = '__FLAPA_TOKEN__'
+const TOKEN = '__PACS_TOKEN__'
 let S = null, sending = null, tick = 0
-let mindTab = load('flapa.mindTab', 'talk')
+let mindTab = load('pacs.mindTab', 'talk')
 const events = []
 
 function load(k, d) { try { return localStorage.getItem(k) || d } catch { return d } }
@@ -234,7 +242,7 @@ function h(tag, attrs, ...kids) {
   return el
 }
 async function api(path, body) {
-  const r = await fetch(`/api/${path}`, { method: body ? 'POST' : 'GET', headers: { 'x-flapa-token': TOKEN, 'content-type': 'application/json' }, body: body ? JSON.stringify(body) : undefined })
+  const r = await fetch(`/api/${path}`, { method: body ? 'POST' : 'GET', headers: { 'x-pacs-token': TOKEN, 'content-type': 'application/json' }, body: body ? JSON.stringify(body) : undefined })
   const j = await r.json()
   if (j.error) { toast(`oops: ${j.error}`); throw new Error(j.error) }
   return j
@@ -263,7 +271,7 @@ function header() {
     h('button', { class: `pill ${c.live[o] ? 'live' : 'paper'}`, title: 'paper = pretend, LIVE = real',
       onclick: () => {
         const goLive = !c.live[o]
-        if (goLive && !confirm(o === 'voice' ? 'Go LIVE on X? Her posts will really publish.' : 'Go LIVE trading? Real BNB gets spent, within your limits.')) return
+        if (goLive && !confirm(o === 'voice' ? 'Go LIVE on X? Their posts will really publish.' : 'Go LIVE trading? Real BNB gets spent, within your limits.')) return
         act('conscience', 'live', { organ: o, isLive: goLive })
       } }, `${label}: ${c.live[o] ? 'LIVE 🔥' : 'paper 🧸'}`)))
   const idv = S.organs.identity.view, sel = $('persona')
@@ -289,17 +297,17 @@ function p1() {
   if (typingIn('p1')) return
   keep('p1', () => [
     h('form', { class: 'row', onsubmit: e => { e.preventDefault(); const v = $('todoIn').value.trim(); if (v) act('agenda', 'add', { text: v }); $('todoIn').value = '' } },
-      h('input', { class: 'field', id: 'todoIn', placeholder: 'a goal for her ✿', autocomplete: 'off' }), h('button', { class: 'btn' }, 'add ♡')),
+      h('input', { class: 'field', id: 'todoIn', placeholder: 'a goal for them ✿', autocomplete: 'off' }), h('button', { class: 'btn' }, 'add ♡')),
     h('div', { class: 'stack', style: 'margin-top:10px' }, a.todos.length ? [...a.todos].sort((x, y) => x.isDone - y.isDone).map(t =>
       h('div', { class: `card todo ${t.isDone ? 'done' : ''}` },
         h('button', { class: `check ${t.isDone ? 'on' : ''}`, onclick: () => act('agenda', 'toggle', { id: t.id }), 'aria-label': 'toggle' }, '♥'),
-        h('span', { class: 't' }, t.text), t.by === 'agent' ? h('span', { class: 'tag her' }, 'hers 🎀') : null,
+        h('span', { class: 't' }, t.text), t.by === 'agent' ? h('span', { class: 'tag her' }, 'theirs 🎀') : null,
         h('button', { class: 'btn ghost small', onclick: () => act('agenda', 'remove', { id: t.id }), 'aria-label': 'remove' }, '✕')))
       : empty('🌱', 'nothing on the list yet!')),
     h('div', { class: 'sec' }, '💗 heartbeat', h('span', { class: 'faint' }, `${a.heart.beats} beats`)),
     h('div', { class: 'card row wrap' },
       sw(a.heart.isOn, () => act('agenda', 'heart', { isOn: !a.heart.isOn })),
-      h('span', {}, a.heart.isOn ? 'she works the list every' : 'off · would beat every'),
+      h('span', {}, a.heart.isOn ? 'they work the list every' : 'off · would beat every'),
       h('input', { class: 'field', type: 'number', min: 5, value: a.heart.everyMin, style: 'flex:none;width:72px;padding:4px 8px', onchange: e => act('agenda', 'heart', { everyMin: Number(e.target.value) }) }),
       h('span', {}, 'min'), h('span', { class: 'spacer' }),
       h('button', { class: 'btn small', onclick: () => { act('agenda', 'beat'); toast('ba-dum! ♥') } }, 'beat now')),
@@ -343,7 +351,7 @@ function thoughtText(s) {
     case 'crisis': return d.why
     case 'story': return `new chapter: ${(d.chapters || []).join('; ')}`
     case 'lore': return `lore grew: ${(d.added || []).join('; ')}`
-    case 'measured': return `read her numbers: ${d.posts} posts, ${d.followers} followers`
+    case 'measured': return `read their numbers: ${d.posts} posts, ${d.followers} followers`
     default: return s.type.startsWith('act.') ? `${d.organ}.${d.kind} ${s.type.slice(4)}: ${d.summary}` : null
   }
 }
@@ -365,7 +373,7 @@ function p2() {
         h('div', { class: 'row wrap', style: 'margin-top:6px;gap:14px' },
           h('span', { class: 'row' }, h('span', { class: 'faint' }, 'happy'), meter((mood.valence + 1) / 2, '💖', '🤍')),
           h('span', { class: 'row' }, h('span', { class: 'faint' }, 'energy'), meter(mood.energy, '⚡', '·'))))),
-    h('div', { class: 'tabs' }, tabs.map(([k, label]) => h('button', { class: mindTab === k ? 'on' : '', onclick: () => { mindTab = k; save('flapa.mindTab', k); p2() } }, label, k === 'posts' && pendingPosts ? h('span', { class: 'badge' }, pendingPosts) : null))),
+    h('div', { class: 'tabs' }, tabs.map(([k, label]) => h('button', { class: mindTab === k ? 'on' : '', onclick: () => { mindTab = k; save('pacs.mindTab', k); p2() } }, label, k === 'posts' && pendingPosts ? h('span', { class: 'badge' }, pendingPosts) : null))),
     MIND[mindTab](),
   )
   if (mindTab === 'talk' && (atEnd || sending)) box.scrollTop = box.scrollHeight
@@ -375,28 +383,28 @@ const MIND = {
   talk: () => {
     const msgs = S.chat.map(m => h('div', { class: `msg ${m.role === 'user' ? 'me' : 'her'}` }, typeof m.content === 'string' ? m.content : ''))
     if (sending) msgs.push(h('div', { class: 'msg me' }, sending), h('div', { class: 'msg her wait' }, 'thinking… ✍'))
-    return msgs.length ? h('div', { class: 'msgs' }, msgs) : empty('👋', "say hi! she's awake even when you're not talking")
+    return msgs.length ? h('div', { class: 'msgs' }, msgs) : empty('👋', "say hi! they're awake even when you're not talking")
   },
   thoughts: () => {
     const list = events.filter(s => THOUGHT_ICON[s.type]).slice(-60).reverse()
     return list.length ? h('div', { class: 'stack' }, list.map(s => {
       const text = thoughtText(s)
       return text ? h('div', { class: 'thought' }, h('span', { class: 'ic' }, THOUGHT_ICON[s.type]), h('div', { class: 'card' }, text, h('div', { class: 'faint' }, ago(s.at)))) : null
-    })) : empty('🫧', 'her head is quiet right now')
+    })) : empty('🫧', 'their head is quiet right now')
   },
   feelings: () => {
     const m = S.organs.affect.view
     return h('div', { class: 'stack' },
       h('div', { class: 'card dim' }, `valence ${m.valence.toFixed(2)} · energy ${m.energy.toFixed(2)} · moods drift back to normal over a few hours`),
       m.events.length ? m.events.map(e => h('div', { class: 'card row between' }, h('span', {}, e.what),
-        h('span', { class: e.valence >= 0 ? 'up' : 'down' }, `${e.valence >= 0 ? '↑' : '↓'} ${ago(e.at)}`))) : empty('😌', 'nothing has moved her mood lately'))
+        h('span', { class: e.valence >= 0 ? 'up' : 'down' }, `${e.valence >= 0 ? '↑' : '↓'} ${ago(e.at)}`))) : empty('😌', 'nothing has moved their mood lately'))
   },
   beliefs: () => {
     const l = S.organs.beliefs.view.ledger, mem = S.organs.memory.view
     return [
       l.length ? h('div', { class: 'stack' }, l.map(o => h('div', { class: 'card' },
         h('div', { class: 'row between' }, h('b', {}, `🌟 ${o.topic}`), h('span', { class: 'tag' }, `${Math.round(o.confidence * 100)}% sure`)),
-        h('div', {}, o.stance), h('div', { class: 'faint' }, `because ${o.reason}${o.history.length ? ` · used to think "${o.history.at(-1).stance}"` : ''}`)))) : empty('🌟', 'no stances yet. ask what she thinks!'),
+        h('div', {}, o.stance), h('div', { class: 'faint' }, `because ${o.reason}${o.history.length ? ` · used to think "${o.history.at(-1).stance}"` : ''}`)))) : empty('🌟', 'no stances yet. ask what they think!'),
       h('div', { class: 'sec' }, `📝 memories`, h('span', { class: 'faint' }, `${mem.count} kept`)),
       h('div', { class: 'stack' }, mem.recent.slice(0, 12).map(m => h('div', { class: 'card row between' }, h('span', {}, m.text),
         h('button', { class: 'btn ghost small', onclick: () => act('memory', 'forget', { id: m.id }) }, 'forget')))),
@@ -409,11 +417,11 @@ const MIND = {
         h('b', {}, `🚨 crisis mode · ${ago(v.crisis.at)}`),
         h('div', { class: 'why' }, `${v.crisis.why}. All posting is paused until you set the dial back to auto.`),
         ...v.crisis.sample.map(s => h('div', { class: 'faint' }, s)),
-        v.crisis.draft ? h('div', { class: 'card', style: 'margin-top:6px' }, h('span', { class: 'faint' }, 'her draft statement (never posted on its own): '), v.crisis.draft) : null,
+        v.crisis.draft ? h('div', { class: 'card', style: 'margin-top:6px' }, h('span', { class: 'faint' }, 'their draft statement (never posted on its own): '), v.crisis.draft) : null,
         h('div', { class: 'row', style: 'margin-top:6px' }, h('button', { class: 'btn small', onclick: () => act('voice', 'clearCrisis', {}) }, 'handled ✓'))) : null,
       ...approvals('voice'),
       h('div', { class: 'card row wrap', style: 'margin:8px 0' }, sw(v.reply.mode === 'post', () => act('voice', 'autoreply', { isOn: v.reply.mode !== 'post' })),
-        h('span', {}, 'reply to mentions by herself'), h('span', { class: 'faint' }, v.connected ? `· X connected${v.me ? ` as @${v.me.username}` : ''}` : '· X not connected (paper posts still work)')),
+        h('span', {}, 'reply to mentions by themselves'), h('span', { class: 'faint' }, v.connected ? `· X connected${v.me ? ` as @${v.me.username}` : ''}` : '· X not connected (paper posts still work)')),
       v.triage?.length ? h('div', { class: 'faint', style: 'margin:-4px 0 8px' }, `last mentions: ${v.triage.slice(0, 4).map(t => `@${t.author} ${t.kind}→${t.reply}`).join(' · ')}`) : null,
       v.outbound ? h('div', { class: 'card', style: 'margin:0 0 8px' },
         h('div', { class: 'row wrap' }, sw(v.outbound.isOn, () => act('voice', 'outbound', { isOn: !v.outbound.isOn })),
@@ -423,22 +431,22 @@ const MIND = {
           h('span', { class: 'faint' }, '/day'),
           h('button', { class: 'btn ghost small', onclick: () => act('voice', 'seekNow', {}).then(r => toast(String(r.value?.result ?? '').slice(0, 120))).catch(() => {}) }, 'look now')),
         h('form', { class: 'row', style: 'margin-top:6px', onsubmit: e => { e.preventDefault(); act('voice', 'outbound', { watch: $('watchIn').value }).then(() => toast('watch list saved ♡')) } },
-          h('input', { class: 'field', id: 'watchIn', value: (v.outbound.watch ?? []).join(' '), placeholder: 'accounts she watches (handles, space separated); empty = her niche', autocomplete: 'off' }),
+          h('input', { class: 'field', id: 'watchIn', value: (v.outbound.watch ?? []).join(' '), placeholder: 'accounts they watch (handles, space separated); empty = their niche', autocomplete: 'off' }),
           h('button', { class: 'btn small' }, 'save')),
         v.outbound.log.length ? h('div', { class: 'stack', style: 'margin-top:6px' }, v.outbound.log.slice(0, 3).map(l => h('div', { class: 'faint' }, `${ago(l.at)} · @${l.author} · score ${l.score} · ${l.result.slice(0, 80)}`))) : null) : null,
-      v.people?.length ? h('details', { style: 'margin:0 0 8px' }, h('summary', { class: 'dim', style: 'cursor:pointer' }, `👥 people she knows (${v.people.length})`),
+      v.people?.length ? h('details', { style: 'margin:0 0 8px' }, h('summary', { class: 'dim', style: 'cursor:pointer' }, `👥 people they know (${v.people.length})`),
         h('div', { class: 'stack', style: 'margin-top:6px' }, v.people.slice(0, 10).map(p => h('div', { class: 'row between' },
           h('span', {}, `@${p.handle}`, h('span', { class: 'faint' }, ` · ${p.mentions} mentions · ${p.replies} replies${p.followers ? ` · ${usd(p.followers).replace('$', '')} followers` : ''}`)),
           h('span', { class: 'tag' }, `♡ ${Math.round(p.strength * 100)}`))))) : null,
       h('div', { class: 'card', style: 'margin:0 0 8px' },
         h('div', { class: 'row wrap' }, sw(v.schedule.isOn, () => act('voice', 'schedule', { isOn: !v.schedule.isOn })),
           ...(v.schedule.mode === 'every'
-            ? [h('span', {}, 'post on her own every'),
+            ? [h('span', {}, 'post on their own every'),
                h('input', { class: 'field', type: 'number', min: 1, max: 168, value: v.schedule.everyHours, style: 'flex:none;width:64px;padding:4px 8px', onchange: e => act('voice', 'schedule', { everyHours: Number(e.target.value) }) }),
                h('span', {}, 'h')]
             : [h('span', {}, '📅 post'),
                h('input', { class: 'field', type: 'number', min: 1, max: 6, value: v.schedule.perDay, style: 'flex:none;width:52px;padding:4px 8px', onchange: e => act('voice', 'schedule', { perDay: Number(e.target.value) }) }),
-               h('span', {}, 'times a day at her best hours')]),
+               h('span', {}, 'times a day at their best hours')]),
           h('span', { class: 'faint' }, !v.schedule.isOn ? '· off' : v.schedule.nextAt ? `· next ${until(v.schedule.nextAt)}` : '· starts with the first post'),
           h('span', { class: 'spacer' }),
           h('button', { class: 'btn small', onclick: e => { e.target.textContent = 'writing… ✍'; act('voice', 'postNow').then(r => toast(String(r.value?.result ?? '').slice(0, 120))).catch(() => {}) } }, 'post now ✧')),
@@ -446,32 +454,32 @@ const MIND = {
           v.schedule.mode !== 'every' && v.schedule.calendar?.length
             ? h('span', {}, `calendar: ${v.schedule.calendar.slice(0, 4).map(t => new Date(t).toLocaleString([], { weekday: 'short', hour: 'numeric' })).join(' · ')}`)
             : null,
-          h('button', { class: 'btn ghost small', onclick: () => act('voice', 'schedule', { mode: v.schedule.mode === 'every' ? 'slots' : 'every' }) }, v.schedule.mode === 'every' ? 'use her best hours' : 'use a fixed interval'))),
+          h('button', { class: 'btn ghost small', onclick: () => act('voice', 'schedule', { mode: v.schedule.mode === 'every' ? 'slots' : 'every' }) }, v.schedule.mode === 'every' ? 'use their best hours' : 'use a fixed interval'))),
       h('div', { class: 'card', style: 'margin:0 0 8px' },
         h('div', { class: 'row between' },
           h('b', {}, '🎲 posting engine'),
           v.engine.ok
             ? h('span', { class: 'faint' }, `${v.engine.topics} topics · ${v.engine.categories} sections`)
             : h('span', { class: 'down' }, `off: ${v.engine.problems.join('; ')}`)),
-        h('div', { class: 'faint', style: 'margin:2px 0 6px' }, 'each post picks one topic (sometimes trading × kawaii), never repeating lately. edit personas/flapa.topics.json to change the list.'),
+        h('div', { class: 'faint', style: 'margin:2px 0 6px' }, 'each post picks one topic (sometimes trading × kawaii), never repeating lately. edit data/personas/<persona>.topics.json to change the list.'),
         v.engine.recent.length ? h('div', { class: 'row wrap', style: 'gap:4px' }, v.engine.recent.map(r => h('span', { class: 'tag' }, r.blend ? `${r.topic} × ${r.blend}` : r.topic))) : null,
         h('div', { class: 'row', style: 'margin-top:8px' },
           h('button', { class: 'btn ghost small', onclick: () => act('voice', 'roll').then(r => toast(`next could be: ${r.value.topic}${r.value.blend ? ` × ${r.value.blend.topic}` : ''} (${r.value.format.split(':')[0]})`)).catch(() => {}) }, '🎲 roll a preview'))),
       v.analytics ? h('div', { class: 'card', style: 'margin:0 0 8px' },
         h('div', { class: 'row between' },
-          h('b', {}, '📈 how she\'s doing'),
+          h('b', {}, '📈 how they\'re doing'),
           v.analytics.growth ? h('span', { class: 'faint' }, `${v.analytics.growth.followers} followers${v.analytics.growth.week ? ` · ${v.analytics.growth.week > 0 ? '+' : ''}${v.analytics.growth.week} this week` : ''}`) : null),
         v.analytics.learning
           ? h('div', { class: 'stack', style: 'margin-top:4px' },
               h('div', { class: 'faint' }, `usual post: ${Math.round(v.analytics.learning.baseline.impressions)} views · ${(v.analytics.learning.baseline.engagementRate * 100).toFixed(1)}% engage${v.analytics.bestHours.length ? ` · best hours ${v.analytics.bestHours.join(', ')}` : ''}`),
               ...v.analytics.learning.winners.slice(0, 2).map(w => h('div', { class: 'faint' }, `🏆 ${w.ratio}× · ${w.text.slice(0, 60)}… — ${w.why.slice(0, 3).join(', ')}`)),
               v.analytics.note ? h('div', { class: 'dim', style: 'white-space:pre-wrap' }, v.analytics.note) : null)
-          : h('div', { class: 'faint', style: 'margin-top:4px' }, 'no numbers yet: she reads them every 6 hours once X is connected.'),
+          : h('div', { class: 'faint', style: 'margin-top:4px' }, 'no numbers yet: they read them every 6 hours once X is connected.'),
         h('div', { class: 'row', style: 'margin-top:8px' },
           h('button', { class: 'btn ghost small', onclick: () => act('voice', 'measureNow').then(r => toast(String(r.value?.result ?? 'measured'))).catch(() => {}) }, '📈 measure now'))) : null,
       h('form', { class: 'card row', style: 'margin:0 0 8px', onsubmit: e => { e.preventDefault(); act('voice', 'schedule', { themes: $('themesIn').value }).then(() => toast('storyline saved ♡')) } },
         h('span', { class: 'dim', style: 'flex:none', title: 'woven into about 1 in 5 posts, when it fits' }, 'storyline'),
-        h('input', { class: 'field', id: 'themesIn', value: v.schedule.themes ?? '', placeholder: "what's going on with her lately (mentioned now and then)", autocomplete: 'off' }),
+        h('input', { class: 'field', id: 'themesIn', value: v.schedule.themes ?? '', placeholder: "what's going on with them lately (mentioned now and then)", autocomplete: 'off' }),
         h('button', { class: 'btn small' }, 'save')),
       (() => {
         const id = S.organs.identity?.view, lore = id?.lore
@@ -481,9 +489,9 @@ const MIND = {
           h('span', { class: 'dim', style: 'flex:none;width:96px' }, label),
           h('input', { class: 'field', value: lore[list].join(' · '), placeholder: 'separate with  ·  ', autocomplete: 'off' }),
           h('button', { class: 'btn ghost small' }, 'save'))
-        return h('details', { style: 'margin:0 0 8px' }, h('summary', { class: 'dim', style: 'cursor:pointer' }, `📖 her story & lore · day ${day(Date.now())}`),
+        return h('details', { style: 'margin:0 0 8px' }, h('summary', { class: 'dim', style: 'cursor:pointer' }, `📖 their story & lore · day ${day(Date.now())}`),
           h('div', { class: 'stack', style: 'margin-top:6px' },
-            lore.chapters.length ? h('div', { class: 'stack' }, lore.chapters.slice(-8).map(c => h('div', { class: 'faint' }, `Day ${day(c.at)} · ${c.title}`))) : h('div', { class: 'faint' }, 'no chapters yet: they write themselves from her first trade, wins, losses and milestones.'),
+            lore.chapters.length ? h('div', { class: 'stack' }, lore.chapters.slice(-8).map(c => h('div', { class: 'faint' }, `Day ${day(c.at)} · ${c.title}`))) : h('div', { class: 'faint' }, 'no chapters yet: they write themselves from their first trade, wins, losses and milestones.'),
             edit('catchphrases', 'catchphrases'), edit('jokes', 'running jokes'), edit('characters', 'characters'),
             h('div', { class: 'row', style: 'margin-top:4px' },
               h('button', { class: 'btn ghost small', onclick: () => act('identity', 'story', {}).then(r => toast(r.value?.added?.length ? `new: ${r.value.added.join(', ')}` : 'no new chapters')) }, '📖 check for chapters'),
@@ -494,7 +502,7 @@ const MIND = {
           p.topic ? h('span', { class: 'tag her' }, `🎲 ${p.topic}`) : null,
           p.kind && p.kind !== 'post' ? h('span', { class: 'tag' }, p.kind === 'poll' ? '📊 poll' : '🧵 thread') : null,
           p.objective ? h('span', { class: 'tag' }, `🎯 ${p.objective}`) : null,
-          p.score != null ? h('span', { class: 'tag', title: 'her own score before posting: hook, novelty, emotion, share, reply' }, `✨ ${p.score}/100`) : null,
+          p.score != null ? h('span', { class: 'tag', title: 'their own score before posting: hook, novelty, emotion, share, reply' }, `✨ ${p.score}/100`) : null,
           p.replyTo ? h('span', { class: 'tag' }, 'reply') : null, h('span', { class: 'faint' }, ago(p.at)),
           p.url ? h('a', { href: p.url, target: '_blank', rel: 'noopener', class: 'faint' }, 'open ↗') : null)))) : empty('💌', 'no posts yet'),
     ]
@@ -502,7 +510,7 @@ const MIND = {
 }
 
 // ---------- 3. fomo stats & research ----------
-let fomoWin = load('flapa.fomoWin', '24h')
+let fomoWin = load('pacs.fomoWin', '24h')
 function p3() {
   const v = S.organs.eyes.view
   $('fomoSub').textContent = v.board ? `board ${v.board.window} · ${ago(v.board.at)}` : ''
@@ -510,7 +518,7 @@ function p3() {
   const medals = ['🥇', '🥈', '🥉']
   keep('p3', () => [
     h('div', { class: 'row between wrap' },
-      h('span', { class: 'seg' }, ['24h', '7d', '30d', 'all'].map(w => h('button', { class: fomoWin === w ? 'on' : '', onclick: () => { fomoWin = w; save('flapa.fomoWin', w); p3() } }, w))),
+      h('span', { class: 'seg' }, ['24h', '7d', '30d', 'all'].map(w => h('button', { class: fomoWin === w ? 'on' : '', onclick: () => { fomoWin = w; save('pacs.fomoWin', w); p3() } }, w))),
       h('button', { class: 'btn small', onclick: e => { e.target.textContent = 'peeking… 👀'; act('eyes', 'refresh', { window: fomoWin }).catch(() => {}).finally(() => p3()) } }, 'refresh ↻')),
     h('div', { class: 'sec' }, '🏆 fomo leaderboard'),
     v.board?.rows?.length ? h('div', { class: 'stack' }, v.board.rows.map((r, i) => h('div', { class: 'card lb' },
@@ -549,19 +557,19 @@ function p3() {
       h('span', { class: 'faint' }, `today's narratives · ${ago(v.digest.at)}`),
       ...v.digest.narratives.map(n => h('div', {}, h('b', {}, n.name), h('span', { class: 'faint' }, ` · ${n.why} (${n.sources.join(', ')})`)))) : null,
     v.newsjack ? h('div', { class: 'card row wrap', style: 'margin-top:8px' }, sw(v.newsjack.isOn, () => act('eyes', 'newsjack', { isOn: !v.newsjack.isOn })),
-      h('span', {}, 'react to breaking news in her niche'), h('span', { class: 'faint' }, `· up to ${v.newsjack.perDay}/day · always waits for your approval`),
+      h('span', {}, 'react to breaking news in their niche'), h('span', { class: 'faint' }, `· up to ${v.newsjack.perDay}/day · always waits for your approval`),
       h('span', { class: 'spacer' }),
       h('button', { class: 'btn ghost small', onclick: () => act('eyes', 'newsNow', {}).then(r => toast(String(r.value?.result ?? '').slice(0, 120))) }, 'refresh'),
       h('button', { class: 'btn ghost small', onclick: () => act('eyes', 'digestNow', {}).then(r => toast(String(r.value?.result ?? '').slice(0, 120))) }, 'digest now')) : null,
     (v.stories || []).length ? h('div', { class: 'stack', style: 'margin-top:8px' }, v.stories.slice(0, 8).map(s => h('div', { class: 'card' },
       h('div', {}, s.link ? h('a', { href: s.link, target: '_blank', rel: 'noopener' }, s.title) : s.title),
-      h('div', { class: 'faint' }, `${s.sources.join(', ')} · ${s.confidence}${s.relevance ? ` · her niche ${'♡'.repeat(Math.min(3, s.relevance))}` : ''} · ${ago(s.at)}`)))) : h('div', { class: 'faint', style: 'margin-top:6px' }, 'headlines arrive every 30 minutes.'),
+      h('div', { class: 'faint' }, `${s.sources.join(', ')} · ${s.confidence}${s.relevance ? ` · their niche ${'♡'.repeat(Math.min(3, s.relevance))}` : ''} · ${ago(s.at)}`)))) : h('div', { class: 'faint', style: 'margin-top:6px' }, 'headlines arrive every 30 minutes.'),
     h('div', { class: 'sec' }, '🔍 research'),
     h('form', { class: 'row', onsubmit: e => { e.preventDefault(); const t = $('lookIn').value.trim(); if (!t) return; act('eyes', 'market', { token: t }).then(() => { $('lookIn').value = '' }).catch(() => {}) } },
       h('input', { class: 'field', id: 'lookIn', placeholder: 'paste a BNB Chain token 0x…', autocomplete: 'off' }), h('button', { class: 'btn' }, 'look 👀')),
     h('div', { class: 'stack', style: 'margin-top:8px' }, (v.research || []).length ? v.research.map(r => h('div', { class: 'card' },
       h('div', { class: 'row between' }, h('b', {}, `$${r.symbol}`),
-        h('span', { class: 'row' }, h('span', { class: `tag ${r.by === 'agent' ? 'her' : ''}` }, r.by === 'agent' ? 'she looked 🎀' : 'you looked'), h('span', { class: 'faint' }, ago(r.at)))),
+        h('span', { class: 'row' }, h('span', { class: `tag ${r.by === 'agent' ? 'her' : ''}` }, r.by === 'agent' ? 'they looked 🎀' : 'you looked'), h('span', { class: 'faint' }, ago(r.at)))),
       r.priceUsd != null ? h('div', { class: 'rs' },
         h('div', {}, h('span', { class: 'faint' }, 'mcap'), h('b', {}, usd(r.marketCapUsd))),
         h('div', {}, h('span', { class: 'faint' }, 'liquidity'), h('b', {}, usd(r.liquidityUsd))),
@@ -591,7 +599,7 @@ function p4() {
       h('div', { class: 'why' }, `${v.stuck.map(s => s.key.split(':')[0]).join(', ')} · retrying with backoff, next ${until(Math.min(...v.stuck.map(s => s.retryAt)))}. See the thoughts feed.`)) : null,
     ...approvals('hands'),
     h('div', { class: 'card row wrap', style: 'margin-top:10px' }, sw(v.scan, () => act('hands', 'scan', { isOn: !v.scan })),
-      h('span', {}, 'copy-scan fomo top traders'), h('span', { class: 'faint' }, '· she judges each signal herself')),
+      h('span', {}, 'copy-scan fomo top traders'), h('span', { class: 'faint' }, '· they judge each signal themselves')),
     v.cycle ? h('div', { class: 'card', style: 'margin-top:8px' },
       h('div', { class: 'row wrap' }, sw(v.cycle.isOn, () => act('hands', 'cycle', { isOn: !v.cycle.isOn })),
         h('span', {}, '⏰ trade every'),
@@ -633,8 +641,52 @@ function keep(id, build) {
   box.scrollTop = top
 }
 
+// ---------- forge: P.A.C.S ships blank; the first persona is written here ----------
+const FORGE_QS = [
+  ['name', 'name & X handle', 'e.g. Icarus, @IcarusSunCult'],
+  ['what', 'what are they?', 'an AI agent sent back in time, a cat who trades, a retired oracle…'],
+  ['story', 'backstory', 'where they came from, what they want, what haunts them'],
+  ['voice', 'how do they talk?', 'short lines? lowercase? emoji? jokes? solemn? argue with themselves?'],
+  ['values', 'what do they care about?', 'convictions they would defend in public'],
+  ['never', 'what do they never do?', 'not human and no financial advice are always added for you'],
+  ['project', 'a coin or project they carry?', 'name, chain, contract; or leave empty'],
+  ['follows', 'accounts they watch closely', 'x handles, space separated'],
+]
+/** Built once per opening: the 15s refresh must never wipe half-typed answers. */
+let forgeOpen = false, forgeBuilt = false
+function forge() {
+  const box = $('forge'), blank = !S.organs.identity.view.active
+  box.hidden = !(blank || forgeOpen)
+  if (box.hidden) { forgeBuilt = false; return }
+  if (forgeBuilt) return
+  forgeBuilt = true
+  box.replaceChildren(h('form', { class: 'box', onsubmit: async e => {
+    e.preventDefault()
+    const f = e.target.elements
+    const notes = FORGE_QS.map(([k, label]) => f[k].value.trim() && `${label}: ${f[k].value.trim()}`).filter(Boolean).join('\n')
+    if (notes.length < 20) return toast('tell me a little more first ♡')
+    f.go.disabled = true; f.go.textContent = 'forging… ✍ (about a minute)'
+    try {
+      const r = await api('identity/forge', { notes })
+      const p = r.value
+      toast(`✿ ${p.name} is awake${p.topicsProblems?.length ? ` (topics: ${p.topicsProblems[0]})` : ''}`)
+      forgeOpen = false
+    } catch { f.go.disabled = false; f.go.textContent = 'forge ✧' } finally { refresh() }
+  } },
+    h('div', { class: 'logo', style: 'font-size:30px' }, 'P.A.C.S'),
+    h('div', { class: 'faint', style: 'margin-top:4px' }, 'personal agentic core system'),
+    h('p', {}, blank
+      ? 'this body is empty. answer a few questions and the forge writes who lives here: voice, values, taboos, style and a posting catalog. you can edit everything after.'
+      : 'forge another persona. it becomes the active one; switch back from the menu up top.'),
+    FORGE_QS.map(([k, label, hint]) => [h('label', {}, label, ' ', h('small', {}, hint)), h('textarea', { name: k, rows: k === 'story' || k === 'voice' ? 3 : 2 })]),
+    h('div', { class: 'row', style: 'justify-content:flex-end;margin-top:14px;gap:8px' },
+      blank ? null : h('button', { class: 'btn ghost', type: 'button', onclick: () => { forgeOpen = false; forge() } }, 'cancel'),
+      h('button', { class: 'btn', name: 'go' }, 'forge ✧'))))
+}
+$('forgeBtn').addEventListener('click', () => { forgeOpen = true; forge() })
+
 // ---------- plumbing ----------
-function render() { if (!S) return; header(); p1(); p2(); p3(); p4() }
+function render() { if (!S) return; header(); p1(); p2(); p3(); p4(); forge() }
 let pend
 function refresh() { clearTimeout(pend); pend = setTimeout(async () => { try { S = await api('state'); render() } catch {} }, 150) }
 function listen() {
@@ -647,7 +699,7 @@ $('say').addEventListener('submit', async e => {
   const text = $('text').value.trim()
   if (!text || sending) return
   sending = text; $('text').value = ''
-  if (mindTab !== 'talk') { mindTab = 'talk'; save('flapa.mindTab', 'talk') }
+  if (mindTab !== 'talk') { mindTab = 'talk'; save('pacs.mindTab', 'talk') }
   render()
   try { await api('chat', { text }) } catch {} finally { sending = null; refresh() }
 })

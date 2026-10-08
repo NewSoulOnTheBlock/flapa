@@ -31,12 +31,12 @@ export function serve(body: Body, opts: { port: number; page: string }) {
       const url = new URL(req.url)
       if (url.pathname === '/' && req.method === 'GET') {
         // Read on each load so the page can be edited while the body runs.
-        return new Response(readFileSync(opts.page, 'utf8').replace('__FLAPA_TOKEN__', token), {
+        return new Response(readFileSync(opts.page, 'utf8').replace('__PACS_TOKEN__', token), {
           headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' },
         })
       }
       if (!url.pathname.startsWith('/api/')) return new Response('not found', { status: 404 })
-      if (!ok(req.headers.get('x-flapa-token') ?? url.searchParams.get('token'))) return json({ error: 'bad token' }, 401)
+      if (!ok(req.headers.get('x-pacs-token') ?? url.searchParams.get('token'))) return json({ error: 'bad token' }, 401)
 
       if (url.pathname === '/api/state') return json(state())
 

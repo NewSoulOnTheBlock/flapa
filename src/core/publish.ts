@@ -1,4 +1,4 @@
-// The window: a public, read-only snapshot of Flapa for the Vercel page.
+// The window: a public, read-only snapshot of the agent for the Vercel page.
 //
 // Built as an allow-list. Nothing is copied wholesale from an organ's view: every published field is
 // named here. What never leaves: chats with the person, memories (they are about the person), held or

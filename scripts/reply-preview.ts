@@ -20,5 +20,5 @@ const now = Date.now(), w = new Set(watch.map(h => h.replace(/^@/, '').toLowerCa
 for (const x of cands.map(c => ({ c, ...opportunityScore(c, now, w) })).sort((a, b) => b.score - a.score).slice(0, 6)) {
   console.log(`${String(x.score).padStart(3)} @${x.c.author} (${x.c.authorFollowers} fol) ${JSON.stringify(x.parts)}\n    ${x.c.text.replace(/\s+/g, ' ').slice(0, 110)}`)
 }
-const pick = pickOpportunities(cands, now, w, { self: 'FlapaKuwai', already: new Set() })[0]
-console.log(`\n${cands.length} posts; she would reply to: ${pick ? `@${pick.c.author} (score ${pick.score})` : 'nobody (nothing scored 55+)'}`)
+const pick = pickOpportunities(cands, now, w, { self: process.env.X_HANDLE ?? '', already: new Set() })[0]
+console.log(`\n${cands.length} posts; the agent would reply to: ${pick ? `@${pick.c.author} (score ${pick.score})` : 'nobody (nothing scored 55+)'}`)

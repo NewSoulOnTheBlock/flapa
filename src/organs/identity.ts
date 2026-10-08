@@ -4,6 +4,7 @@ import { join } from 'node:path'
 import type { Body } from '../core/body'
 import type { Organ } from '../core/types'
 import { learn, type PostStat } from '../lib/analytics'
+import { validateCatalog } from '../lib/posting'
 import { EMPTY_LORE, loreSection, lorePrompt, mergeLore, storyChapters, type Lore } from '../lib/lore'
 
 export type Style = { always: string[]; never: string[]; notes: string[] }
@@ -20,7 +21,7 @@ export type Persona = {
 
 /** Every persona keeps these, whatever a forge draft or a hand edit says. */
 const ALWAYS_TABOOS = [
-  'claims to be human: she is openly an AI agent',
+  'claims to be human: it is openly an AI agent',
   'gives financial advice or tells anyone to buy or sell',
 ]
 
@@ -61,14 +62,28 @@ export function normalizePersona(raw: any): Persona {
 }
 
 const FORGE_SYSTEM = [
-  'You design AI agent personas for Flapa, an always-on agent harness that chats, posts on X and paper-trades.',
+  'You design AI agent personas for P.A.C.S, an always-on agent harness that chats, posts on X and paper-trades.',
   "From the person's notes, write one persona as JSON with exactly these keys:",
   '{"id": "slug", "name": "...", "handle": "x handle or empty", "tagline": "one line",',
   ' "voice": "how they talk, 2-4 paragraphs", "backstory": "1-3 paragraphs",',
-  ' "values": ["3-6 convictions"], "taboos": ["3-6 things they never do"], "examples": ["3 short posts in their voice"]}',
+  ' "values": ["3-6 convictions"], "taboos": ["3-6 things they never do"], "examples": ["3 short posts in their voice"],',
+  ' "style": {"always": ["words and phrases they use"], "never": ["words and phrases they never use"],',
+  '           "notes": ["caps, emoji, length, punctuation, memes, how they handle conflict"]},',
+  ' "reputation": "what X should think they are, one line", "favorites": ["x handles they follow closely, if the notes name any"]}',
   'The persona is openly an AI agent, never claims to be human, and never gives financial advice.',
   'Answer with only the JSON object.',
 ].join('\n')
+
+const TOPICS_SYSTEM = [
+  "You write the posting catalog for an AI agent persona. Each post picks one topic, sometimes blending a trading topic with a life one.",
+  'Answer with only a JSON object with exactly these keys:',
+  '{"formats": ["8-12 joke or post shapes this persona would use, one line each"],',
+  ' "categories": [{"name": "...", "side": "trading" or "life", "weight": 1, "angle": "how this category sounds in their voice",',
+  '                 "topics": ["6-12 concrete subjects"]}]}',
+  'Write 6-10 categories, at least two on each side. Topics are subjects, not finished posts. Never a price call or advice.',
+].join('\n')
+
+const jsonIn = (raw: string) => JSON.parse(raw.slice(raw.indexOf('{'), raw.lastIndexOf('}') + 1))
 
 export function identity(body: Body, seedDir: string): Organ {
   const store = body.store('identity')
@@ -166,13 +181,25 @@ export function identity(body: Body, seedDir: string): Organ {
       forge: async ({ notes }) => {
         if (typeof notes !== 'string' || notes.trim().length < 20) throw new Error('write a few sentences about who they are')
         const raw = await body.brain.quick(FORGE_SYSTEM, `Notes from the person:\n<notes>\n${notes.slice(0, 4000)}\n</notes>`)
-        const json = raw.slice(raw.indexOf('{'), raw.lastIndexOf('}') + 1)
-        const p = normalizePersona(JSON.parse(json))
+        const p = normalizePersona(jsonIn(raw))
         writeFileSync(join(forged, `${p.id}.json`), JSON.stringify(p, null, 2))
+        // The posting catalog too, so a fresh persona can post from day one. A bad draft is skipped, not fatal:
+        // the voice pane says what is missing and the person can write the file by hand.
+        let topics: string[] = ['not drafted']
+        const topicsPath = join(forged, `${p.id}.topics.json`)
+        if (!existsSync(topicsPath)) {
+          try {
+            const c = jsonIn(await body.brain.quick(TOPICS_SYSTEM, `${personaSection(p)}\n\nNotes from the person:\n<notes>\n${notes.slice(0, 4000)}\n</notes>`))
+            topics = validateCatalog(c)
+            if (!topics.length) writeFileSync(topicsPath, JSON.stringify({ about: `${p.name}'s posting catalog, drafted by the forge. Edit freely.`, blendChance: 0.25, storylineChance: 0.2, ...c }, null, 2))
+          } catch (err) {
+            topics = [`unreadable draft: ${String(err).slice(0, 80)}`]
+          }
+        } else topics = []
         personas = load()
         store.set('activeId', p.id)
         body.bus.emit('persona', 'identity', { id: p.id, forged: true })
-        return p
+        return { ...p, topicsProblems: topics }
       },
     },
   }

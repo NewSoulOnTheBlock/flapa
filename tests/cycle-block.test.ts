@@ -8,7 +8,7 @@ import { hands, type Helper } from '../src/organs/hands'
 import { identity } from '../src/organs/identity'
 import { FakeBrain, fakeMarket, tempBody, TOKEN } from './helpers'
 
-const personas = join(import.meta.dir, '..', 'personas')
+const personas = join(import.meta.dir, '..', 'examples', 'personas')
 const TAXED = '0x2222222222222222222222222222222222222222'
 
 const candidate = (token: string, symbol: string, change1hPct: number) => ({

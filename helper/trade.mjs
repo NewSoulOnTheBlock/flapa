@@ -7,6 +7,7 @@
 //   quote    {side, token, amountWei}             PancakeSwap v2 quote, no key needed
 //   buy      {token, bnbWei, minOutWei, dryRun?}  swap BNB (or WBNB) → token
 //   sell     {token, amountWei, minBnbWei, dryRun?}  swap token → BNB (or WBNB); approves exactly that amount
+//   send     {to, amountWei, dryRun?}             fomo mode only: unwrap WBNB and send native BNB to `to`
 //
 // Two wallet modes:
 //   plain (default)        a normal wallet that holds native BNB and pays its own gas.
@@ -33,7 +34,8 @@ const SIMPLE7702 = '0xe6Cae83BdE06E4c305530e199D7217f42808555B'
 const RPC = process.env.BSC_RPC_URL || 'https://bsc-dataseed.bnbchain.org'
 const MAX_BUY = parseEther(process.env.FLAPA_TRADER_MAX_BNB || '0.1')
 const SMART = process.env.FLAPA_WALLET_MODE === 'fomo'
-/** Flapa's own EntryPoint nonce lane ("FLAPA"), so her operations never collide with fomo's. */
+/** The harness's own EntryPoint nonce lane, so its operations never collide with fomo's. The value spells "FLAPA"
+ * (the harness's first name): changing it would move every operation to a fresh lane, so it stays. */
 const LANE = 0x464c415041n
 const MIN_GAS_WEI = parseEther('0.0003')
 const DEADLINE_S = 120n
@@ -51,6 +53,8 @@ const erc20Abi = parseAbi([
   'function allowance(address owner, address spender) view returns (uint256)',
   'function approve(address spender, uint256 amount) returns (bool)',
 ])
+
+const wbnbAbi = parseAbi(['function withdraw(uint256 wad)'])
 
 const out = v => process.stdout.write(JSON.stringify(v, (_k, x) => (typeof x === 'bigint' ? x.toString() : x)) + '\n')
 // A refusal is thrown to main and printed there: process.exit() mid-flight trips
@@ -126,7 +130,7 @@ async function approveIfNeeded(tok, owner, amount) {
 
 /**
  * Runs calls as the fomo smart account: simulate as the wallet, sign a user operation (gas price 0) on
- * Flapa's lane, submit it through EntryPoint from the gas wallet, and check the operation's own success flag.
+ * the harness's lane, submit it through EntryPoint from the gas wallet, and check the operation's own success flag.
  */
 async function smartExec(calls, dryRun, { precheck = true } = {}) {
   const owner = keyAccount('FLAPA_TRADER_KEY')
@@ -146,7 +150,7 @@ async function smartExec(calls, dryRun, { precheck = true } = {}) {
     }
   }
 
-  // 2. Sign, on Flapa's own nonce lane. Gas price 0 inside: the wallet needs no native BNB and prefunds nothing.
+  // 2. Sign, on the harness's own nonce lane. Gas price 0 inside: the wallet needs no native BNB and prefunds nothing.
   const nonce = await sa.getNonce({ key: LANE })
   const userOp = {
     sender: owner.address, nonce, callData,
@@ -298,6 +302,21 @@ async function main() {
       const swapGas = receipt.gasUsed * receipt.effectiveGasPrice
       const after = await bnbOf(account.address)
       return out({ hash, bnbWei: after - before + swapGas, gasWei: gas + swapGas })
+    }
+    case 'send': {
+      // Unwrap WBNB and send native BNB out, in one operation so fomo's backend can't re-wrap it in between.
+      if (!SMART) fail('send is only for the fomo wallet mode')
+      if (!isAddress(args.to ?? '')) fail('to must be a 0x address')
+      const to = getAddress(args.to)
+      const amount = big(args.amountWei, 'amountWei')
+      const owner = keyAccount('FLAPA_TRADER_KEY').address
+      const have = await tokOf(WBNB, owner)
+      if (have < amount) fail(`the fomo wallet holds ${formatEther(have)} WBNB, under the ${formatEther(amount)} asked`)
+      const calls = [call(WBNB, wbnbAbi, 'withdraw', [amount]), { to, value: amount, data: '0x' }]
+      const before = await bnbOf(to)
+      const r = await smartExec(calls, args.dryRun === true)
+      if (r.dryRun) return out(r)
+      return out({ hash: r.hash, to, sentWei: (await bnbOf(to)) - before, gasWei: r.gasWei })
     }
     default:
       fail(`unknown command ${cmd}`)

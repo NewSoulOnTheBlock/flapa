@@ -1,7 +1,7 @@
 {
-  "name": "flapa",
+  "name": "pacs",
   "version": "0.1.0",
-  "description": "Flapa: an always-on agent harness for an AI agent persona. The PACS mods, re-grown as organs.",
+  "description": "P.A.C.S | personal agentic core system: an always-on harness for an AI agent persona, forged on first run.",
   "type": "module",
   "private": true,
   "license": "MIT",

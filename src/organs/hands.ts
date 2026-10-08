@@ -57,7 +57,7 @@ export function hands(body: Body, helper: Helper): Organ {
   const allPositions = () => store.get<Position[]>('positions', [])
   const positions = (mode: Mode) => allPositions().filter(p => p.paper === isPaper(mode))
   const trades = () => store.get<TradeRecord[]>('trades', [])
-  // Books before the split were all paper: SOMA/Flapa never traded live before it.
+  // Books before the split were all paper: the harness never traded live before it.
   const day = (mode: Mode) => today(store.get<TradeDay | undefined>(`day:${mode}`, mode === 'paper' ? store.get<TradeDay | undefined>('day', undefined) : undefined), Date.now())
   const setDay = (mode: Mode, d: TradeDay) => store.set(`day:${mode}`, d)
   const scanOn = () => store.get('scan', false)

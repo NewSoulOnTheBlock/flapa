@@ -138,7 +138,7 @@ export class CliBrain implements Brain {
   }
 
   private async run(system: string, prompt: string, model: string): Promise<string> {
-    const dir = mkdtempSync(join(tmpdir(), 'flapa-'))
+    const dir = mkdtempSync(join(tmpdir(), 'pacs-'))
     const sysFile = join(dir, 'system.md')
     writeFileSync(sysFile, system)
     let timedOut = false

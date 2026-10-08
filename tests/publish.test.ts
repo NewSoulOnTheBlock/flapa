@@ -17,7 +17,7 @@ const call = (name: string, input: unknown) => ({ id: `c_${Math.random()}`, name
 function flapa(brain: FakeBrain) {
   const body = tempBody(brain)
   const f = fakeMarket({ bnb: 0.0001 })
-  body.grow(identity(body, join(import.meta.dir, '..', 'personas')), conscience(body), agenda(body), affect(body), memory(body), eyes(body, f), voice(body, f), hands(body, async () => { throw new Error('no helper') }))
+  body.grow(identity(body, join(import.meta.dir, '..', 'examples', 'personas')), conscience(body), agenda(body), affect(body), memory(body), eyes(body, f), voice(body, f), hands(body, async () => { throw new Error('no helper') }))
   return body
 }
 

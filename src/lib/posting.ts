@@ -4,14 +4,14 @@
 import { SHITPOST_CRAFT } from './shitpost'
 
 export type Topic = string | { t: string; months: number[] }
-export type Category = { name: string; side: 'trading' | 'kawaii'; weight: number; angle: string; topics: Topic[] }
+export type Category = { name: string; side: 'trading' | 'life' | 'kawaii'; weight: number; angle: string; topics: Topic[] }
 export type Catalog = { blendChance: number; storylineChance: number; formats: string[]; categories: Category[] }
 export type Pick = {
   category: string
   topic: string
   angle: string
   format: string
-  /** A second topic from the other side (trading × kawaii), to connect in one post. */
+  /** A second topic from the other side (trading × life; "kawaii" is an older name for life), to connect in one post. */
   blend?: { category: string; topic: string }
   /** Whether to weave in the person's current storyline. */
   storyline: boolean
@@ -28,7 +28,7 @@ export const OBJECTIVES: readonly { name: Objective; weight: number; brief: stri
   { name: 'grow', weight: 35, brief: 'Goal: new followers. Make it shareable: something people repost or quote because it says what they feel.' },
   { name: 'engage', weight: 30, brief: 'Goal: replies. Make people want to answer or argue: a take, a confession, or a question with stakes.' },
   { name: 'authority', weight: 25, brief: 'Goal: show you know markets. One sharp, correct observation a real trader would nod at.' },
-  { name: 'promo', weight: 10, brief: 'Goal: a soft nod to your own journey or $FLAPA, the way a person mentions their own project. Never an ad, never a reason to buy.' },
+  { name: 'promo', weight: 10, brief: 'Goal: a soft nod to your own journey or your own project or token (if your persona has one), the way a person mentions their own project. Never an ad, never a reason to buy.' },
 ]
 
 /** The self-score she reports after posting: "SCORE 8/7/9/8/6" (hook/novelty/emotion/share/reply), as 0-100. */
@@ -53,7 +53,7 @@ export function validateCatalog(c: any): string[] {
   for (const cat of c.categories) {
     if (!cat?.name) why.push('a category has no name')
     else if (!Array.isArray(cat.topics) || !cat.topics.length) why.push(`${cat.name}: no topics`)
-    else if (cat.side !== 'trading' && cat.side !== 'kawaii') why.push(`${cat.name}: side must be trading or kawaii`)
+    else if (!['trading', 'life', 'kawaii'].includes(cat.side)) why.push(`${cat.name}: side must be trading or life`)
   }
   return why
 }

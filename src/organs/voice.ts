@@ -176,7 +176,7 @@ export function voice(body: Body, opts: VoiceOptions | typeof fetch = {}): Organ
     // Trigger: a big account talking to her is something the person should see right away.
     for (const m of fresh.filter(m => (m.followers ?? 0) >= VIP_FOLLOWERS)) {
       body.bus.emit('trigger', 'voice', { text: `@${m.author} (${m.followers!.toLocaleString('en-US')} followers) mentioned her` })
-      if (body.has('agenda')) body.organ('agenda').actions?.add?.({ text: `@${m.author} (${m.followers!.toLocaleString('en-US')} followers) mentioned Flapa: "${m.text.slice(0, 120)}"` })
+      if (body.has('agenda')) body.organ('agenda').actions?.add?.({ text: `@${m.author} (${m.followers!.toLocaleString('en-US')} followers) mentioned ${persona().name}: "${m.text.slice(0, 120)}"` })
     }
     const seen = new Set(list.map(m => m.id))
     store.set('mentions', [...list, ...store.get<XMention[]>('mentions', []).filter(m => !seen.has(m.id))].slice(0, 50))
@@ -303,7 +303,7 @@ export function voice(body: Body, opts: VoiceOptions | typeof fetch = {}): Organ
         const seen = new Set(known)
         for (const f of list.filter(f => !seen.has(f.id) && Number(f.public_metrics?.followers_count) >= NOTABLE_FOLLOWER)) {
           trigger(`@${f.username} (${Number(f.public_metrics.followers_count).toLocaleString('en-US')} followers) followed her`)
-          tellPerson(`@${f.username} (${Number(f.public_metrics.followers_count).toLocaleString('en-US')} followers) just followed Flapa: worth a look.`)
+          tellPerson(`@${f.username} (${Number(f.public_metrics.followers_count).toLocaleString('en-US')} followers) just followed ${persona().name}: worth a look.`)
         }
       }
       store.set('followerIds', [...new Set([...list.map(f => String(f.id)), ...(known ?? [])])].slice(0, 3000))

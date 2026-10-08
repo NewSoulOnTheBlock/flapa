@@ -27,7 +27,7 @@ test('post now writes and posts one through the conscience, and starts the clock
     () => ({ text: 'posted!' }),
   ])
   const body = tempBody(brain)
-  body.grow(identity(body, join(import.meta.dir, '..', 'personas')), conscience(body), voice(body, fakeMarket({ bnb: 1 })))
+  body.grow(identity(body, join(import.meta.dir, '..', 'examples', 'personas')), conscience(body), voice(body, fakeMarket({ bnb: 1 })))
   const v = body.organ('voice') as any
   v.actions.schedule({ isOn: true, everyHours: 8, mode: 'every' })
   expect(v.view().schedule.nextAt).toBeNull()
@@ -51,7 +51,7 @@ test('the brief carries the person\'s themes and bans outage talk', async () => 
 test('a paper post can be taken back; a live one cannot', async () => {
   const brain = new FakeBrain([() => ({ calls: [call('post', { text: 'gm frens, building something cute' })] }), () => ({ text: 'ok' })])
   const body = tempBody(brain)
-  body.grow(identity(body, join(import.meta.dir, '..', 'personas')), conscience(body), voice(body, fakeMarket({ bnb: 1 })))
+  body.grow(identity(body, join(import.meta.dir, '..', 'examples', 'personas')), conscience(body), voice(body, fakeMarket({ bnb: 1 })))
   const v = body.organ('voice') as any
   await v.actions.postNow()
   const id = v.view().posted[0].id
@@ -62,7 +62,7 @@ test('a paper post can be taken back; a live one cannot', async () => {
 
 test('a turn that posts nothing does not restart the clock', async () => {
   const body = tempBody(new FakeBrain([() => ({ text: 'eh, nothing to say' })]))
-  body.grow(identity(body, join(import.meta.dir, '..', 'personas')), conscience(body), voice(body, fakeMarket({ bnb: 1 })))
+  body.grow(identity(body, join(import.meta.dir, '..', 'examples', 'personas')), conscience(body), voice(body, fakeMarket({ bnb: 1 })))
   const v = body.organ('voice') as any
   v.actions.schedule({ isOn: true })
   expect((await v.actions.postNow()).result).toContain('no post went out')
@@ -72,7 +72,7 @@ test('a turn that posts nothing does not restart the clock', async () => {
 
 test('calendar mode (the default) shows the day\'s posting hours and the next slot', () => {
   const body = tempBody(new FakeBrain([]))
-  body.grow(identity(body, join(import.meta.dir, '..', 'personas')), conscience(body), voice(body, fakeMarket({ bnb: 1 })))
+  body.grow(identity(body, join(import.meta.dir, '..', 'examples', 'personas')), conscience(body), voice(body, fakeMarket({ bnb: 1 })))
   const v = body.organ('voice') as any
   v.actions.schedule({ isOn: true, perDay: 3 })
   const s = v.view().schedule

@@ -1,4 +1,4 @@
-// Flapa: grow the organs, wake the body, open the skin.
+// P.A.C.S: grow the organs, wake the body, open the skin.
 import { join, resolve } from 'node:path'
 import { Body } from './core/body'
 import { pickBrain } from './core/brain'
@@ -22,20 +22,21 @@ import { voice } from './organs/voice'
 const root = resolve(import.meta.dir, '..')
 const home = resolve(process.env.FLAPA_HOME || join(root, 'data'))
 const seeded = applySeed(home, process.env.FLAPA_SEED)
-if (seeded.length) console.log(`[flapa] seeded ${seeded.length} state files into ${home}`)
+if (seeded.length) console.log(`[pacs] seeded ${seeded.length} state files into ${home}`)
 const body = new Body({ home, brain: pickBrain() })
 const fomo = fomoApiFromEnv(process.env)
 
 // Order is prompt order: who you are first (cached), then the slow-changing, then the moment.
 body.grow(
-  identity(body, join(root, 'personas')),
+  // Personas live with the state, not the code: P.A.C.S ships blank and the forge writes the first one.
+  identity(body, join(home, 'personas')),
   conscience(body),
   beliefs(body),
   agenda(body),
   affect(body),
   memory(body, { mem0: mem0FromEnv(process.env) }),
   eyes(body, fetch, { api: fomo }),
-  voice(body, { catalogDir: join(root, 'personas') }),
+  voice(body, { catalogDir: join(home, 'personas') }),
   hands(body, nodeHelper(root)),
   scout(body, { api: fomo }),
 )
@@ -64,6 +65,6 @@ if (process.env.BLOB_READ_WRITE_TOKEN) {
   startPublishing(body, process.env.BLOB_READ_WRITE_TOKEN, undefined, stream)
   console.log('Publishing a public read-only snapshot every minute (the page falls back to it when the live window is unreachable).')
 }
-console.log(`Flapa is awake · brain: ${body.brain.kind} · ${body.organs.length} organs · ${url}`)
+console.log(`P.A.C.S is awake · brain: ${body.brain.kind} · ${body.organs.length} organs · ${url}`)
 
 for (const sig of ['SIGINT', 'SIGTERM'] as const) process.on(sig, () => { body.sleep(); process.exit(0) })

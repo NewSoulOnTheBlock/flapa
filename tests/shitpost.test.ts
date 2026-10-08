@@ -43,7 +43,7 @@ test('replies carry the reply craft', () => {
 })
 
 test("Flapa's formats are the guide's joke shapes, and no angle drops the safety lines", () => {
-  const c = JSON.parse(readFileSync(join(import.meta.dir, '..', 'personas', 'flapa.topics.json'), 'utf8')) as Catalog
+  const c = JSON.parse(readFileSync(join(import.meta.dir, '..', 'examples', 'personas', 'flapa.topics.json'), 'utf8')) as Catalog
   for (const shape of ['false expertise', 'escalation', 'underreaction', 'callback', 'bureaucratic language']) expect(c.formats.some(f => f.startsWith(shape))).toBe(true)
   const angle = (n: string) => c.categories.find(x => x.name === n)!.angle
   expect(angle('Competitive Trader Energy')).toContain('never a real person')

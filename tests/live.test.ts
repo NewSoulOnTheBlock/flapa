@@ -25,7 +25,7 @@ function client(url: string) {
 
 test('the live window pushes the snapshot on connect, thoughts instantly, and changes within a second', async () => {
   const body = tempBody()
-  body.grow(identity(body, join(import.meta.dir, '..', 'personas')), affect(body))
+  body.grow(identity(body, join(import.meta.dir, '..', 'examples', 'personas')), affect(body))
   const live = startLive(body, { port: 0, hostname: '127.0.0.1', stream: 'wss://example/public/ws' })
   const base = `127.0.0.1:${live.server.port}`
   try {

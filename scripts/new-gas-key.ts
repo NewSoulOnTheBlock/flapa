@@ -1,4 +1,4 @@
-// Makes Flapa's gas wallet for fomo mode: a brand-new key written straight into .env (git-ignored), never
+// Makes the harness's gas wallet for fomo mode: a brand-new key written straight into .env (git-ignored), never
 // printed. Also sets FLAPA_WALLET_MODE=fomo. Prints only the new address, which is what gets funded.
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts'

@@ -15,7 +15,7 @@ import { memory } from '../src/organs/memory'
 import { voice } from '../src/organs/voice'
 import { FakeBrain, fakeMarket, tempBody, TOKEN, WBNB } from './helpers'
 
-const personas = join(import.meta.dir, '..', 'personas')
+const personas = join(import.meta.dir, '..', 'examples', 'personas')
 
 /** A key-holding helper stand-in: swaps at the pool price, and can be told to fail sells. */
 function fakeHelper(price: { bnb: number }, opts: { failSell?: boolean } = {}) {
@@ -114,7 +114,7 @@ describe('#2 the dashboard refuses other Host names', () => {
       expect((await fetch(`${base}/`, { headers: { host: `evil.example:${server.port}` } })).status).toBe(421)
       expect((await fetch(`${base}/`)).status).toBe(200)
       expect((await fetch(`${base}/api/state`)).status).toBe(401)
-      expect((await fetch(`${base}/api/state`, { headers: { 'x-flapa-token': token } })).status).toBe(200)
+      expect((await fetch(`${base}/api/state`, { headers: { 'x-pacs-token': token } })).status).toBe(200)
     } finally {
       server.stop(true)
     }
