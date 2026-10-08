@@ -4,7 +4,7 @@ import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { applySeed, packState } from '../src/core/seed'
 
-const fresh = () => mkdtempSync(join(tmpdir(), 'flapa-seed-'))
+const fresh = () => mkdtempSync(join(tmpdir(), 'pacs-seed-'))
 
 test('seeds an empty home', () => {
   const home = fresh()
@@ -29,4 +29,11 @@ test('rejects paths outside the home and non-JSON files', () => {
   expect(() => applySeed(fresh(), packState({ '../escape.json': '{}' }))).toThrow()
   expect(() => applySeed(fresh(), packState({ 'organs/x.sh': '{}' }))).toThrow()
   expect(() => applySeed(fresh(), packState({ 'organs/bad.json': 'not json' }))).toThrow()
+})
+
+test('seeds personas beside the organs, so a new host wakes with its persona', () => {
+  const home = fresh()
+  const seed = packState({ 'organs/voice.json': '{}', 'personas/icarus.json': '{"name":"Icarus"}', 'personas/icarus.topics.json': '{"categories":[]}' })
+  expect(applySeed(home, seed)).toHaveLength(3)
+  expect(JSON.parse(readFileSync(join(home, 'personas', 'icarus.json'), 'utf8')).name).toBe('Icarus')
 })
