@@ -18,6 +18,12 @@ import { copyExit, type CopyMeta } from '../lib/wallets/copy'
 import type { Eyes } from './eyes'
 
 export type CycleLog = { at: number; mode: Mode; did: 'buy' | 'sell' | 'skip'; summary: string; result: string }
+/** What the live wallet really holds, read from the chain. Drift = records that disagreed and were corrected. */
+export type Holdings = {
+  at: number; fundsBnb: number; gasBnb?: number; minGasBnb: number
+  drift: string[]; untracked: { token: string; amountWei: string }[]
+}
+export type Withdrawal = { at: number; to: string; bnb: number; hash?: string }
 
 const POOL_FEE = 0.0025
 const EXIT_EVERY_MS = 2 * 60_000
@@ -26,6 +32,9 @@ const COPY_WINDOW_MS = 2 * 3_600_000
 const BACKOFF_MAX_MS = 60 * 60_000
 /** A token whose buy failed (a tax over the slippage, a blocked transfer) sits out this long. */
 const BLOCK_MS = 24 * 3_600_000
+const RECONCILE_EVERY_MS = 30 * 60_000
+/** The person hears about the same money problem at most this often. */
+const WARN_EVERY_MS = 6 * 3_600_000
 
 export type Helper = (cmd: string, args: Record<string, unknown>) => Promise<any>
 
@@ -49,6 +58,7 @@ export function nodeHelper(root: string): Helper {
 
 const same = (p: Position, token: string, paper: boolean) => p.token.toLowerCase() === token.toLowerCase() && p.paper === paper
 const isPaper = (m: Mode) => m === 'paper'
+const isAddr = (v: unknown): v is string => typeof v === 'string' && /^0x[0-9a-fA-F]{40}$/.test(v)
 
 export function hands(body: Body, helper: Helper): Organ {
   const store = body.store('hands')
@@ -80,6 +90,77 @@ export function hands(body: Body, helper: Helper): Organ {
     body.bus.emit('trade.cycle', 'hands', l)
   }
 
+  const liveReady = (): string | undefined => {
+    if (!process.env.FLAPA_TRADER_KEY) return 'set FLAPA_TRADER_KEY in the environment (never paste it anywhere)'
+    // fomo mode trades through a fomo.family smart account; the gas wallet submits and pays for the operations.
+    if (process.env.FLAPA_WALLET_MODE === 'fomo' && !process.env.FLAPA_GAS_KEY) return 'fomo mode needs a gas wallet: run bun scripts/new-gas-key.ts and fund it'
+    return undefined
+  }
+  const holdings = () => store.get<Holdings | null>('holdings', null)
+  /** Tells the person through the to-do list, once per WARN_EVERY_MS for each kind of problem. */
+  const warn = (kind: string, text: string) => {
+    const k = `warnedAt:${kind}`
+    if (Date.now() - store.get<number>(k, 0) < WARN_EVERY_MS) return
+    store.set(k, Date.now())
+    body.bus.emit('funds.low', 'hands', { kind, text })
+    if (body.has('agenda')) body.organ('agenda').actions?.add?.({ text })
+  }
+
+  /**
+   * The chain is the truth: live positions are corrected to what the wallet holds (a bag sold elsewhere closes,
+   * a partial fill shrinks), and tokens the wallet holds but the records never knew are listed as untracked.
+   */
+  async function reconcile(): Promise<Holdings | null> {
+    if (liveReady()) return null
+    const live = allPositions().filter(p => !p.paper)
+    const h = await helper('holdings', { tokens: live.map(p => p.token) })
+    const drift: string[] = []
+    for (const p of live) {
+      const chain = BigInt(h.tokens?.[p.token.toLowerCase()] ?? '0')
+      const recorded = BigInt(p.amountWei)
+      if (chain === recorded) continue
+      // An exit may have sold while the helper was reading: only correct a record nobody touched since.
+      const now = allPositions().find(x => same(x, p.token, false))
+      if (!now || now.amountWei !== p.amountWei) continue
+      if (chain === 0n) {
+        setPosition(null, p.token, false)
+        drift.push(`${p.symbol}: recorded ${fromWei(recorded, p.decimals).toPrecision(4)}, the wallet holds none; closed`)
+      } else {
+        const costBnb = chain < recorded ? p.costBnb * fromWei(chain, p.decimals) / fromWei(recorded, p.decimals) : p.costBnb
+        setPosition({ ...now, amountWei: chain.toString(), costBnb }, p.token, false)
+        drift.push(`${p.symbol}: recorded ${fromWei(recorded, p.decimals).toPrecision(4)}, the wallet holds ${fromWei(chain, p.decimals).toPrecision(4)}; corrected`)
+      }
+    }
+    // Only live records count: a paper bag in the same token must not hide real tokens in the wallet.
+    const tracked = new Set(allPositions().filter(x => !x.paper).map(x => x.token.toLowerCase()))
+    const untracked = Object.entries((h.discovered ?? {}) as Record<string, string>)
+      .filter(([a]) => !tracked.has(a)).map(([token, amountWei]) => ({ token, amountWei: String(amountWei) }))
+    const r: Holdings = {
+      at: Date.now(), fundsBnb: fromWei(BigInt(h.fundsWei)), minGasBnb: fromWei(BigInt(h.minGasWei)), drift, untracked,
+      ...(h.gasWei !== undefined ? { gasBnb: fromWei(BigInt(h.gasWei)) } : {}),
+    }
+    store.set('holdings', r)
+    if (drift.length) body.bus.emit('reconcile.drift', 'hands', { drift })
+    // Under three times the floor, the next few exits are at risk too: a stop loss needs gas as much as a buy.
+    if (r.gasBnb !== undefined && r.gasBnb < r.minGasBnb * 3) {
+      warn('gas', `top up the gas wallet: it holds ${r.gasBnb.toFixed(5)} BNB and stops every live trade, stop losses included, under ${r.minGasBnb}`)
+    }
+    return r
+  }
+
+  /** Live buys need money. An empty wallet or a gas wallet under its floor pauses them: a skip, never a token block. */
+  async function fundsRefusal(bnb: number): Promise<string | null> {
+    const h = await reconcile().catch(err => { body.bus.emit('organ.error', 'hands', `reconcile: ${String(err)}`); return null })
+    if (!h) return null
+    if (h.fundsBnb < bnb) {
+      const why = `the wallet holds ${h.fundsBnb.toFixed(4)} BNB, under the ${bnb} a buy needs; live buys pause until it is funded`
+      warn('funds', why)
+      return why
+    }
+    if (h.gasBnb !== undefined && h.gasBnb < h.minGasBnb) return `the gas wallet holds ${h.gasBnb.toFixed(5)} BNB, under its ${h.minGasBnb} floor; live buys pause until it is topped up`
+    return null
+  }
+
   /** One cycle: plan, then act. A buy walks the ranked options until one clears the limits. */
   async function runCycle(): Promise<CycleLog> {
     store.set('cycle', { ...cycle(), lastAt: Date.now() })
@@ -96,12 +177,16 @@ export function hands(body: Body, helper: Helper): Organ {
     const out = blocked()
     candidates = candidates.filter(x => !(x.token.toLowerCase() in out))
     const plan = planCycle({ candidates, positions: mine, limits: limits(), day: day(mode), everyHours: cycle().everyHours })
+    // Live buys need funds; checked once, before any option is tried, so an empty wallet blocks no token.
+    const broke = plan.kind === 'buy' && mode === 'live' ? await fundsRefusal(plan.bnb) : null
     let l: CycleLog
     if (plan.kind === 'skip') {
       l = { at: Date.now(), mode, did: 'skip', summary: plan.why, result: 'no trade' }
     } else if (plan.kind === 'sell') {
       const result = await body.act({ organ: 'hands', kind: 'sell', summary: `${plan.why}: $${plan.symbol}`, payload: { token: plan.token, paper: plan.paper, pct: plan.pct, why: plan.why }, by: 'rhythm' })
       l = { at: Date.now(), mode, did: 'sell', summary: `sell $${plan.symbol}: ${plan.why}`, result }
+    } else if (broke) {
+      l = { at: Date.now(), mode, did: 'skip', summary: `buys paused: ${broke}`, result: 'no trade' }
     } else {
       const tried: string[] = []
       l = { at: Date.now(), mode, did: 'skip', summary: 'every candidate was refused by the limits or failed', result: '' }
@@ -236,6 +321,33 @@ export function hands(body: Body, helper: Helper): Organ {
     return { result: `sold ${pct}% of $${p.symbol} for ${out.toFixed(4)} BNB (${pnl >= 0 ? '+' : ''}${pnl.toFixed(4)})${hash ? ` (${hash})` : ''}`, mode }
   }
 
+  /** Sells all of a token the wallet holds but the records never tracked (cash-out only). Always live. */
+  async function dump(o: Outward): Promise<{ result: string; mode: Mode }> {
+    const token = String(o.payload.token)
+    if (!isAddr(token)) throw new Error('token must be a 0x address')
+    const h = await helper('holdings', { tokens: [token] })
+    const amount = BigInt(h.tokens?.[token.toLowerCase()] ?? '0')
+    if (amount <= 0n) throw new Error('the wallet holds none of it')
+    const q = await helper('quote', { side: 'sell', token, amountWei: amount.toString() })
+    const r = await helper('sell', { token, amountWei: amount.toString(), minBnbWei: minOut(BigInt(q.amountOutWei), limits().slippagePct).toString() })
+    const out = fromWei(r.bnbWei)
+    const symbol = String(q.symbol ?? '?')
+    record({ at: Date.now(), side: 'sell', token, symbol, bnb: out, why: String(o.payload.why ?? 'cash out'), by: 'person', paper: false, hash: r.hash })
+    return { result: `sold all untracked $${symbol} for ${out.toFixed(4)} BNB (${r.hash})`, mode: 'live' }
+  }
+
+  /** Sends live funds to an address the person gave. Refused for anything but the person's own request. */
+  async function withdraw(o: Outward): Promise<{ result: string; mode: Mode }> {
+    if (o.by !== 'person') throw new Error('only the person can move funds out')
+    const to = String(o.payload.to)
+    if (!isAddr(to)) throw new Error('to must be a 0x address')
+    const r = await helper('send', o.payload.all === true ? { to, all: true } : { to, amountWei: toWei(Number(o.payload.bnb)).toString() })
+    const bnb = fromWei(r.sentWei)
+    store.update<Withdrawal[]>('withdrawals', [], l => [{ at: Date.now(), to, bnb, hash: r.hash }, ...l].slice(0, 50))
+    body.bus.emit('withdraw', 'hands', { to, bnb, hash: r.hash })
+    return { result: `sent ${bnb.toFixed(6)} BNB to ${to} (${r.hash})`, mode: 'live' }
+  }
+
   const portfolio = (): string => {
     const l = limits(), ps = allPositions()
     const books = (m: Mode) => { const d = day(m); return `${m}: bought ${d.spentBnb.toFixed(4)}/${l.maxDailyBnb} BNB, realized ${d.realizedBnb >= 0 ? '+' : ''}${d.realizedBnb.toFixed(4)} (stop at -${l.maxDailyLossBnb})` }
@@ -252,12 +364,7 @@ export function hands(body: Body, helper: Helper): Organ {
   return {
     name: 'hands',
     role: 'Trades on BNB Chain (PancakeSwap v2) inside hard limits. Paper by default; paper and live keep separate books.',
-    liveReady: () => {
-      if (!process.env.FLAPA_TRADER_KEY) return 'set FLAPA_TRADER_KEY in the environment (never paste it anywhere)'
-      // fomo mode trades through her fomo.family smart account; the gas wallet submits and pays for the operations.
-      if (process.env.FLAPA_WALLET_MODE === 'fomo' && !process.env.FLAPA_GAS_KEY) return 'fomo mode needs a gas wallet: run bun scripts/new-gas-key.ts and fund it'
-      return undefined
-    },
+    liveReady,
     tools: [
       { name: 'portfolio', description: 'Your positions, today\'s books (paper and live) and your limits.', input_schema: { type: 'object', properties: {} }, run: portfolio },
       {
@@ -281,14 +388,22 @@ export function hands(body: Body, helper: Helper): Organ {
             const size = Number(bnb) || limits().maxPerTradeBnb
             const no = await refusals(String(token), size, by, switchMode())
             if (no.length) return `refused by limits: ${no.join('; ')}`
+            const broke = switchMode() === 'live' ? await fundsRefusal(size) : null
+            if (broke) return `refused: ${broke}`
             return body.act({ organ: 'hands', kind: 'buy', summary: `buy ${size} BNB of ${token}: ${why}`, payload: { token, bnb: size, why }, by })
           }
           return body.act({ organ: 'hands', kind: 'sell', summary: `sell ${pct ?? 100}% of ${token}: ${why}`, payload: { token, pct: pct ?? 100, why }, by })
         },
       },
     ],
-    perform: (o, mode) => (o.kind === 'buy' ? buy(o, mode) : sell(o, mode)),
+    perform: (o, mode) => (o.kind === 'buy' ? buy(o, mode) : o.kind === 'dump' ? dump(o) : o.kind === 'withdraw' ? withdraw(o) : sell(o, mode)),
     rhythms: [
+      {
+        name: 'reconcile',
+        // On boot (the first tick) and every half hour while there is live money to watch.
+        due: (now, last) => !liveReady() && (switchMode() === 'live' || allPositions().some(p => !p.paper)) && now - last >= RECONCILE_EVERY_MS,
+        run: async () => { await reconcile() },
+      },
       {
         name: 'exits',
         due: (now, last) => allPositions().length > 0 && now - last >= EXIT_EVERY_MS,
@@ -370,6 +485,7 @@ export function hands(body: Body, helper: Helper): Organ {
       positions: allPositions(), trades: trades().slice(0, 30), scan: scanOn(), paperTaxPct: paperTax(),
       stuck: [...stuck.entries()].map(([k, s]) => ({ key: k, retryAt: s.until })),
       cycle: { ...cycle(), nextAt: cycleNextAt(), log: store.get<CycleLog[]>('cycles', []).slice(0, 12) },
+      holdings: holdings(), withdrawals: store.get<Withdrawal[]>('withdrawals', []).slice(0, 10),
     }),
     actions: {
       limits: (patch: Record<string, unknown>) => {
@@ -409,6 +525,34 @@ export function hands(body: Body, helper: Helper): Organ {
       sell: async ({ token, pct, paper }) => ({
         result: await body.act({ organ: 'hands', kind: 'sell', summary: `person: sell ${pct ?? 100}% of ${token}`, payload: { token, pct: pct ?? 100, why: 'the person sold it', ...(typeof paper === 'boolean' ? { paper } : {}) }, by: 'person' }),
       }),
+      reconcile: () => reconcile(),
+      /** Sends live funds to an address. Dashboard only: no tool exists for it, so the mind can never move money out. */
+      withdraw: async ({ to, bnb }) => {
+        if (!isAddr(to)) throw new Error('to must be a 0x address')
+        const all = bnb === undefined || bnb === '' || bnb === 'all'
+        if (!all && !(Number(bnb) > 0)) throw new Error('bnb is a positive amount, or "all"')
+        return { result: await body.act({ organ: 'hands', kind: 'withdraw', summary: `person: send ${all ? 'all funds' : `${bnb} BNB`} to ${to}`, payload: { to, ...(all ? { all: true } : { bnb: Number(bnb) }) }, by: 'person' }) }
+      },
+      /**
+       * Out of the market: the trade cycle stops, every live bag is sold (untracked tokens too), and with `to`
+       * the funds are sent there. Paper books are left alone. Each step passes the conscience as the person's.
+       */
+      cashOut: async ({ to }) => {
+        if (to !== undefined && to !== '' && !isAddr(to)) throw new Error('to must be a 0x address')
+        store.set('cycle', { ...cycle(), isOn: false })
+        const steps: string[] = ['trade cycle: off']
+        await reconcile().catch(err => steps.push(`reconcile: ${String(err).slice(0, 120)}`))
+        for (const p of allPositions().filter(x => !x.paper)) {
+          steps.push(`$${p.symbol}: ${await body.act({ organ: 'hands', kind: 'sell', summary: `cash out: sell all $${p.symbol} (LIVE)`, payload: { token: p.token, paper: false, pct: 100, why: 'cash out' }, by: 'person' })}`)
+        }
+        for (const u of holdings()?.untracked ?? []) {
+          steps.push(`${u.token}: ${await body.act({ organ: 'hands', kind: 'dump', summary: `cash out: sell untracked ${u.token}`, payload: { token: u.token, why: 'cash out' }, by: 'person' })}`)
+        }
+        if (to) steps.push(`withdraw: ${await body.act({ organ: 'hands', kind: 'withdraw', summary: `cash out: send all funds to ${to}`, payload: { to, all: true }, by: 'person' })}`)
+        await reconcile().catch(() => null)
+        body.bus.emit('cashout', 'hands', { steps })
+        return { steps }
+      },
     },
   } as Organ & { liveReady: () => string | undefined }
 }

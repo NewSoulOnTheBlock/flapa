@@ -580,6 +580,34 @@ function p3() {
 }
 
 // ---------- 4. current trades ----------
+/** The live wallet as the chain sees it, and the two ways money leaves: cash out, or send. */
+function wallet(v) {
+  const w = v.holdings, gasLow = w && w.gasBnb !== undefined && w.gasBnb < w.minGasBnb * 3
+  const ask = (msg) => { const to = prompt(msg); return to === null ? null : to.trim() }
+  return h('details', { class: 'card', style: 'margin-top:10px', open: gasLow || (w && (w.drift.length || w.untracked.length)) || undefined },
+    h('summary', {}, '💰 live wallet ', w ? h('span', { class: 'faint' }, `${w.fundsBnb.toFixed(4)} BNB · checked ${ago(w.at)}`) : h('span', { class: 'faint' }, 'not checked yet')),
+    w ? h('div', { class: 'stack', style: 'margin-top:6px' },
+      w.gasBnb !== undefined ? h('div', { class: gasLow ? 'down' : 'faint' }, `⛽ gas wallet ${w.gasBnb.toFixed(5)} BNB${gasLow ? ` · top it up: under ${w.minGasBnb} even stop losses fail` : ''}`) : null,
+      w.drift.length ? h('div', { class: 'why' }, `🔧 fixed records: ${w.drift.join(' · ')}`) : null,
+      w.untracked.length ? h('div', { class: 'why' }, `👀 untracked tokens in the wallet: ${w.untracked.map(u => u.token.slice(0, 8) + '…').join(', ')} (cash out sells them)`) : null) : null,
+    h('div', { class: 'row wrap', style: 'margin-top:8px;gap:6px' },
+      h('button', { class: 'btn ghost small', onclick: () => act('hands', 'reconcile').then(() => toast('checked against the chain ✓')) }, '🔍 check chain'),
+      h('button', { class: 'btn small', style: '--c: var(--butter)', onclick: () => {
+        const to = ask('Cash out: stop the trade cycle and sell every LIVE bag.\nSend all funds to an address too? Paste it, or leave empty to keep them in the wallet.')
+        if (to === null) return
+        if (!confirm(`Sell everything live${to ? ` and send all BNB to ${to}` : ''}? This is real money and can't be undone.`)) return
+        act('hands', 'cashOut', { to }).then(r => toast(r.value.steps.slice(-1)[0]))
+      } }, '🏦 cash out'),
+      h('button', { class: 'btn ghost small', onclick: () => {
+        const to = ask('Send BNB to which address?')
+        if (!to) return
+        const bnb = ask('How much BNB? ("all" for everything)') ?? ''
+        if (!bnb || !confirm(`Send ${bnb} BNB to ${to}? This can't be undone.`)) return
+        act('hands', 'withdraw', { to, bnb }).then(r => toast(r.value.result))
+      } }, '📤 send')),
+    v.withdrawals?.length ? h('div', { class: 'faint', style: 'margin-top:6px' }, `last sent: ${v.withdrawals[0].bnb.toFixed(4)} BNB → ${v.withdrawals[0].to.slice(0, 8)}… ${ago(v.withdrawals[0].at)}`) : null)
+}
+
 function p4() {
   const v = S.organs.hands.view, l = v.limits, live = S.organs.conscience.view.live.hands
   $('tradeSub').textContent = live ? 'LIVE 🔥' : 'paper 🧸'
@@ -597,6 +625,7 @@ function p4() {
     od.spentBnb || od.realizedBnb ? h('div', { class: 'faint', style: 'margin-top:4px' }, `${other} today: spent ${od.spentBnb.toFixed(3)} · realized ${sign(od.realizedBnb)}`) : null,
     v.stuck.length ? h('div', { class: 'approve', style: 'margin-top:8px' }, h('b', {}, '⏳ an exit keeps failing'),
       h('div', { class: 'why' }, `${v.stuck.map(s => s.key.split(':')[0]).join(', ')} · retrying with backoff, next ${until(Math.min(...v.stuck.map(s => s.retryAt)))}. See the thoughts feed.`)) : null,
+    wallet(v),
     ...approvals('hands'),
     h('div', { class: 'card row wrap', style: 'margin-top:10px' }, sw(v.scan, () => act('hands', 'scan', { isOn: !v.scan })),
       h('span', {}, 'copy-scan fomo top traders'), h('span', { class: 'faint' }, '· they judge each signal themselves')),

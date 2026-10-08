@@ -7,7 +7,8 @@
 //   quote    {side, token, amountWei}             PancakeSwap v2 quote, no key needed
 //   buy      {token, bnbWei, minOutWei, dryRun?}  swap BNB (or WBNB) → token
 //   sell     {token, amountWei, minBnbWei, dryRun?}  swap token → BNB (or WBNB); approves exactly that amount
-//   send     {to, amountWei, dryRun?}             fomo mode only: unwrap WBNB and send native BNB to `to`
+//   send     {to, amountWei | all, dryRun?}       send funds out to `to` (fomo mode unwraps WBNB in the same operation)
+//   holdings {tokens}                             funds, gas, the named tokens' balances, and any others the RPC can list
 //
 // Two wallet modes:
 //   plain (default)        a normal wallet that holds native BNB and pays its own gas.
@@ -304,19 +305,61 @@ async function main() {
       return out({ hash, bnbWei: after - before + swapGas, gasWei: gas + swapGas })
     }
     case 'send': {
-      // Unwrap WBNB and send native BNB out, in one operation so fomo's backend can't re-wrap it in between.
-      if (!SMART) fail('send is only for the fomo wallet mode')
+      // Funds out of the wallet, to an address the person gave. `all` lets the helper read the exact balance.
       if (!isAddress(args.to ?? '')) fail('to must be a 0x address')
       const to = getAddress(args.to)
-      const amount = big(args.amountWei, 'amountWei')
-      const owner = keyAccount('FLAPA_TRADER_KEY').address
-      const have = await tokOf(WBNB, owner)
-      if (have < amount) fail(`the fomo wallet holds ${formatEther(have)} WBNB, under the ${formatEther(amount)} asked`)
-      const calls = [call(WBNB, wbnbAbi, 'withdraw', [amount]), { to, value: amount, data: '0x' }]
-      const before = await bnbOf(to)
-      const r = await smartExec(calls, args.dryRun === true)
-      if (r.dryRun) return out(r)
-      return out({ hash: r.hash, to, sentWei: (await bnbOf(to)) - before, gasWei: r.gasWei })
+      if (SMART) {
+        // Unwrap WBNB and send native BNB in one operation, so fomo's backend can't re-wrap it in between.
+        const owner = keyAccount('FLAPA_TRADER_KEY').address
+        const have = await tokOf(WBNB, owner)
+        const amount = args.all === true ? have : big(args.amountWei, 'amountWei')
+        if (amount <= 0n) fail('the fomo wallet holds no WBNB to send')
+        if (have < amount) fail(`the fomo wallet holds ${formatEther(have)} WBNB, under the ${formatEther(amount)} asked`)
+        const calls = [call(WBNB, wbnbAbi, 'withdraw', [amount]), { to, value: amount, data: '0x' }]
+        const before = await bnbOf(to)
+        const r = await smartExec(calls, args.dryRun === true)
+        if (r.dryRun) return out({ ...r, amountWei: amount })
+        return out({ hash: r.hash, to, sentWei: (await bnbOf(to)) - before, gasWei: r.gasWei })
+      }
+      // A plain wallet pays its own gas: `all` keeps back twice the estimated cost of this transfer.
+      const { account, client } = wallet()
+      const have = await bnbOf(account.address)
+      const gasPrice = await pub.getGasPrice()
+      const gas = await pub.estimateGas({ account, to, value: 1n })
+      const reserve = gas * gasPrice * 2n
+      const amount = args.all === true ? have - reserve : big(args.amountWei, 'amountWei')
+      if (amount <= 0n) fail(`the wallet holds ${formatEther(have)} BNB, not more than the gas it needs`)
+      if (have < amount + reserve) fail(`the wallet holds ${formatEther(have)} BNB, under ${formatEther(amount)} plus gas`)
+      if (args.dryRun === true) return out({ dryRun: true, simulated: true, amountWei: amount })
+      const hash = await client.sendTransaction({ to, value: amount, gas, gasPrice })
+      const receipt = await pub.waitForTransactionReceipt({ hash })
+      if (receipt.status !== 'success') fail(`send reverted: ${hash}`)
+      return out({ hash, to, sentWei: amount, gasWei: receipt.gasUsed * receipt.effectiveGasPrice })
+    }
+    case 'holdings': {
+      // What the wallet really holds: trading funds, gas, each named token, and (when the RPC is Alchemy's)
+      // every other token it can see, so records that drifted from the chain get caught.
+      const owner = SMART ? keyAccount('FLAPA_TRADER_KEY').address : wallet().account.address
+      const tokens = {}
+      for (const raw of Array.isArray(args.tokens) ? args.tokens.slice(0, 50) : []) {
+        if (!isAddress(raw)) continue
+        tokens[getAddress(raw).toLowerCase()] = await tokOf(getAddress(raw), owner)
+      }
+      const r = { address: owner, mode: SMART ? 'fomo' : 'plain', fundsWei: await fundsOf(owner), tokens, minGasWei: MIN_GAS_WEI }
+      if (SMART && process.env.FLAPA_GAS_KEY) r.gasWei = await bnbOf(gasWallet().account.address)
+      try {
+        const res = await fetch(RPC, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'alchemy_getTokenBalances', params: [owner, 'erc20'] }) })
+        const j = await res.json()
+        if (Array.isArray(j?.result?.tokenBalances)) {
+          r.discovered = {}
+          for (const b of j.result.tokenBalances) {
+            const a = String(b.contractAddress).toLowerCase()
+            const v = BigInt(b.tokenBalance ?? '0x0')
+            if (v > 0n && a !== WBNB.toLowerCase()) r.discovered[a] = v
+          }
+        }
+      } catch { /* not an Alchemy RPC: only the named tokens are checked */ }
+      return out(r)
     }
     default:
       fail(`unknown command ${cmd}`)
