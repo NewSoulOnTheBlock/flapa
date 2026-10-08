@@ -1,10 +1,11 @@
-// The shitposting guide reaches her: every scheduled post and reply carries the craft, and a post starts from
-// what is really happening to her (live bags, recent trades), never from paper practice or invented numbers.
+// Every scheduled post and reply carries a craft: the persona's own when it has one, a voice-neutral default
+// otherwise. A post starts from what is really happening (live bags, recent trades), never from paper or invented numbers.
 import { expect, test } from 'bun:test'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { engineBrief, type Catalog } from '../src/lib/posting'
-import { happening, REPLY_CRAFT, SHITPOST_CRAFT } from '../src/lib/shitpost'
+import { DEFAULT_POST_CRAFT, DEFAULT_REPLY_CRAFT, happening } from '../src/lib/craft'
+import { normalizePersona } from '../src/organs/identity'
 import { replyBrief } from '../src/lib/social'
 import type { Position, TradeRecord } from '../src/lib/limits'
 
@@ -29,17 +30,36 @@ test('a sell carries its result, and a quiet day says nothing', () => {
   expect(happening([], [], now)).toBe('')
 })
 
-test('the scheduled-post brief carries the craft and what is happening', () => {
-  const p = { category: 'Trader Psychology', topic: 'Buying tops', angle: 'self-own', format: 'deadpan one-liner', storyline: false }
-  const b = engineBrief(p, { recent: [], everyHours: 2, happening: 'your bags: $BOB -8.3%' })
-  expect(b).toContain(SHITPOST_CRAFT)
+const flapa = normalizePersona(JSON.parse(readFileSync(join(import.meta.dir, '..', 'examples', 'personas', 'flapa.json'), 'utf8')))
+const pick = { category: 'Trader Psychology', topic: 'Buying tops', angle: 'self-own', format: 'deadpan one-liner', storyline: false }
+
+test("the scheduled-post brief carries the persona's own craft and what is happening", () => {
+  const b = engineBrief(pick, { recent: [], everyHours: 2, happening: 'your bags: $BOB -8.3%', craft: flapa.craft.post })
+  expect(flapa.craft.post).toContain('shitposting craft')
+  expect(b).toContain(flapa.craft.post)
+  expect(b).not.toContain(DEFAULT_POST_CRAFT)
   expect(b).toContain('your bags: $BOB -8.3%')
   expect(b).toContain('no price predictions') // the rules still close the brief
-  expect(b.indexOf('no buy or sell calls')).toBeGreaterThan(b.indexOf(SHITPOST_CRAFT))
+  expect(b.indexOf('no buy or sell calls')).toBeGreaterThan(b.indexOf(flapa.craft.post))
 })
 
-test('replies carry the reply craft', () => {
-  expect(replyBrief({ author: 'someone', text: 'i finally sold my bags', remembered: [], kind: 'outbound' })).toContain(REPLY_CRAFT)
+test('a persona without a craft gets the voice-neutral default, and the safety rules either way', () => {
+  const b = engineBrief(pick, { recent: [], everyHours: 2, craft: '  ' })
+  expect(b).toContain(DEFAULT_POST_CRAFT)
+  expect(DEFAULT_POST_CRAFT).not.toMatch(/lowercase|shitpost|punchline/i)
+  expect(b).toContain('no buy or sell calls')
+})
+
+test('replies carry the persona reply craft, or the default', () => {
+  const r = (craft?: string) => replyBrief({ author: 'someone', text: 'i finally sold my bags', remembered: [], kind: 'outbound', craft })
+  expect(r(flapa.craft.reply)).toContain(flapa.craft.reply)
+  expect(r()).toContain(DEFAULT_REPLY_CRAFT)
+})
+
+test('a craft may be written as a list of lines', () => {
+  const p = normalizePersona({ name: 'Icarus', craft: { post: ['How to write it:', '- short lines'], reply: 'Plain.' } })
+  expect(p.craft).toEqual({ post: 'How to write it:\n- short lines', reply: 'Plain.' })
+  expect(normalizePersona({ name: 'Blank' }).craft).toEqual({ post: '', reply: '' })
 })
 
 test("Flapa's formats are the guide's joke shapes, and no angle drops the safety lines", () => {

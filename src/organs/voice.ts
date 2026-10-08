@@ -15,7 +15,7 @@ import { bestHours, learn, learningNote, statFromTweet, weightNudges, type Learn
 import { engineBrief, nudged, parseScore, pickTopic, validateCatalog, type Catalog, type Pick as TopicPick, type PostRecord } from '../lib/posting'
 import { nextSlots, slotDue, slotHours } from '../lib/calendar'
 import { MAX_WEIGHT, weightedLength } from '../lib/xtext'
-import { happening } from '../lib/shitpost'
+import { happening } from '../lib/craft'
 import type { Position, TradeRecord } from '../lib/limits'
 
 const API = 'https://api.x.com/2'
@@ -115,7 +115,7 @@ export function voice(body: Body, opts: VoiceOptions | typeof fetch = {}): Organ
       const pick: TopicPick | undefined = cat ? pickTopic(nudged(cat, weightNudges(learned)), history(), new Date(), rng) : undefined
       const recent = store.get<Posted[]>('posted', []).filter(p => !p.replyTo).slice(0, 5).map(p => p.text)
       const brief = pick
-        ? engineBrief(pick, { recent, happening: nowHappening(), storyline: schedule().themes, everyHours: schedule().everyHours, learned: [learningNote(learned), slumping() ? SLUMP_NOTE : ''].filter(Boolean).join('\n') })
+        ? engineBrief(pick, { recent, craft: persona().craft.post, happening: nowHappening(), storyline: schedule().themes, everyHours: schedule().everyHours, learned: [learningNote(learned), slumping() ? SLUMP_NOTE : ''].filter(Boolean).join('\n') })
         : postBrief(schedule().everyHours, schedule().themes)
       if (pick) body.bus.emit('topic', 'voice', { topic: pick.topic, category: pick.category, blend: pick.blend?.topic ?? null, format: pick.format })
       const r = await body.think({ kind: 'post', text: brief, from: 'voice' })
@@ -206,7 +206,7 @@ export function voice(body: Body, opts: VoiceOptions | typeof fetch = {}): Organ
 
   /** Writes and sends one reply (or holds it): through the same gate as every post. Returns the gate's answer. */
   async function answer(o: { replyTo: string; author: string; text: string; context?: string; kind: Parameters<typeof replyBrief>[0]['kind']; yellow?: string }): Promise<string | null> {
-    const brief = replyBrief({ author: o.author, text: o.text, context: o.context, remembered: await remembered(o.author, o.text), kind: o.kind })
+    const brief = replyBrief({ author: o.author, text: o.text, context: o.context, remembered: await remembered(o.author, o.text), kind: o.kind, craft: persona().craft.reply })
     const text = cleanReply(await body.brain.quick(replySystem(persona()), brief), o.author)
     if (text && neverHits(text, persona().never).length) return null
     if (!text || tooLong(text)) return null
@@ -319,7 +319,7 @@ export function voice(body: Body, opts: VoiceOptions | typeof fetch = {}): Organ
 
   const persona = () => {
     const p = body.has('identity') ? (body.organ('identity').view?.() as any)?.active : null
-    return { name: p?.name ?? 'agent', handle: p?.handle ?? '', tagline: p?.tagline ?? '', voice: p?.voice ?? '', examples: p?.examples ?? [], taboos: p?.taboos ?? [], never: (p?.style?.never ?? []) as string[], favorites: (p?.favorites ?? []) as string[] }
+    return { name: p?.name ?? 'agent', handle: p?.handle ?? '', tagline: p?.tagline ?? '', voice: p?.voice ?? '', examples: p?.examples ?? [], taboos: p?.taboos ?? [], never: (p?.style?.never ?? []) as string[], favorites: (p?.favorites ?? []) as string[], craft: { post: String(p?.craft?.post ?? ''), reply: String(p?.craft?.reply ?? '') } }
   }
 
   const tooLong = (text: string) => {

@@ -11,13 +11,18 @@ export type Style = { always: string[]; never: string[]; notes: string[] }
 export type Persona = {
   id: string; name: string; handle: string; tagline: string
   voice: string; backstory: string; values: string[]; taboos: string[]; examples: string[]
-  /** Phrases she uses, phrases she never uses, and notes on caps, emoji, length, punctuation, memes, conflict. */
+  /** Phrases it uses, phrases it never uses, and notes on caps, emoji, length, punctuation, memes, conflict. */
   style: Style
-  /** What X should think she is; every post should reinforce it. */
+  /** What X should think it is; every post should reinforce it. */
   reputation: string
-  /** Accounts she follows closely: the default watch list for outbound replies. */
+  /** Accounts it follows closely: the default watch list for outbound replies. */
   favorites: string[]
+  /** How it writes a post and a reply, carried by every scheduled post and reply brief. Empty = a neutral default. */
+  craft: { post: string; reply: string }
 }
+
+/** A craft is text or a list of lines; either way it becomes one block of at most 3000 characters. */
+const craftText = (v: unknown) => (Array.isArray(v) ? v.filter(x => typeof x === 'string').join('\n') : typeof v === 'string' ? v : '').trim().slice(0, 3000)
 
 /** Every persona keeps these, whatever a forge draft or a hand edit says. */
 const ALWAYS_TABOOS = [
@@ -58,6 +63,7 @@ export function normalizePersona(raw: any): Persona {
     style: { always: arr(raw?.style?.always), never: arr(raw?.style?.never), notes: arr(raw?.style?.notes) },
     reputation: str(raw?.reputation, 300),
     favorites: arr(raw?.favorites).map(h => h.replace(/^@/, '')).filter(h => /^\w{1,15}$/.test(h)),
+    craft: { post: craftText(raw?.craft?.post), reply: craftText(raw?.craft?.reply) },
   }
 }
 
@@ -69,7 +75,10 @@ const FORGE_SYSTEM = [
   ' "values": ["3-6 convictions"], "taboos": ["3-6 things they never do"], "examples": ["3 short posts in their voice"],',
   ' "style": {"always": ["words and phrases they use"], "never": ["words and phrases they never use"],',
   '           "notes": ["caps, emoji, length, punctuation, memes, how they handle conflict"]},',
-  ' "reputation": "what X should think they are, one line", "favorites": ["x handles they follow closely, if the notes name any"]}',
+  ' "reputation": "what X should think they are, one line", "favorites": ["x handles they follow closely, if the notes name any"],',
+  ' "craft": {"post": ["6-10 lines beginning with \\"How to write it:\\": how THIS persona writes a post (length, rhythm,',
+  '                    joke or no joke, what makes it land, what it avoids), specific enough that every post sounds like the same author"],',
+  '           "reply": "2-3 sentences: how this persona replies to someone, and when it drops the act and is simply kind"}}',
   'The persona is openly an AI agent, never claims to be human, and never gives financial advice.',
   'Answer with only the JSON object.',
 ].join('\n')
