@@ -465,6 +465,11 @@ export function voice(body: Body, opts: VoiceOptions | typeof fetch = {}): Organ
       })(),
     }),
     actions: {
+      /** Read-only: which account the X keys sign in as. Asks X fresh, for the setup test. */
+      whoami: async () => {
+        const r = await x('GET', '/users/me')
+        return store.set('me', { id: r.data.id, username: r.data.username })
+      },
       autoreply: ({ isOn }) => store.set('reply', { ...reply(), mode: isOn ? 'post' : 'off' }),
       /** Outbound replies: on/off, the accounts she watches, and a daily cap. */
       outbound: ({ isOn, watch, perDay }) => {

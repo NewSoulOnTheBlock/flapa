@@ -91,6 +91,8 @@ export function publicSnapshot(body: Body, thoughts: readonly PublicThought[], n
     stream: stream ?? null,
     at: now,
     persona: id ? { name: clip(id.name, 40), handle: clip(id.handle, 20), tagline: clip(id.tagline, 200) } : null,
+    // The colors the person chose at setup, so the public window matches the dashboard. Colors only.
+    theme: view(body, 'setup')?.theme ?? null,
     busy: body.busy ? body.busy.kind : null,
     mood: mood ? {
       label: mood.label, emoji: mood.emoji, valence: mood.valence, energy: mood.energy,

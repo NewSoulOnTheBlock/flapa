@@ -3,9 +3,10 @@
 **An always-on body for an AI agent persona.** P.A.C.S is a Bun daemon that thinks, remembers, posts on X, hunts
 for wallets with an edge and trades on BNB Chain, around the clock, with a dashboard to watch and steer it.
 
-It ships **blank**. The first time it runs, the dashboard opens the **forge**: answer a few questions and it writes
-who lives here (voice, values, taboos, style, reputation) and what they post about. Everything after that is
-learned: mood, stances, memories, lore, and which posts and trades work.
+It ships **blank**. The first time it runs, the dashboard walks you through **setup**: your Claude credential
+becomes the brain, the **forge** writes who lives here (voice, values, taboos, style, how they write, what they post
+about), you pick their colors, and a checklist tests everything else. One persona per harness, per computer.
+Everything after that is learned: mood, stances, memories, lore, and which posts and trades work.
 
 Every agent is openly an AI. None of them gives financial advice, and everything that leaves the machine passes
 one gate you control. Everything starts on **paper**.
@@ -33,16 +34,27 @@ one gate you control. Everything starts on **paper**.
 
 ```sh
 bun install
-bun start            # → http://127.0.0.1:7777  (the forge opens on first run)
-bun test             # 152 tests
+bun start            # → http://127.0.0.1:7777  (setup opens on first run)
+bun test             # 161 tests
 ```
 
-1. **Forge a persona.** Name, what they are, backstory, how they talk, what they care about, what they never do,
-   a coin or project if they carry one, accounts they watch. The forge writes `data/personas/<id>.json` and a
-   posting catalog `<id>.topics.json`. Edit either by hand; forge more from the **✚ forge** button.
-2. **Watch it on paper.** Posts land in a paper feed; trades fill against live PancakeSwap quotes with paper money.
-3. **Add keys** to `.env` (git ignores it; Bun loads it). Never paste them into a chat.
-4. **Go live per organ** from the dashboard header (💌 posts, 💸 trades). Each switch is refused until its keys exist.
+Setup, in the dashboard:
+
+1. **The brain.** Paste an **Anthropic API key** (`sk-ant-api…`, from console.anthropic.com, billed per use) or a
+   **Claude OAuth token** (`sk-ant-oat…`, run `claude setup-token` to use your Claude plan). It is tested with one
+   tiny call before it is kept, in `data/secrets.json` (git-ignored, never published, never in a state seed), and
+   swapped in with no restart. Until then nothing thinks; exits and stop losses still run.
+2. **The persona.** Name, what they are, backstory, how they talk, what they care about, what they never do, a
+   coin or project if they carry one, accounts they watch. The forge writes `data/personas/<id>.json` (including
+   its posting and reply **craft**) and a posting catalog `<id>.topics.json`. Edit either by hand.
+3. **Their colors.** One of eight schemes (Sakura, Solar, Midnight, Terminal, Paper, Ocean, Synthwave, Forest),
+   for the dashboard and the public window. Change it any time from **⚙ setup**.
+4. **The checklist.** X, trading wallet, RPC, FomoAPI, memory and the public window, each with ✅/❌ and a
+   **test** button that only reads. A key that exists but fails its test shows ❌.
+
+Then watch it on paper (posts land in a paper feed; trades fill against live PancakeSwap quotes with paper money),
+and go live per organ from the dashboard header (💌 posts, 💸 trades) when you're ready. Optional keys go in
+`.env` (git ignores it; Bun loads it). Never paste them into a chat.
 
 Want a finished example first? Copy `examples/personas/flapa.json` and `flapa.topics.json` into `data/personas/`.
 Flapa, a kawaii memecoin trader, was the first agent to live in P.A.C.S.
@@ -193,9 +205,9 @@ The `FLAPA_*` names are historical (the harness's first name) and kept so existi
 
 | var | for |
 |---|---|
-| `ANTHROPIC_API_KEY` | the API brain. Without it the brain is `claude -p` |
-| `CLAUDE_CODE_OAUTH_TOKEN` | signs `claude -p` in on a server (from `claude setup-token`) |
-| `FLAPA_BRAIN` | force `api` or `cli` |
+| `ANTHROPIC_API_KEY` | the brain, on servers (overrides the one given at setup) |
+| `CLAUDE_CODE_OAUTH_TOKEN` | the brain via `claude -p` on a Claude plan, on servers (from `claude setup-token`) |
+| `FLAPA_BRAIN` | `cli` uses this machine's own `claude` login (development); `api` forces the SDK |
 | `FLAPA_MODEL`, `FLAPA_QUICK_MODEL`, `FLAPA_EFFORT` | brain overrides |
 | `FLAPA_BRAIN_TIMEOUT_S` | how long one `claude -p` call may take (default 240) |
 | `MEM0_API_KEY` | long-term memory in mem0 |

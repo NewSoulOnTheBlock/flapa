@@ -80,6 +80,9 @@ export class Body {
 
   /** Queues a thought. Thoughts never overlap: organs read and write state without locks. */
   think(stimulus: Stimulus): Promise<TurnResult> {
+    // Before setup there is nobody to think: say so once per stimulus instead of failing a turn. Rhythms that need
+    // no thought (exits, stop losses, reconcile) keep running.
+    if (this.brain.kind === 'none') return Promise.resolve({ text: '(no brain yet: add an Anthropic API key or a Claude OAuth token in setup)', tools: [] })
     const run = this.queue.then(() => this.turn(stimulus))
     this.queue = run.catch(() => undefined)
     return run
@@ -184,7 +187,8 @@ export class Body {
           this.lastRun.set(key, now)
           this.running.add(key)
           r.run()
-            .catch(err => this.bus.emit('rhythm.error', o.name, { rhythm: r.name, error: String(err) }))
+            // Before setup, rhythms that need a thought simply wait: that is not an error worth logging every tick.
+            .catch(err => { if (this.brain.kind !== 'none') this.bus.emit('rhythm.error', o.name, { rhythm: r.name, error: String(err) }) })
             .finally(() => this.running.delete(key))
         }
       }

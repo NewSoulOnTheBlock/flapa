@@ -9,49 +9,54 @@
 <meta property="og:description" content="An openly-AI agent's mood, goals, research and trades, live.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;800&family=M+PLUS+Rounded+1c:wght@400;500;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;800&family=M+PLUS+Rounded+1c:wght@400;500;700&family=Cinzel:wght@600;800&family=Space+Grotesk:wght@500;700&family=JetBrains+Mono:wght@500;700&family=Fraunces:opsz,wght@9..144,600;9..144,800&display=swap" rel="stylesheet">
 <style>
+/* Base colors come from the agent's theme in the snapshot (applyTheme); these are Sakura's. Tints derive. */
 :root {
+  --bg: #fff3f9; --surface: #ffffff; --on-accent: #ffffff;
   --ink: #4a3558; --soft: #8a7398; --faint: #bba9c6;
-  --pink: #ff7eb6; --pink-2: #ffd6e8; --pink-3: #fff0f6;
-  --lav: #a98bff; --lav-2: #e4dbff; --lav-3: #f6f2ff;
-  --mint: #3dd6a3; --mint-2: #c9f5e4; --mint-3: #effdf7;
-  --butter: #ffb547; --butter-2: #ffe8bf; --butter-3: #fff8ea;
-  --red: #ff5c7a; --green: #23c48e; --card: rgba(255, 255, 255, .82);
+  --pink: #ff7eb6; --lav: #a98bff; --mint: #3dd6a3; --butter: #ffb547;
+  --red: #ff5c7a; --green: #23c48e;
+  --display: 'Baloo 2';
+  --pink-2: color-mix(in srgb, var(--pink) 30%, var(--surface)); --pink-3: color-mix(in srgb, var(--pink) 10%, var(--surface));
+  --lav-2: color-mix(in srgb, var(--lav) 30%, var(--surface)); --lav-3: color-mix(in srgb, var(--lav) 10%, var(--surface));
+  --mint-2: color-mix(in srgb, var(--mint) 30%, var(--surface)); --mint-3: color-mix(in srgb, var(--mint) 10%, var(--surface));
+  --butter-2: color-mix(in srgb, var(--butter) 30%, var(--surface)); --butter-3: color-mix(in srgb, var(--butter) 10%, var(--surface));
+  --card: color-mix(in srgb, var(--surface) 82%, transparent);
   --round: 'M PLUS Rounded 1c', 'Segoe UI', system-ui, sans-serif;
-  --bubble: 'Baloo 2', 'M PLUS Rounded 1c', system-ui, sans-serif;
+  --bubble: var(--display), 'M PLUS Rounded 1c', system-ui, sans-serif;
 }
 * { box-sizing: border-box; }
 html, body { margin: 0; min-height: 100%; }
 body {
-  color: var(--ink); font: 14px/1.5 var(--round); background: #fff3f9;
-  background-image: radial-gradient(circle at 8% 12%, #ffd6ec 0, transparent 38%), radial-gradient(circle at 92% 8%, #e6ddff 0, transparent 40%),
-    radial-gradient(circle at 85% 92%, #d2f7e8 0, transparent 42%), radial-gradient(circle at 10% 90%, #fff0c9 0, transparent 40%);
+  color: var(--ink); font: 14px/1.5 var(--round); background: var(--bg);
+  background-image: radial-gradient(circle at 8% 12%, color-mix(in srgb, var(--pink) 22%, transparent) 0, transparent 38%), radial-gradient(circle at 92% 8%, color-mix(in srgb, var(--lav) 22%, transparent) 0, transparent 40%),
+    radial-gradient(circle at 85% 92%, color-mix(in srgb, var(--mint) 20%, transparent) 0, transparent 42%), radial-gradient(circle at 10% 90%, color-mix(in srgb, var(--butter) 20%, transparent) 0, transparent 40%);
   background-attachment: fixed; overflow-x: hidden;
 }
 .sky { position: fixed; inset: 0; pointer-events: none; z-index: 0; overflow: hidden; }
 .sky span { position: absolute; font-size: 18px; opacity: .45; animation: drift 14s ease-in-out infinite; }
 @keyframes drift { 0%,100% { transform: translateY(0) rotate(0) } 50% { transform: translateY(-22px) rotate(12deg) } }
 @media (prefers-reduced-motion: reduce) { .sky span, .heart { animation: none !important; } }
-header { position: relative; z-index: 2; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 12px 18px; margin: 12px 14px 0; border-radius: 22px; background: var(--card); box-shadow: 0 6px 24px rgba(255, 126, 182, .18); border: 2px solid #fff; }
+header { position: relative; z-index: 2; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 12px 18px; margin: 12px 14px 0; border-radius: 22px; background: var(--card); box-shadow: 0 6px 24px color-mix(in srgb, var(--pink) 18%, transparent); border: 2px solid var(--surface); }
 .logo { font: 800 26px/1 var(--bubble); letter-spacing: 1px; background: linear-gradient(90deg, var(--pink), var(--lav), var(--mint)); -webkit-background-clip: text; background-clip: text; color: transparent; }
 .heart { color: var(--pink); font-size: 18px; animation: beat 1.4s infinite; display: inline-block; }
 .heart.thinking { color: var(--butter); animation-duration: .5s; }
 .heart.asleep { color: var(--faint); animation: none; }
 @keyframes beat { 0%,100% { transform: scale(1) } 15% { transform: scale(1.35) } 30% { transform: scale(1) } }
 .spacer { flex: 1; }
-.pill { border: 2px solid var(--lav-2); background: #fff; border-radius: 99px; padding: 4px 12px; font-size: 12.5px; font-weight: 700; color: var(--soft); white-space: nowrap; }
-.pill.live { background: var(--red); border-color: var(--red); color: #fff; }
-.pill.paper { background: var(--mint-3); border-color: var(--mint-2); color: #1c9c72; }
+.pill { border: 2px solid var(--lav-2); background: var(--surface); border-radius: 99px; padding: 4px 12px; font-size: 12.5px; font-weight: 700; color: var(--soft); white-space: nowrap; }
+.pill.live { background: var(--red); border-color: var(--red); color: var(--on-accent); }
+.pill.paper { background: var(--mint-3); border-color: var(--mint-2); color: color-mix(in srgb, var(--mint) 70%, var(--ink)); }
 main { position: relative; z-index: 1; display: grid; gap: 14px; padding: 14px; grid-template-columns: 1fr 1fr; grid-template-rows: minmax(0, 1fr) minmax(0, 1fr); height: calc(100vh - 86px); min-height: 640px; }
 @media (max-width: 960px) { main { grid-template-columns: 1fr; grid-template-rows: none; height: auto; } .pane { min-height: 420px; max-height: 80vh; } }
 @media (max-width: 600px) { header { margin: 10px 16px 0; } main { padding: 12px 16px; } }
-.pane { --c: var(--pink); --c2: var(--pink-2); --c3: var(--pink-3); display: flex; flex-direction: column; min-height: 0; min-width: 0; background: var(--card); border-radius: 28px; border: 3px solid #fff; box-shadow: 0 10px 30px color-mix(in srgb, var(--c) 22%, transparent), inset 0 0 0 2px var(--c2); overflow: hidden; backdrop-filter: blur(6px); }
+.pane { --c: var(--pink); --c2: var(--pink-2); --c3: var(--pink-3); display: flex; flex-direction: column; min-height: 0; min-width: 0; background: var(--card); border-radius: 28px; border: 3px solid var(--surface); box-shadow: 0 10px 30px color-mix(in srgb, var(--c) 22%, transparent), inset 0 0 0 2px var(--c2); overflow: hidden; backdrop-filter: blur(6px); }
 .pane.p2 { --c: var(--lav); --c2: var(--lav-2); --c3: var(--lav-3); }
 .pane.p3 { --c: var(--mint); --c2: var(--mint-2); --c3: var(--mint-3); }
 .pane.p4 { --c: var(--butter); --c2: var(--butter-2); --c3: var(--butter-3); }
 .pane > h2 { margin: 0; padding: 12px 18px 10px; display: flex; align-items: center; gap: 8px; font: 800 19px/1.1 var(--bubble); background: linear-gradient(180deg, var(--c3), transparent); border-bottom: 2px dashed var(--c2); }
-.pane > h2 .n { display: grid; place-items: center; width: 26px; height: 26px; border-radius: 50%; background: var(--c); color: #fff; font-size: 14px; }
+.pane > h2 .n { display: grid; place-items: center; width: 26px; height: 26px; border-radius: 50%; background: var(--c); color: var(--on-accent); font-size: 14px; }
 .pane > h2 .sub { margin-left: auto; font: 500 12px var(--round); color: var(--soft); }
 .body { flex: 1; overflow: auto; padding: 12px 16px 16px; min-height: 0; scrollbar-width: thin; scrollbar-color: var(--c2) transparent; }
 .row { display: flex; gap: 8px; align-items: center; } .between { justify-content: space-between; } .wrap { flex-wrap: wrap; }
@@ -59,19 +64,19 @@ main { position: relative; z-index: 1; display: grid; gap: 14px; padding: 14px; 
 .empty { text-align: center; color: var(--faint); padding: 18px 8px; } .empty b { display: block; font-size: 28px; }
 .up { color: var(--green); font-weight: 700; } .down { color: var(--red); font-weight: 700; }
 .sec { font: 800 14px var(--bubble); margin: 14px 0 6px; display: flex; align-items: center; gap: 6px; }
-.card { background: #fff; border-radius: 18px; padding: 10px 12px; box-shadow: 0 2px 0 var(--c2); border: 2px solid var(--c3); overflow-wrap: anywhere; }
+.card { background: var(--surface); border-radius: 18px; padding: 10px 12px; box-shadow: 0 2px 0 var(--c2); border: 2px solid var(--c3); overflow-wrap: anywhere; }
 .stack { display: flex; flex-direction: column; gap: 8px; }
 .tag { display: inline-block; border-radius: 99px; padding: 1px 8px; font-size: 11px; font-weight: 700; background: var(--c3); color: var(--soft); }
-.tag.hot { background: #ffe1e8; color: var(--red); } .tag.her { background: var(--pink-2); color: #d94f8f; }
+.tag.hot { background: color-mix(in srgb, var(--red) 15%, var(--surface)); color: var(--red); } .tag.her { background: var(--pink-2); color: color-mix(in srgb, var(--pink) 70%, var(--ink)); }
 .todo { display: flex; align-items: center; gap: 10px; }
-.check { width: 24px; height: 24px; border-radius: 50%; border: 2px solid var(--pink-2); background: #fff; display: grid; place-items: center; font-size: 13px; color: transparent; flex: none; }
-.check.on { background: var(--pink); border-color: var(--pink); color: #fff; }
+.check { width: 24px; height: 24px; border-radius: 50%; border: 2px solid var(--pink-2); background: var(--surface); display: grid; place-items: center; font-size: 13px; color: transparent; flex: none; }
+.check.on { background: var(--pink); border-color: var(--pink); color: var(--on-accent); }
 .todo .t { flex: 1; } .todo.done .t { text-decoration: line-through; text-decoration-color: var(--pink); color: var(--faint); }
 .note { background: repeating-linear-gradient(transparent 0 22px, var(--pink-3) 22px 23px); border-radius: 16px; padding: 8px 12px; border: 2px solid var(--pink-3); white-space: pre-wrap; font-size: 13px; }
 .me-card { display: grid; grid-template-columns: auto 1fr; gap: 14px; align-items: center; background: linear-gradient(135deg, var(--lav-3), var(--pink-3)); border-radius: 22px; padding: 12px 14px; }
 .cat { font: 700 15px/1.2 ui-monospace, Consolas, monospace; white-space: pre; color: var(--lav); }
 .name { font: 800 22px/1 var(--bubble); }
-.bubble-mood { display: inline-block; margin-top: 6px; background: #fff; border-radius: 16px 16px 16px 4px; padding: 4px 12px; font-weight: 700; box-shadow: 0 2px 0 var(--lav-2); }
+.bubble-mood { display: inline-block; margin-top: 6px; background: var(--surface); border-radius: 16px 16px 16px 4px; padding: 4px 12px; font-weight: 700; box-shadow: 0 2px 0 var(--lav-2); }
 .meter { display: flex; gap: 2px; font-size: 15px; letter-spacing: -1px; }
 .meter i { font-style: normal; filter: grayscale(1); opacity: .25; } .meter i.full { filter: none; opacity: 1; }
 .thought { display: grid; grid-template-columns: 26px 1fr; gap: 8px; align-items: start; }
@@ -273,7 +278,19 @@ function p4() {
   ])
 }
 
-function render() { if (!S) return; header(); p1(); p2(); p3(); p4(); liveBadge() }
+const THEME_VARS = { bg: '--bg', surface: '--surface', ink: '--ink', soft: '--soft', faint: '--faint', onAccent: '--on-accent',
+  pink: '--pink', lav: '--lav', mint: '--mint', butter: '--butter', red: '--red', green: '--green', display: '--display' }
+/** The agent's colors, from the snapshot: only colors (and a font name) that match a strict pattern are applied. */
+function applyTheme(t) {
+  if (!t || typeof t !== 'object') return
+  const root = document.documentElement.style
+  for (const [k, v] of Object.entries(THEME_VARS)) {
+    const val = String(t[k] ?? '')
+    if (k === 'display' ? /^'[A-Za-z0-9 ]{1,40}'$/.test(val) : /^#[0-9a-fA-F]{6}$/.test(val)) root.setProperty(v, val)
+  }
+  document.documentElement.style.colorScheme = t.dark ? 'dark' : 'light'
+}
+function render() { if (!S) return; applyTheme(S.theme); header(); p1(); p2(); p3(); p4(); liveBadge() }
 
 // ---- live: a WebSocket straight to their body; the blob is only the fallback ----
 let ws = null, wsOpen = false, retry = 1000

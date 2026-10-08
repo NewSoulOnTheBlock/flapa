@@ -6,29 +6,35 @@
 <title>P.A.C.S ♡</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;800&family=M+PLUS+Rounded+1c:wght@400;500;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;800&family=M+PLUS+Rounded+1c:wght@400;500;700&family=Cinzel:wght@600;800&family=Space+Grotesk:wght@500;700&family=JetBrains+Mono:wght@500;700&family=Fraunces:opsz,wght@9..144,600;9..144,800&display=swap" rel="stylesheet">
 <style>
+/* Base colors come from the chosen theme (src/lib/themes.ts, applied by applyTheme); these are Sakura's.
+   Every tint is derived, so a dark theme gets dark tints. pink, lav, mint, butter = accents 1 to 4. */
 :root {
+  --bg: #fff3f9; --surface: #ffffff; --on-accent: #ffffff;
   --ink: #4a3558; --soft: #8a7398; --faint: #bba9c6;
-  --pink: #ff7eb6; --pink-2: #ffd6e8; --pink-3: #fff0f6;
-  --lav: #a98bff; --lav-2: #e4dbff; --lav-3: #f6f2ff;
-  --mint: #3dd6a3; --mint-2: #c9f5e4; --mint-3: #effdf7;
-  --butter: #ffb547; --butter-2: #ffe8bf; --butter-3: #fff8ea;
+  --pink: #ff7eb6; --lav: #a98bff; --mint: #3dd6a3; --butter: #ffb547;
   --red: #ff5c7a; --green: #23c48e;
-  --card: rgba(255, 255, 255, .82);
+  --display: 'Baloo 2';
+  --pink-2: color-mix(in srgb, var(--pink) 30%, var(--surface)); --pink-3: color-mix(in srgb, var(--pink) 10%, var(--surface));
+  --lav-2: color-mix(in srgb, var(--lav) 30%, var(--surface)); --lav-3: color-mix(in srgb, var(--lav) 10%, var(--surface));
+  --mint-2: color-mix(in srgb, var(--mint) 30%, var(--surface)); --mint-3: color-mix(in srgb, var(--mint) 10%, var(--surface));
+  --butter-2: color-mix(in srgb, var(--butter) 30%, var(--surface)); --butter-3: color-mix(in srgb, var(--butter) 10%, var(--surface));
+  --muted: color-mix(in srgb, var(--ink) 12%, var(--surface));
+  --card: color-mix(in srgb, var(--surface) 82%, transparent);
   --round: 'M PLUS Rounded 1c', 'Segoe UI', system-ui, sans-serif;
-  --bubble: 'Baloo 2', 'M PLUS Rounded 1c', system-ui, sans-serif;
+  --bubble: var(--display), 'M PLUS Rounded 1c', system-ui, sans-serif;
 }
 * { box-sizing: border-box; }
 html, body { margin: 0; height: 100%; }
 body {
   color: var(--ink); font: 14px/1.5 var(--round);
-  background: #fff3f9;
+  background: var(--bg);
   background-image:
-    radial-gradient(circle at 8% 12%, #ffd6ec 0, transparent 38%),
-    radial-gradient(circle at 92% 8%, #e6ddff 0, transparent 40%),
-    radial-gradient(circle at 85% 92%, #d2f7e8 0, transparent 42%),
-    radial-gradient(circle at 10% 90%, #fff0c9 0, transparent 40%);
+    radial-gradient(circle at 8% 12%, color-mix(in srgb, var(--pink) 22%, transparent) 0, transparent 38%),
+    radial-gradient(circle at 92% 8%, color-mix(in srgb, var(--lav) 22%, transparent) 0, transparent 40%),
+    radial-gradient(circle at 85% 92%, color-mix(in srgb, var(--mint) 20%, transparent) 0, transparent 42%),
+    radial-gradient(circle at 10% 90%, color-mix(in srgb, var(--butter) 20%, transparent) 0, transparent 40%);
   background-attachment: fixed;
   overflow-x: hidden;
 }
@@ -42,23 +48,23 @@ button, input, select, textarea { font: inherit; color: inherit; }
 header {
   position: relative; z-index: 2; display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
   padding: 12px 18px; margin: 12px 14px 0; border-radius: 22px; background: var(--card);
-  box-shadow: 0 6px 24px rgba(255, 126, 182, .18); border: 2px solid #fff;
+  box-shadow: 0 6px 24px color-mix(in srgb, var(--pink) 18%, transparent); border: 2px solid var(--surface);
 }
 .logo { font: 800 26px/1 var(--bubble); letter-spacing: 1px; background: linear-gradient(90deg, var(--pink), var(--lav), var(--mint)); -webkit-background-clip: text; background-clip: text; color: transparent; }
 .heart { color: var(--pink); font-size: 18px; animation: beat 1.4s infinite; display: inline-block; }
 .heart.thinking { color: var(--butter); animation-duration: .5s; }
 @keyframes beat { 0%,100% { transform: scale(1) } 15% { transform: scale(1.35) } 30% { transform: scale(1) } }
 .spacer { flex: 1; }
-.pill { border: 2px solid var(--lav-2); background: #fff; border-radius: 99px; padding: 4px 12px; font-size: 12.5px; font-weight: 700; color: var(--soft); cursor: pointer; transition: transform .15s, background .15s; white-space: nowrap; }
+.pill { border: 2px solid var(--lav-2); background: var(--surface); border-radius: 99px; padding: 4px 12px; font-size: 12.5px; font-weight: 700; color: var(--soft); cursor: pointer; transition: transform .15s, background .15s; white-space: nowrap; }
 .pill:hover { transform: translateY(-1px) scale(1.03); }
-.pill.on { background: var(--lav); border-color: var(--lav); color: #fff; }
+.pill.on { background: var(--lav); border-color: var(--lav); color: var(--on-accent); }
 .pill.on.paused { background: var(--red); border-color: var(--red); }
 .pill.on.review { background: var(--butter); border-color: var(--butter); }
-.pill.live { background: var(--red); border-color: var(--red); color: #fff; }
-.pill.paper { background: var(--mint-3); border-color: var(--mint-2); color: #1c9c72; }
+.pill.live { background: var(--red); border-color: var(--red); color: var(--on-accent); }
+.pill.paper { background: var(--mint-3); border-color: var(--mint-2); color: color-mix(in srgb, var(--mint) 70%, var(--ink)); }
 .group { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
 .label { font-size: 11px; font-weight: 700; color: var(--faint); text-transform: uppercase; letter-spacing: 1px; }
-select.pill { appearance: none; padding-right: 26px; background: #fff url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6'><path d='M0 0l5 6 5-6z' fill='%23a98bff'/></svg>") no-repeat right 10px center; }
+select.pill { appearance: none; padding-right: 26px; background: var(--surface) url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6'><path d='M0 0l5 6 5-6z' fill='%23a98bff'/></svg>") no-repeat right 10px center; }
 
 main {
   position: relative; z-index: 1; display: grid; gap: 14px; padding: 14px;
@@ -71,7 +77,7 @@ main {
 .pane {
   --c: var(--pink); --c2: var(--pink-2); --c3: var(--pink-3);
   display: flex; flex-direction: column; min-height: 0; min-width: 0;
-  background: var(--card); border-radius: 28px; border: 3px solid #fff;
+  background: var(--card); border-radius: 28px; border: 3px solid var(--surface);
   box-shadow: 0 10px 30px color-mix(in srgb, var(--c) 22%, transparent), inset 0 0 0 2px var(--c2);
   overflow: hidden; backdrop-filter: blur(6px);
 }
@@ -83,16 +89,17 @@ main {
   font: 800 19px/1.1 var(--bubble); color: var(--ink);
   background: linear-gradient(180deg, var(--c3), transparent); border-bottom: 2px dashed var(--c2);
 }
-.pane > h2 .n { display: grid; place-items: center; width: 26px; height: 26px; border-radius: 50%; background: var(--c); color: #fff; font-size: 14px; }
+.pane > h2 .n { display: grid; place-items: center; width: 26px; height: 26px; border-radius: 50%; background: var(--c); color: var(--on-accent); font-size: 14px; }
 .pane > h2 .sub { margin-left: auto; font: 500 12px var(--round); color: var(--soft); }
 .body { flex: 1; overflow: auto; padding: 12px 16px 16px; min-height: 0; scrollbar-width: thin; scrollbar-color: var(--c2) transparent; }
 
-.btn { border: 0; border-radius: 99px; padding: 6px 14px; background: var(--c); color: #fff; font-weight: 700; cursor: pointer; box-shadow: 0 3px 0 color-mix(in srgb, var(--c) 60%, #000 10%); transition: transform .1s; white-space: nowrap; }
+.btn { border: 0; border-radius: 99px; padding: 6px 14px; background: var(--c); color: var(--on-accent); font-weight: 700; cursor: pointer; box-shadow: 0 3px 0 color-mix(in srgb, var(--c) 60%, #000 10%); transition: transform .1s; white-space: nowrap; }
 .btn:active { transform: translateY(2px); box-shadow: none; }
-.btn.ghost { background: #fff; color: var(--soft); box-shadow: inset 0 0 0 2px var(--c2); }
-.btn.no { background: #fff; color: var(--red); box-shadow: inset 0 0 0 2px #ffd0da; }
+.btn.ghost { background: var(--surface); color: var(--soft); box-shadow: inset 0 0 0 2px var(--c2); }
+.btn.no { background: var(--surface); color: var(--red); box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--red) 30%, var(--surface)); }
 .btn.small { padding: 3px 10px; font-size: 12px; }
-.field { flex: 1; min-width: 0; border: 2px solid var(--c2); border-radius: 16px; padding: 8px 12px; background: #fff; outline: none; }
+.field { color: var(--ink);
+  flex: 1; min-width: 0; border: 2px solid var(--c2); border-radius: 16px; padding: 8px 12px; background: var(--surface); outline: none; }
 .field:focus { border-color: var(--c); }
 .row { display: flex; gap: 8px; align-items: center; }
 .between { justify-content: space-between; }
@@ -103,31 +110,32 @@ main {
 .empty b { display: block; font-size: 28px; }
 .up { color: var(--green); font-weight: 700; } .down { color: var(--red); font-weight: 700; }
 .sec { font: 800 14px var(--bubble); margin: 14px 0 6px; display: flex; align-items: center; gap: 6px; }
-.card { background: #fff; border-radius: 18px; padding: 10px 12px; box-shadow: 0 2px 0 var(--c2); border: 2px solid var(--c3); overflow-wrap: anywhere; }
+.card { background: var(--surface); border-radius: 18px; padding: 10px 12px; box-shadow: 0 2px 0 var(--c2); border: 2px solid var(--c3); overflow-wrap: anywhere; }
 .stack { display: flex; flex-direction: column; gap: 8px; }
 .tag { display: inline-block; border-radius: 99px; padding: 1px 8px; font-size: 11px; font-weight: 700; background: var(--c3); color: var(--soft); }
-.tag.hot { background: #ffe1e8; color: var(--red); }
-.tag.her { background: var(--pink-2); color: #d94f8f; }
-.switch { position: relative; width: 46px; height: 26px; border-radius: 99px; border: 0; background: #eee3f3; cursor: pointer; transition: background .2s; flex: none; }
-.switch::after { content: ''; position: absolute; top: 3px; left: 3px; width: 20px; height: 20px; border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.15); transition: left .2s; }
+.tag.hot { background: color-mix(in srgb, var(--red) 15%, var(--surface)); color: var(--red); }
+.tag.her { background: var(--pink-2); color: color-mix(in srgb, var(--pink) 70%, var(--ink)); }
+.switch { position: relative; width: 46px; height: 26px; border-radius: 99px; border: 0; background: var(--muted); cursor: pointer; transition: background .2s; flex: none; }
+.switch::after { content: ''; position: absolute; top: 3px; left: 3px; width: 20px; height: 20px; border-radius: 50%; background: var(--surface); box-shadow: 0 1px 3px rgba(0,0,0,.15); transition: left .2s; }
 .switch.on { background: var(--c); }
 .switch.on::after { left: 23px; }
 .seg { display: inline-flex; background: var(--c3); border-radius: 99px; padding: 3px; gap: 2px; }
 .seg button { border: 0; background: none; border-radius: 99px; padding: 3px 10px; cursor: pointer; color: var(--soft); font-weight: 700; font-size: 12px; }
-.seg button.on { background: #fff; color: var(--ink); box-shadow: 0 1px 4px rgba(0,0,0,.08); }
-.approve { border: 2px dashed var(--butter); background: #fffaf0; border-radius: 18px; padding: 10px 12px; }
-.approve .why { color: #c47a12; font-size: 12px; margin: 4px 0 8px; }
+.seg button.on { background: var(--surface); color: var(--ink); box-shadow: 0 1px 4px rgba(0,0,0,.08); }
+.approve { border: 2px dashed var(--butter); background: var(--butter-3); border-radius: 18px; padding: 10px 12px; }
+.approve .why { color: color-mix(in srgb, var(--butter) 60%, var(--ink)); font-size: 12px; margin: 4px 0 8px; }
 
 /* 1. to-do */
 .todo { display: flex; align-items: center; gap: 10px; }
 .forge { position: fixed; inset: 0; z-index: 50; display: grid; place-items: center; padding: 16px; background: color-mix(in srgb, var(--lav-3) 70%, transparent); backdrop-filter: blur(6px); }
 .forge[hidden] { display: none; }
-.forge .box { width: min(640px, 100%); max-height: calc(100vh - 32px); overflow: auto; background: #fff; border-radius: 26px; padding: 22px; box-shadow: 0 18px 50px rgba(120, 80, 160, .25); }
+.forge .box { width: min(640px, 100%); max-height: calc(100vh - 32px); overflow: auto; background: var(--surface); border-radius: 26px; padding: 22px; box-shadow: 0 18px 50px color-mix(in srgb, var(--lav) 25%, transparent); }
 .forge label { display: block; font-weight: 700; margin: 12px 0 4px; }
 .forge label small { font-weight: 400; color: var(--faint); }
+.forge textarea, .forge input { color: var(--ink); background: var(--surface); }
 .forge textarea { width: 100%; box-sizing: border-box; min-height: 54px; resize: vertical; border: 2px solid var(--pink-2); border-radius: 14px; padding: 8px 12px; outline: none; }
-.check { width: 24px; height: 24px; border-radius: 50%; border: 2px solid var(--pink-2); background: #fff; cursor: pointer; display: grid; place-items: center; font-size: 13px; color: transparent; flex: none; transition: all .2s; }
-.check.on { background: var(--pink); border-color: var(--pink); color: #fff; }
+.check { width: 24px; height: 24px; border-radius: 50%; border: 2px solid var(--pink-2); background: var(--surface); cursor: pointer; display: grid; place-items: center; font-size: 13px; color: transparent; flex: none; transition: all .2s; }
+.check.on { background: var(--pink); border-color: var(--pink); color: var(--on-accent); }
 .todo .t { flex: 1; }
 .todo.done .t { text-decoration: line-through; text-decoration-color: var(--pink); color: var(--faint); }
 .note { background: repeating-linear-gradient(transparent 0 22px, var(--pink-3) 22px 23px); border-radius: 16px; padding: 8px 12px; border: 2px solid var(--pink-3); white-space: pre-wrap; font-size: 13px; }
@@ -137,18 +145,18 @@ main {
 .cat { font: 700 15px/1.2 ui-monospace, Consolas, monospace; white-space: pre; color: var(--lav); }
 .blush { color: var(--pink); }
 .name { font: 800 22px/1 var(--bubble); }
-.bubble-mood { display: inline-block; margin-top: 6px; background: #fff; border-radius: 16px 16px 16px 4px; padding: 4px 12px; font-weight: 700; box-shadow: 0 2px 0 var(--lav-2); }
+.bubble-mood { display: inline-block; margin-top: 6px; background: var(--surface); border-radius: 16px 16px 16px 4px; padding: 4px 12px; font-weight: 700; box-shadow: 0 2px 0 var(--lav-2); }
 .meter { display: flex; gap: 2px; font-size: 15px; letter-spacing: -1px; }
 .meter i { font-style: normal; filter: grayscale(1); opacity: .25; }
 .meter i.full { filter: none; opacity: 1; }
 .tabs { display: flex; gap: 6px; margin: 12px 0 8px; flex-wrap: wrap; }
 .tabs button { border: 0; border-radius: 99px; padding: 5px 12px; background: var(--c3); color: var(--soft); font-weight: 700; cursor: pointer; }
-.tabs button.on { background: var(--c); color: #fff; }
-.tabs .badge { display: inline-grid; place-items: center; min-width: 18px; height: 18px; border-radius: 99px; background: var(--butter); color: #fff; font-size: 11px; margin-left: 4px; }
+.tabs button.on { background: var(--c); color: var(--on-accent); }
+.tabs .badge { display: inline-grid; place-items: center; min-width: 18px; height: 18px; border-radius: 99px; background: var(--butter); color: var(--on-accent); font-size: 11px; margin-left: 4px; }
 .msgs { display: flex; flex-direction: column; gap: 8px; }
 .msg { max-width: 86%; padding: 8px 13px; border-radius: 18px; white-space: pre-wrap; overflow-wrap: anywhere; }
-.msg.me { align-self: flex-end; background: var(--lav); color: #fff; border-bottom-right-radius: 4px; }
-.msg.her { align-self: flex-start; background: #fff; border: 2px solid var(--lav-2); border-bottom-left-radius: 4px; }
+.msg.me { align-self: flex-end; background: var(--lav); color: var(--on-accent); border-bottom-right-radius: 4px; }
+.msg.her { align-self: flex-start; background: var(--surface); border: 2px solid var(--lav-2); border-bottom-left-radius: 4px; }
 .msg.wait { opacity: .6; font-style: italic; }
 .thought { display: grid; grid-template-columns: 26px 1fr; gap: 8px; align-items: start; }
 .thought .ic { font-size: 18px; text-align: center; }
@@ -171,7 +179,7 @@ main {
 .pos { display: grid; grid-template-columns: 1fr auto; gap: 4px 10px; align-items: center; }
 .pct { font: 800 18px var(--bubble); }
 
-#toast { position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%); z-index: 9; background: var(--ink); color: #fff; padding: 8px 16px; border-radius: 99px; font-weight: 700; opacity: 0; transition: opacity .3s; pointer-events: none; max-width: 90vw; }
+#toast { position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%); z-index: 9; background: var(--ink); color: var(--surface); padding: 8px 16px; border-radius: 99px; font-weight: 700; opacity: 0; transition: opacity .3s; pointer-events: none; max-width: 90vw; }
 #toast.show { opacity: 1; }
 </style>
 </head>
@@ -186,6 +194,7 @@ main {
   <span class="logo" title="personal agentic core system">P.A.C.S</span>
   <select class="pill" id="persona" title="who's home"></select>
   <button class="pill" id="forgeBtn" title="forge a new persona">✚ forge</button>
+  <button class="pill" id="setupBtn" title="setup and checklist">⚙ setup</button>
   <span class="pill" id="brain" style="cursor:default">brain</span>
   <span class="spacer"></span>
   <div class="group"><span class="label">vibe check</span><span id="dial" class="group"></span></div>
@@ -262,7 +271,7 @@ const typingIn = id => document.activeElement && document.activeElement !== docu
 // ---------- header ----------
 function header() {
   $('heart').className = `heart ${S.busy ? 'thinking' : ''}`
-  $('brain').textContent = S.brain === 'cli' ? '🧠 claude -p' : S.brain === 'api' ? '🧠 api' : `🧠 ${S.brain}`
+  $('brain').textContent = S.brain === 'cli' ? '🧠 claude -p' : S.brain === 'api' ? '🧠 api' : S.brain === 'none' ? '🧠 no brain yet' : `🧠 ${S.brain}`
   const c = S.organs.conscience.view
   $('dial').replaceChildren(...[['auto', '🌸 auto'], ['review', '👀 review'], ['paused', '💤 paused']].map(([d, label]) =>
     h('button', { class: `pill ${c.dial === d ? `on ${d}` : ''}`, title: d === 'auto' ? 'rules + reviewer decide; flagged things wait for you' : d === 'review' ? 'everything waits for you' : 'nothing leaves the body',
@@ -670,7 +679,7 @@ function keep(id, build) {
   box.scrollTop = top
 }
 
-// ---------- forge: P.A.C.S ships blank; the first persona is written here ----------
+// ---------- setup: P.A.C.S ships blank. brain → persona (forge) → colors → checklist ----------
 const FORGE_QS = [
   ['name', 'name & X handle', 'e.g. Icarus, @IcarusSunCult'],
   ['what', 'what are they?', 'an AI agent sent back in time, a cat who trades, a retired oracle…'],
@@ -681,41 +690,145 @@ const FORGE_QS = [
   ['project', 'a coin or project they carry?', 'name, chain, contract; or leave empty'],
   ['follows', 'accounts they watch closely', 'x handles, space separated'],
 ]
-/** Built once per opening: the 15s refresh must never wipe half-typed answers. */
-let forgeOpen = false, forgeBuilt = false
-function forge() {
-  const box = $('forge'), blank = !S.organs.identity.view.active
-  box.hidden = !(blank || forgeOpen)
-  if (box.hidden) { forgeBuilt = false; return }
-  if (forgeBuilt) return
-  forgeBuilt = true
-  box.replaceChildren(h('form', { class: 'box', onsubmit: async e => {
+const THEME_VARS = { bg: '--bg', surface: '--surface', ink: '--ink', soft: '--soft', faint: '--faint', onAccent: '--on-accent',
+  pink: '--pink', lav: '--lav', mint: '--mint', butter: '--butter', red: '--red', green: '--green', display: '--display' }
+/** Paints the page in a theme: only the base colors; every tint derives from them in CSS. */
+function applyTheme(t) {
+  if (!t) return
+  const root = document.documentElement.style
+  for (const [k, v] of Object.entries(THEME_VARS)) if (t[k]) root.setProperty(v, t[k])
+  document.documentElement.style.colorScheme = t.dark ? 'dark' : 'light'
+}
+
+/** Which screen, if any. Inputs live on the brain and forge screens, so each is built once per visit. */
+let wizardWant = null, wizardBuilt = null, previewTheme = null
+function wizardScreen() {
+  const s = S.organs.setup.view, step = id => s.steps.find(x => x.id === id)
+  if (wizardWant) return wizardWant
+  if (!step('brain').ok) return 'brain'
+  if (!step('persona').ok) return 'forge'
+  if (!step('theme').ok) return 'theme'
+  if (!s.finished) return 'checklist'
+  return null
+}
+function setupHead(n, title, text) {
+  return [
+    h('div', { class: 'row between' }, h('div', { class: 'logo', style: 'font-size:30px' }, 'P.A.C.S'), h('span', { class: 'faint' }, n ? `step ${n} of 4` : '')),
+    h('div', { class: 'faint', style: 'margin-top:2px' }, 'personal agentic core system'),
+    h('h3', { style: 'margin:14px 0 4px' }, title),
+    text ? h('p', { style: 'margin:0 0 6px' }, text) : null,
+  ]
+}
+const close = () => { wizardWant = null; previewTheme = null; refresh() }
+
+function brainScreen() {
+  const s = S.organs.setup.view.steps.find(x => x.id === 'brain')
+  return h('form', { class: 'box', onsubmit: async e => {
+    e.preventDefault()
+    const f = e.target.elements, credential = f.cred.value.trim()
+    if (!credential) return toast('paste a key or a token first')
+    f.go.disabled = true; f.go.textContent = 'testing… ✍'
+    try {
+      const r = await api('setup/brain', { credential })
+      f.cred.value = ''
+      toast(`🧠 the brain answered · ${r.value.kind === 'api' ? 'Anthropic API' : 'claude -p'}`)
+      if (wizardWant === 'brain') wizardWant = null
+      wizardBuilt = null
+    } catch { f.go.disabled = false; f.go.textContent = 'test & use ✧' } finally { refresh() }
+  } },
+    setupHead(1, 'the brain', 'every thought this agent has runs on your Claude. paste one of these; it is tested with one tiny call before it is kept, and it never leaves this machine.'),
+    h('ul', { style: 'margin:6px 0 4px;padding-left:18px' },
+      h('li', {}, h('b', {}, 'Anthropic API key'), ' · sk-ant-api… · from console.anthropic.com, billed per use'),
+      h('li', {}, h('b', {}, 'Claude OAuth token'), ' · sk-ant-oat… · run ', h('code', {}, 'claude setup-token'), ' to use your Claude plan')),
+    s.ok ? h('div', { class: 'faint' }, `now: ${s.detail}`) : null,
+    h('label', {}, 'key or token ', h('small', {}, 'stored in data/secrets.json, never shown again (only its last 4)')),
+    h('input', { class: 'field', name: 'cred', type: 'password', autocomplete: 'off', spellcheck: 'false', style: 'width:100%', placeholder: 'sk-ant-…' }),
+    h('div', { class: 'row', style: 'justify-content:flex-end;margin-top:14px;gap:8px' },
+      wizardWant ? h('button', { class: 'btn ghost', type: 'button', onclick: close }, 'cancel') : null,
+      h('button', { class: 'btn', name: 'go' }, 'test & use ✧')))
+}
+
+function forgeScreen() {
+  const blank = !S.organs.identity.view.active
+  return h('form', { class: 'box', onsubmit: async e => {
     e.preventDefault()
     const f = e.target.elements
     const notes = FORGE_QS.map(([k, label]) => f[k].value.trim() && `${label}: ${f[k].value.trim()}`).filter(Boolean).join('\n')
     if (notes.length < 20) return toast('tell me a little more first ♡')
     f.go.disabled = true; f.go.textContent = 'forging… ✍ (about a minute)'
     try {
-      const r = await api('identity/forge', { notes })
-      const p = r.value
+      const p = (await api('identity/forge', { notes })).value
       toast(`✿ ${p.name} is awake${p.topicsProblems?.length ? ` (topics: ${p.topicsProblems[0]})` : ''}`)
-      forgeOpen = false
+      if (wizardWant === 'forge') wizardWant = null
+      wizardBuilt = null
     } catch { f.go.disabled = false; f.go.textContent = 'forge ✧' } finally { refresh() }
   } },
-    h('div', { class: 'logo', style: 'font-size:30px' }, 'P.A.C.S'),
-    h('div', { class: 'faint', style: 'margin-top:4px' }, 'personal agentic core system'),
-    h('p', {}, blank
-      ? 'this body is empty. answer a few questions and the forge writes who lives here: voice, values, taboos, style and a posting catalog. you can edit everything after.'
-      : 'forge another persona. it becomes the active one; switch back from the menu up top.'),
+    setupHead(blank ? 2 : 0, blank ? 'who lives here?' : 'forge another persona', blank
+      ? 'answer a few questions and the forge writes who lives here: voice, values, taboos, style, how they write, and what they post about. you can edit everything after.'
+      : 'it becomes the active one; switch back from the menu up top.'),
     FORGE_QS.map(([k, label, hint]) => [h('label', {}, label, ' ', h('small', {}, hint)), h('textarea', { name: k, rows: k === 'story' || k === 'voice' ? 3 : 2 })]),
     h('div', { class: 'row', style: 'justify-content:flex-end;margin-top:14px;gap:8px' },
-      blank ? null : h('button', { class: 'btn ghost', type: 'button', onclick: () => { forgeOpen = false; forge() } }, 'cancel'),
-      h('button', { class: 'btn', name: 'go' }, 'forge ✧'))))
+      wizardWant ? h('button', { class: 'btn ghost', type: 'button', onclick: close }, 'cancel') : null,
+      h('button', { class: 'btn', name: 'go' }, 'forge ✧')))
 }
-$('forgeBtn').addEventListener('click', () => { forgeOpen = true; forge() })
+
+function themeScreen() {
+  const s = S.organs.setup.view, chosen = previewTheme ?? s.theme.id
+  const swatch = t => h('div', { style: 'display:flex;gap:3px;margin:6px 0' }, ['pink', 'lav', 'mint', 'butter'].map(k =>
+    h('span', { style: `width:18px;height:18px;border-radius:50%;background:${t[k]};border:2px solid ${t.surface}` })))
+  return h('div', { class: 'box' },
+    setupHead(3, 'their colors', `pick how ${S.organs.identity.view.active?.name ?? 'your agent'} looks, here and on the public window. tap one to preview it.`),
+    h('div', { style: 'display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:10px;margin-top:10px' },
+      s.themes.map(t => h('button', {
+        type: 'button', 'aria-pressed': chosen === t.id ? 'true' : 'false',
+        style: `text-align:left;cursor:pointer;border-radius:16px;padding:10px;background:${t.bg};color:${t.ink};border:3px solid ${chosen === t.id ? t.pink : t.surface}`,
+        onclick: () => { previewTheme = t.id; applyTheme(t); wizardBuilt = null; setupBox() },
+      }, h('b', { style: `font-family:${t.display},system-ui;font-size:16px` }, t.name), swatch(t), h('div', { style: `font-size:11.5px;color:${t.soft}` }, t.vibe)))),
+    h('div', { class: 'row', style: 'justify-content:flex-end;margin-top:14px;gap:8px' },
+      wizardWant ? h('button', { class: 'btn ghost', type: 'button', onclick: () => { applyTheme(s.theme); close() } }, 'cancel') : null,
+      h('button', { class: 'btn', onclick: async () => {
+        await act('setup', 'theme', { id: chosen })
+        if (wizardWant === 'theme') wizardWant = null
+        previewTheme = null; wizardBuilt = null
+      } }, `use ${s.themes.find(t => t.id === chosen)?.name ?? ''} ✧`)))
+}
+
+function checklistScreen() {
+  const s = S.organs.setup.view
+  const row = st => h('div', { class: 'card', style: 'margin-top:8px' },
+    h('div', { class: 'row between' },
+      h('b', {}, `${st.ok ? '✅' : st.required ? '❌' : '➖'} ${st.label}`, st.required ? '' : h('span', { class: 'faint', style: 'font-weight:400' }, ' · optional')),
+      st.testable ? h('button', { class: 'btn ghost small', onclick: async e => {
+        e.target.disabled = true; e.target.textContent = 'testing…'
+        try { const r = (await api('setup/test', { step: st.id })).value; toast(`${r.ok ? '✓' : '✕'} ${st.label}: ${r.detail}`) } finally { wizardBuilt = null; refresh() }
+      } }, 'test') : null),
+    h('div', { class: 'faint' }, st.detail),
+    st.last ? h('div', { class: st.last.ok ? 'up' : 'down', style: 'font-size:12.5px' }, `${st.last.ok ? '✓' : '✕'} ${st.last.detail} · ${ago(st.last.at)}`) : null,
+    !st.ok || st.id === 'brain' ? h('div', { style: 'font-size:12.5px;margin-top:2px' }, st.how) : null,
+    st.id === 'brain' ? h('button', { class: 'btn ghost small', style: 'margin-top:6px', onclick: () => { wizardWant = 'brain'; wizardBuilt = null; setupBox() } }, 'change brain') : null,
+    st.id === 'theme' ? h('button', { class: 'btn ghost small', style: 'margin-top:6px', onclick: () => { wizardWant = 'theme'; wizardBuilt = null; setupBox() } }, 'change colors') : null)
+  return h('div', { class: 'box' },
+    setupHead(4, 'the checklist', 'everything else is optional and starts on paper. each test only reads: nothing is posted, traded or sent.'),
+    s.steps.map(row),
+    h('div', { class: 'row', style: 'justify-content:flex-end;margin-top:14px;gap:8px' },
+      h('button', { class: 'btn', onclick: async () => { await act('setup', 'finish', {}); wizardWant = null; wizardBuilt = null } }, s.finished ? 'close' : 'wake up ✧')))
+}
+
+function setupBox() {
+  const box = $('forge'), screen = wizardScreen()
+  box.hidden = !screen
+  if (!screen) { wizardBuilt = null; return }
+  // The checklist has no inputs: it may redraw with fresh test results. The others are built once per visit.
+  if (wizardBuilt === screen && screen !== 'checklist') return
+  if (screen === 'checklist' && box.contains(document.activeElement) && document.activeElement.tagName === 'BUTTON' && document.activeElement.disabled) return
+  wizardBuilt = screen
+  box.replaceChildren(({ brain: brainScreen, forge: forgeScreen, theme: themeScreen, checklist: checklistScreen })[screen]())
+}
+$('forgeBtn').addEventListener('click', () => { wizardWant = 'forge'; wizardBuilt = null; setupBox() })
+$('setupBtn').addEventListener('click', () => { wizardWant = 'checklist'; wizardBuilt = null; setupBox() })
 
 // ---------- plumbing ----------
-function render() { if (!S) return; header(); p1(); p2(); p3(); p4(); forge() }
+function render() { if (!S) return; if (!previewTheme) applyTheme(S.organs.setup.view.theme); header(); p1(); p2(); p3(); p4(); setupBox() }
 let pend
 function refresh() { clearTimeout(pend); pend = setTimeout(async () => { try { S = await api('state'); render() } catch {} }, 150) }
 function listen() {

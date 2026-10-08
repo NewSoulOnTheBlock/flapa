@@ -1,7 +1,7 @@
 // P.A.C.S: grow the organs, wake the body, open the skin.
 import { join, resolve } from 'node:path'
 import { Body } from './core/body'
-import { pickBrain } from './core/brain'
+import { pickBrain, SwitchBrain } from './core/brain'
 import { startLive } from './core/live'
 import { startPublishing } from './core/publish'
 import { mem0FromEnv } from './lib/mem0'
@@ -15,6 +15,7 @@ import { conscience } from './organs/conscience'
 import { eyes } from './organs/eyes'
 import { hands, nodeHelper } from './organs/hands'
 import { scout } from './organs/scout'
+import { readSecrets, setup } from './organs/setup'
 import { identity } from './organs/identity'
 import { memory } from './organs/memory'
 import { voice } from './organs/voice'
@@ -23,8 +24,12 @@ const root = resolve(import.meta.dir, '..')
 const home = resolve(process.env.FLAPA_HOME || join(root, 'data'))
 const seeded = applySeed(home, process.env.FLAPA_SEED)
 if (seeded.length) console.log(`[pacs] seeded ${seeded.length} state files into ${home}`)
-const body = new Body({ home, brain: pickBrain() })
+// The brain is whatever credential the person gave at setup (or the environment's); until then, none.
+const brain = new SwitchBrain(pickBrain(readSecrets(home)))
+const body = new Body({ home, brain })
 const fomo = fomoApiFromEnv(process.env)
+const mem0 = mem0FromEnv(process.env)
+const helper = nodeHelper(root)
 
 // Order is prompt order: who you are first (cached), then the slow-changing, then the moment.
 body.grow(
@@ -34,11 +39,12 @@ body.grow(
   beliefs(body),
   agenda(body),
   affect(body),
-  memory(body, { mem0: mem0FromEnv(process.env) }),
+  memory(body, { mem0 }),
   eyes(body, fetch, { api: fomo }),
   voice(body, { catalogDir: join(home, 'personas') }),
-  hands(body, nodeHelper(root)),
+  hands(body, helper),
   scout(body, { api: fomo }),
+  setup(body, { brain, helper, fomo, mem0 }),
 )
 
 body.bus.listen(s => {
